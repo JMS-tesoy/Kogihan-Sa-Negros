@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
+
 void main() {
   runApp(const RealEstateApp());
 }
@@ -9,17 +11,32 @@ class RealEstateApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Land Finder',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-      ),
-      home: const HomePage(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: appThemeNotifier,
+      builder: (context, currentMode, child) {
+        return MaterialApp(
+          title: 'Land Finder',
+          debugShowCheckedModeBanner: false,
+          themeMode: currentMode,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2E7D32),
+              brightness: Brightness.light,
+            ),
+            scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2E7D32),
+              brightness: Brightness.dark,
+            ),
+            scaffoldBackgroundColor: const Color(0xFF121212),
+          ),
+          home: const HomePage(),
+        );
+      },
     );
   }
 }
@@ -423,9 +440,9 @@ class ProfileTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Real Estate Buyer Profile',
-              style: TextStyle(color: Colors.black54),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 30),
             Card(
@@ -475,8 +492,15 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
-  bool _darkModeEnabled = false;
   bool _locationEnabled = true;
+  late bool _darkModeEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the toggle switch based on the current app theme state
+    _darkModeEnabled = appThemeNotifier.value == ThemeMode.dark;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -504,6 +528,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged: (value) {
               setState(() {
                 _darkModeEnabled = value;
+                appThemeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
               });
             },
           ),
@@ -550,14 +575,13 @@ class TopHeader extends StatelessWidget {
                 'Kogihan Sa Negros',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1B1E28),
                     ),
               ),
               const SizedBox(height: 6),
               Text(
                 'Explore premium lots and investment-ready properties.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
               ),
             ],
@@ -567,7 +591,7 @@ class TopHeader extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(16),
             boxShadow: const [
               BoxShadow(
@@ -619,7 +643,7 @@ class SearchSection extends StatelessWidget {
             hintText: 'Search by city, barangay, or price',
             prefixIcon: const Icon(Icons.search),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: Theme.of(context).cardColor,
             contentPadding: const EdgeInsets.symmetric(vertical: 18),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
@@ -698,7 +722,7 @@ class FilterDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: DropdownButtonFormField<String>(
@@ -744,7 +768,6 @@ class SectionHeader extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1B1E28),
                 ),
           ),
         ),
@@ -771,9 +794,11 @@ class PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
@@ -857,13 +882,13 @@ class PropertyCard extends StatelessWidget {
                   child: Container(
                     width: 42,
                     height: 42,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isSaved ? Icons.favorite : Icons.favorite_border_rounded,
-                      color: isSaved ? Colors.red : null,
+                      color: isSaved ? Colors.red : Theme.of(context).iconTheme.color,
                     ),
                   ),
                 ),
@@ -879,22 +904,21 @@ class PropertyCard extends StatelessWidget {
                   property.title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1B1E28),
                       ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
                       size: 18,
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         property.location,
-                        style: const TextStyle(color: Colors.black54),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
                   ],
@@ -917,7 +941,7 @@ class PropertyCard extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEAF6EC),
+                        color: isDark ? const Color(0xFF1E3A23) : const Color(0xFFEAF6EC),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -944,8 +968,8 @@ class PropertyCard extends StatelessWidget {
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFF1B1E28),
-                      foregroundColor: Colors.white,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -1032,9 +1056,10 @@ class PropertyDetailsPage extends StatelessWidget {
                       ),
                       IconButton(
                         onPressed: () {},
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.favorite_border_rounded,
                           size: 28,
+                          color: Theme.of(context).iconTheme.color,
                         ),
                       ),
                     ],
@@ -1044,19 +1069,18 @@ class PropertyDetailsPage extends StatelessWidget {
                     property.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1B1E28),
                         ),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, color: Colors.black54),
+                      Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
                       Text(
                         property.location,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          color: Colors.black54,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1068,7 +1092,7 @@ class PropertyDetailsPage extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Price', style: TextStyle(color: Colors.black54)),
+                          Text('Price', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
                           Text(
                             property.price,
@@ -1083,14 +1107,13 @@ class PropertyDetailsPage extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text('Lot Size', style: TextStyle(color: Colors.black54)),
+                          Text('Lot Size', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
                           Text(
                             property.size,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1B1E28),
                             ),
                           ),
                         ],
@@ -1106,11 +1129,11 @@ class PropertyDetailsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     'This is a premium property located in the heart of the region. Perfect for investment or building your dream home, it offers great accessibility and scenic surroundings. Contact an agent for an exact lot plan and title verification.',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                       height: 1.6,
                     ),
                   ),
@@ -1131,8 +1154,8 @@ class PropertyDetailsPage extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 18),
-              backgroundColor: const Color(0xFF1B1E28),
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1159,7 +1182,7 @@ class EmptyState extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Column(
