@@ -75,15 +75,15 @@ class _HomePageState extends State<HomePage> {
 
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  String _selectedLocation = 'All';
-  String _selectedLotSize = 'All';
-  String _selectedBudget = 'All';
+  String? _selectedLocation;
+  String? _selectedLotSize;
+  String? _selectedBudget;
   final Set<Property> _savedProperties = {};
 
   final List<Property> _allProperties = const [
     Property(
       title: 'Prime Residential Lot',
-      location: 'Cagayan de Oro City',
+      location: 'Dumaguete City',
       price: '₱1,200,000',
       priceValue: 1200000,
       size: '500 sqm',
@@ -93,7 +93,7 @@ class _HomePageState extends State<HomePage> {
     ),
     Property(
       title: 'Mountain View Land',
-      location: 'Bukidnon',
+      location: 'Valencia',
       price: '₱2,450,000',
       priceValue: 2450000,
       size: '1,200 sqm',
@@ -103,7 +103,7 @@ class _HomePageState extends State<HomePage> {
     ),
     Property(
       title: 'Farm Lot Investment',
-      location: 'Malaybalay',
+      location: 'Bais City',
       price: '₱3,100,000',
       priceValue: 3100000,
       size: '2,000 sqm',
@@ -113,7 +113,7 @@ class _HomePageState extends State<HomePage> {
     ),
     Property(
       title: 'Highway Frontage Lot',
-      location: 'Misamis Oriental',
+      location: 'Sibulan',
       price: '₱4,800,000',
       priceValue: 4800000,
       size: '1,500 sqm',
@@ -123,7 +123,7 @@ class _HomePageState extends State<HomePage> {
     ),
     Property(
       title: 'Affordable Starter Lot',
-      location: 'Cagayan de Oro City',
+      location: 'Bayawan City',
       price: '₱900,000',
       priceValue: 900000,
       size: '300 sqm',
@@ -146,11 +146,11 @@ class _HomePageState extends State<HomePage> {
           property.location.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           property.price.toLowerCase().contains(_searchQuery.toLowerCase());
 
-      final bool matchesLocation = _selectedLocation == 'All' ||
+      final bool matchesLocation = _selectedLocation == null ||
           property.location == _selectedLocation;
 
       final bool matchesLotSize = switch (_selectedLotSize) {
-        'All' => true,
+        null => true,
         'Below 500 sqm' => property.sizeValue < 500,
         '500 - 1000 sqm' =>
           property.sizeValue >= 500 && property.sizeValue <= 1000,
@@ -159,7 +159,7 @@ class _HomePageState extends State<HomePage> {
       };
 
       final bool matchesBudget = switch (_selectedBudget) {
-        'All' => true,
+        null => true,
         'Below ₱1M' => property.priceValue < 1000000,
         '₱1M - ₱3M' =>
           property.priceValue >= 1000000 && property.priceValue <= 3000000,
@@ -175,9 +175,9 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _searchQuery = '';
       _searchController.clear();
-      _selectedLocation = 'All';
-      _selectedLotSize = 'All';
-      _selectedBudget = 'All';
+      _selectedLocation = null;
+      _selectedLotSize = null;
+      _selectedBudget = null;
     });
   }
 
@@ -207,17 +207,17 @@ class _HomePageState extends State<HomePage> {
         selectedBudget: _selectedBudget,
         onLocationChanged: (value) {
           setState(() {
-            _selectedLocation = value!;
+            _selectedLocation = value;
           });
         },
         onLotSizeChanged: (value) {
           setState(() {
-            _selectedLotSize = value!;
+            _selectedLotSize = value;
           });
         },
         onBudgetChanged: (value) {
           setState(() {
-            _selectedBudget = value!;
+            _selectedBudget = value;
           });
         },
         onResetFilters: _resetFilters,
@@ -226,6 +226,7 @@ class _HomePageState extends State<HomePage> {
       SavedTab(
         savedProperties: _savedProperties.toList(),
       ),
+      const MessagesTab(),
       const ProfileTab(),
     ];
 
@@ -255,6 +256,11 @@ class _HomePageState extends State<HomePage> {
             label: 'Saved',
           ),
           NavigationDestination(
+            icon: Icon(Icons.mail_outline),
+            selectedIcon: Icon(Icons.mail),
+            label: 'Inbox',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Profile',
@@ -271,9 +277,9 @@ class HomeTab extends StatelessWidget {
   final ValueChanged<Property> onToggleSave;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
-  final String selectedLocation;
-  final String selectedLotSize;
-  final String selectedBudget;
+  final String? selectedLocation;
+  final String? selectedLotSize;
+  final String? selectedBudget;
   final ValueChanged<String?> onLocationChanged;
   final ValueChanged<String?> onLotSizeChanged;
   final ValueChanged<String?> onBudgetChanged;
@@ -411,6 +417,141 @@ class SavedTab extends StatelessWidget {
   }
 }
 
+class MessagesTab extends StatelessWidget {
+  const MessagesTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Inbox',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView(
+                children: [
+                  _buildMessageTile(
+                    context,
+                    'Juan Dela Cruz',
+                    'Hi, are you still interested in the Mountain View Land?',
+                    '10:30 AM',
+                    true,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMessageTile(
+                    context,
+                    'Maria Santos',
+                    'The documents for the Prime Residential Lot are ready.',
+                    'Yesterday',
+                    false,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMessageTile(
+                    context,
+                    'System',
+                    'Welcome to Kogihan Sa Negros! Explore our premium properties.',
+                    'Oct 12',
+                    false,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageTile(
+    BuildContext context,
+    String sender,
+    String snippet,
+    String time,
+    bool isUnread,
+  ) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: Text(sender[0]),
+        ),
+        title: Text(
+          sender,
+          style: TextStyle(
+            fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        subtitle: Text(
+          snippet,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
+            color: isUnread
+                ? Theme.of(context).colorScheme.onSurface
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              time,
+              style: TextStyle(
+                fontSize: 12,
+                color: isUnread
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            if (isUnread) ...[
+              const SizedBox(height: 4),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ]
+          ],
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatPage(
+                senderName: sender,
+                initialMessage: snippet,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -478,6 +619,149 @@ class ProfileTab extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class ChatMessage {
+  final String text;
+  final bool isMe;
+
+  ChatMessage({required this.text, required this.isMe});
+}
+
+class ChatPage extends StatefulWidget {
+  final String senderName;
+  final String initialMessage;
+
+  const ChatPage({
+    super.key,
+    required this.senderName,
+    required this.initialMessage,
+  });
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final TextEditingController _messageController = TextEditingController();
+  late List<ChatMessage> _messages;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = [
+      ChatMessage(text: widget.initialMessage, isMe: false),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  void _sendMessage() {
+    if (_messageController.text.trim().isNotEmpty) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            text: _messageController.text.trim(),
+            isMe: true,
+          ),
+        );
+        _messageController.clear();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+              child: Text(widget.senderName[0], style: const TextStyle(fontSize: 14)),
+            ),
+            const SizedBox(width: 12),
+            Text(widget.senderName, style: const TextStyle(fontSize: 18)),
+          ],
+        ),
+        titleSpacing: 0,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[index];
+                return Align(
+                  alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: msg.isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16).copyWith(
+                        bottomRight: msg.isMe ? const Radius.circular(0) : const Radius.circular(16),
+                        bottomLeft: !msg.isMe ? const Radius.circular(0) : const Radius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      msg.text,
+                      style: TextStyle(
+                        color: msg.isMe ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: 'Type a message...',
+                        filled: true,
+                        fillColor: Theme.of(context).cardColor,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: IconButton(
+                      icon: Icon(Icons.send_rounded, color: Theme.of(context).colorScheme.onPrimary),
+                      onPressed: _sendMessage,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -611,9 +895,9 @@ class TopHeader extends StatelessWidget {
 class SearchSection extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
-  final String selectedLocation;
-  final String selectedLotSize;
-  final String selectedBudget;
+  final String? selectedLocation;
+  final String? selectedLotSize;
+  final String? selectedBudget;
   final ValueChanged<String?> onLocationChanged;
   final ValueChanged<String?> onLotSizeChanged;
   final ValueChanged<String?> onBudgetChanged;
@@ -659,11 +943,11 @@ class SearchSection extends StatelessWidget {
                 label: 'Location',
                 value: selectedLocation,
                 items: const [
-                  'All',
-                  'Cagayan de Oro City',
-                  'Bukidnon',
-                  'Malaybalay',
-                  'Misamis Oriental',
+                  'Dumaguete City',
+                  'Valencia',
+                  'Bais City',
+                  'Sibulan',
+                  'Bayawan City',
                 ],
                 onChanged: onLocationChanged,
               ),
@@ -674,7 +958,6 @@ class SearchSection extends StatelessWidget {
                 label: 'Lot Size',
                 value: selectedLotSize,
                 items: const [
-                  'All',
                   'Below 500 sqm',
                   '500 - 1000 sqm',
                   'Above 1000 sqm',
@@ -688,7 +971,6 @@ class SearchSection extends StatelessWidget {
                 label: 'Budget',
                 value: selectedBudget,
                 items: const [
-                  'All',
                   'Below ₱1M',
                   '₱1M - ₱3M',
                   'Above ₱3M',
@@ -705,7 +987,7 @@ class SearchSection extends StatelessWidget {
 
 class FilterDropdown extends StatelessWidget {
   final String label;
-  final String value;
+  final String? value;
   final List<String> items;
   final ValueChanged<String?> onChanged;
 
@@ -1148,8 +1430,11 @@ class PropertyDetailsPage extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Contacting Agent...')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ContactAgentPage(property: property),
+                ),
               );
             },
             style: ElevatedButton.styleFrom(
@@ -1168,6 +1453,156 @@ class PropertyDetailsPage extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class ContactAgentPage extends StatefulWidget {
+  final Property property;
+
+  const ContactAgentPage({
+    super.key,
+    required this.property,
+  });
+
+  @override
+  State<ContactAgentPage> createState() => _ContactAgentPageState();
+}
+
+class _ContactAgentPageState extends State<ContactAgentPage> {
+  late TextEditingController _messageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController = TextEditingController(
+      text: 'Hi, I am interested in the ${widget.property.title} located at ${widget.property.location}. Please send me more details.',
+    );
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Contact Agent'),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Color(0xFF2E7D32),
+                  child: Icon(Icons.person, color: Colors.white, size: 36),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Juan Dela Cruz',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    Text(
+                      'Senior Real Estate Agent',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Your Details',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(context, 'Full Name', Icons.person_outline),
+            const SizedBox(height: 12),
+            _buildTextField(context, 'Email or Phone Number', Icons.contact_mail_outlined),
+            const SizedBox(height: 24),
+            Text(
+              'Message',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _messageController,
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: 'Enter your message',
+                filled: true,
+                fillColor: Theme.of(context).cardColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  // Mock send action: Close page and show success snackbar
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Message sent to agent successfully!')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  'Send Message',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(BuildContext context, String hint, IconData icon) {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: Theme.of(context).cardColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
       ),
     );
