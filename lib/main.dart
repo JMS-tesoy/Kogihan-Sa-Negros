@@ -448,10 +448,88 @@ class ProfileTab extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Settings'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsPage(),
+                    ),
+                  );
+                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _notificationsEnabled = true;
+  bool _darkModeEnabled = false;
+  bool _locationEnabled = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        centerTitle: true,
+      ),
+      body: ListView(
+        children: [
+          SwitchListTile(
+            title: const Text('Push Notifications'),
+            subtitle: const Text('Receive alerts for new properties'),
+            value: _notificationsEnabled,
+            onChanged: (value) {
+              setState(() {
+                _notificationsEnabled = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Dark Mode'),
+            subtitle: const Text('Switch to a darker theme'),
+            value: _darkModeEnabled,
+            onChanged: (value) {
+              setState(() {
+                _darkModeEnabled = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Location Services'),
+            subtitle: const Text('Allow app to access your location'),
+            value: _locationEnabled,
+            onChanged: (value) {
+              setState(() {
+                _locationEnabled = value;
+              });
+            },
+          ),
+          const Divider(),
+          ListTile(
+            title: const Text('About'),
+            leading: const Icon(Icons.info_outline),
+            onTap: () {},
+          ),
+          ListTile(
+            title: const Text('Log Out'),
+            leading: const Icon(Icons.logout, color: Colors.red),
+            textColor: Colors.red,
+            onTap: () {},
+          ),
+        ],
       ),
     );
   }
