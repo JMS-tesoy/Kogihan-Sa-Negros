@@ -531,11 +531,26 @@ class MessagesTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Inbox',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Inbox',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const BuyerChecklistPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.checklist),
+                  label: const Text('Checklist'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -652,6 +667,71 @@ class MessagesTab extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class BuyerChecklistPage extends StatefulWidget {
+  const BuyerChecklistPage({super.key});
+
+  @override
+  State<BuyerChecklistPage> createState() => _BuyerChecklistPageState();
+}
+
+class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
+  // Step 1: Initializing the first two categories
+  final Map<String, Map<String, bool>> _checklist = {
+    'About the land itself': {
+      'What is the exact lot size?': false,
+      'What is the shape of the property?': false,
+      'Is the terrain flat, sloped, rocky, or flood-prone?': false,
+      'What is the actual road access?': false,
+      'Is it along a main road or interior road?': false,
+      'Is the boundary clear and surveyed?': false,
+      'Are the markers visible on site?': false,
+      'What is the current use of the land?': false,
+    },
+    'About title and ownership': {
+      'Is the title clean?': false,
+      'Is it under one owner only?': false,
+      'Is the title transferred already to the current owner?': false,
+      'Are there any liens, mortgage, encumbrances, or adverse claims?': false,
+      'Are real property taxes updated?': false,
+      'Is there a tax declaration?': false,
+      'Is the lot covered by TCT, CCT, or other documents?': false,
+      'Are the documents ready for due diligence?': false,
+    },
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Buyer Checklist'),
+        centerTitle: true,
+      ),
+      body: ListView(
+        children: _checklist.keys.map((category) {
+          return ExpansionTile(
+            title: Text(
+              category,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            children: _checklist[category]!.keys.map((question) {
+              return CheckboxListTile(
+                title: Text(question),
+                value: _checklist[category]![question],
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (bool? value) {
+                  setState(() {
+                    _checklist[category]![question] = value ?? false;
+                  });
+                },
+              );
+            }).toList(),
+          );
+        }).toList(),
       ),
     );
   }
