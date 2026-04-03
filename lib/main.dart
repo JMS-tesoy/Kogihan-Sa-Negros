@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
+final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 
 void main() {
   runApp(const RealEstateApp());
@@ -17,27 +18,40 @@ class RealEstateApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: appThemeNotifier,
       builder: (context, currentMode, child) {
-        return MaterialApp(
-          title: 'Land Finder',
-          debugShowCheckedModeBanner: false,
-          themeMode: currentMode,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF2E7D32),
-              brightness: Brightness.light,
-            ),
-            scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF2E7D32),
-              brightness: Brightness.dark,
-            ),
-            scaffoldBackgroundColor: const Color(0xFF121212),
-          ),
-          home: const HomePage(),
+        return ValueListenableBuilder<double>(
+          valueListenable: appFontScaleNotifier,
+          builder: (context, fontScale, child) {
+            return MaterialApp(
+              title: 'Land Finder',
+              debugShowCheckedModeBanner: false,
+              themeMode: currentMode,
+              builder: (context, child) {
+                return MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaleFactor: fontScale,
+                  ),
+                  child: child!,
+                );
+              },
+              theme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF2E7D32),
+                  brightness: Brightness.light,
+                ),
+                scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+              ),
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF2E7D32),
+                  brightness: Brightness.dark,
+                ),
+                scaffoldBackgroundColor: const Color(0xFF121212),
+              ),
+              home: const HomePage(),
+            );
+          },
         );
       },
     );
@@ -940,11 +954,13 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notifyNewProperties = true;
   bool _notifyPriceDrops = true;
   bool _notifyMessages = true;
+  double _currentFontSizeScale = 1.0; // Default font size scale
 
   @override
   void initState() {
     super.initState();
     _darkModeEnabled = appThemeNotifier.value == ThemeMode.dark;
+    _currentFontSizeScale = appFontScaleNotifier.value;
   }
 
   void _showCurrencyPicker() {
@@ -994,6 +1010,36 @@ class _SettingsPageState extends State<SettingsPage> {
                 _notificationsEnabled = value;
               });
             },
+          ),
+          // Font Sizing Feature
+          ListTile(
+            title: const Text('Font Size'),
+            subtitle: Text(
+                'Adjust text size for better readability (${_currentFontSizeScale.toStringAsFixed(1)}x)'),
+            leading: const Icon(Icons.format_size),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Slider(
+              value: _currentFontSizeScale,
+              min: 0.8,
+              max: 1.5,
+              divisions: 7, // Allows for 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5
+              label: _currentFontSizeScale.toStringAsFixed(1),
+              onChanged: (double value) {
+                setState(() {
+                  _currentFontSizeScale = value;
+                  appFontScaleNotifier.value = value;
+                });
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            child: Text(
+              'This is an example text. Adjust the slider above to see the font size change.',
+              textScaleFactor: _currentFontSizeScale,
+            ),
           ),
           if (_notificationsEnabled)
             Padding(
