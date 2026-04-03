@@ -1,22 +1,30 @@
 # Land Finder (Kogihan Sa Negros)
 
+![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=flat&logo=Flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-%230175C2.svg?style=flat&logo=dart&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)
+
 ## Project Overview
 
 Land Finder is a Flutter-based mobile application prototype designed to help users browse, filter, and save real estate property listings. The app focuses on properties in the Negros region (Philippines), providing a localized experience with features like search, filtering by location, lot size, and budget, and a personal saved properties list.
 
+## Screenshots
+
+> *[Add screenshots or GIFs of your app here to demonstrate the UI/UX]*
+
 ## Features Implemented
 
-- **Property Listing**: Displays a list of mock property listings.
-- **Search Functionality**: Users can search properties by title, location, or price.
-- **Filtering**: Filter properties by:
-    - Location (e.g., Cagayan de Oro City, Bukidnon)
-    - Lot Size (e.g., Below 500 sqm, 500 - 1000 sqm, Above 1000 sqm)
-    - Budget (e.g., Below ₱1M, ₱1M - ₱3M, Above ₱3M)
-- **Property Details**: View detailed information for each property.
-- **Save/Unsave Properties**: Users can mark properties as favorites, which are then listed in the "Saved" tab.
-- **Profile Tab**: A placeholder for user profile information and settings.
-- **Settings Page**: Basic settings with toggle switches for notifications, dark mode (currently not functional), and location services.
-- **Responsive UI**: Designed with Flutter's Material Design principles for a consistent look and feel.
+- 🏠 **Property Listing**: Displays a list of mock property listings.
+- 🔍 **Search Functionality**: Users can search properties by title, location, or price.
+- 🎛️ **Filtering**: Filter properties by:
+  - Location (e.g., Cagayan de Oro City, Bukidnon)
+  - Lot Size (e.g., Below 500 sqm, 500 - 1000 sqm, Above 1000 sqm)
+  - Budget (e.g., Below ₱1M, ₱1M - ₱3M, Above ₱3M)
+- ℹ️ **Property Details**: View detailed information for each property.
+- ❤️ **Save/Unsave Properties**: Users can mark properties as favorites, which are then listed in the "Saved" tab.
+- 👤 **Profile Tab**: A placeholder for user profile information and settings.
+- ⚙️ **Settings Page**: Basic settings with toggle switches for notifications, dark mode (currently not functional), and location services.
+- 📱 **Responsive UI**: Designed with Flutter's Material Design principles for a consistent look and feel.
 
 ## Getting Started
 
@@ -64,8 +72,7 @@ This command will compile the app and launch it. It also enables hot reload, all
 
 ### Specific Commands
 
-- **Run on a specific device:**
-  First, list available devices:
+- **List available devices:**
   ```bash
   flutter devices
   ```
