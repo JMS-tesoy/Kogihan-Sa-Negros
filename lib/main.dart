@@ -2,11 +2,19 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'YOUR_SUPABASE_URL',
+    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+  );
+
   runApp(const RealEstateApp());
 }
 
@@ -49,7 +57,7 @@ class RealEstateApp extends StatelessWidget {
                 ),
                 scaffoldBackgroundColor: const Color(0xFF121212),
               ),
-              home: const HomePage(),
+            home: const LoginPage(),
             );
           },
         );
@@ -544,7 +552,8 @@ class MessagesTab extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const BuyerChecklistPage()),
+                      MaterialPageRoute(
+                          builder: (context) => const BuyerChecklistPage()),
                     );
                   },
                   icon: const Icon(Icons.checklist),
@@ -1261,7 +1270,136 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Log Out'),
             leading: const Icon(Icons.logout, color: Colors.red),
             textColor: Colors.red,
-            onTap: () {},
+          onTap: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const LoginPage()),
+              (route) => false,
+            );
+          },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LoginPage extends StatelessWidget {
+  const LoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.landscape_rounded, size: 80, color: Color(0xFF2E7D32)),
+              const SizedBox(height: 24),
+              Text(
+                'Welcome to Land Finder',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 48),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomePage()),
+                    );
+                  },
+                  icon: const Icon(Icons.person),
+                  label: const Text('Login as Buyer / Client'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminHomePage()),
+                    );
+                  },
+                  icon: const Icon(Icons.admin_panel_settings),
+                  label: const Text('Login as Agent / Admin'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AdminHomePage extends StatelessWidget {
+  const AdminHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Agent Dashboard'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+          )
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.add_home_work, color: Color(0xFF2E7D32)),
+              title: const Text('Add New Property'),
+              subtitle: const Text('Create a new listing'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.edit_note, color: Colors.orange),
+              title: const Text('Manage Properties'),
+              subtitle: const Text('Edit or delete existing listings'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.mail, color: Colors.blue),
+              title: const Text('Agent Inbox'),
+              subtitle: const Text('View inquiries from buyers'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
           ),
         ],
       ),
