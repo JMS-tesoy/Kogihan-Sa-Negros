@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 
@@ -80,6 +83,9 @@ class _HomePageState extends State<HomePage> {
   String? _selectedBudget;
   final Set<Property> _savedProperties = {};
 
+  String? _profileImagePath;
+  final ImagePicker _imagePicker = ImagePicker();
+
   final List<Property> _allProperties = const [
     Property(
       title: 'Prime Residential Lot',
@@ -139,6 +145,76 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  Future<void> _pickAvatarFromGallery() async {
+    final XFile? pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImagePath = pickedFile.path;
+      });
+    }
+  }
+
+  Future<void> _pickAvatarFromCamera() async {
+    final XFile? pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 80,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImagePath = pickedFile.path;
+      });
+    }
+  }
+
+  void _showAvatarOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAvatarFromGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Take a Photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAvatarFromCamera();
+                },
+              ),
+              if (_profileImagePath != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text(
+                    'Remove Avatar',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _profileImagePath = null;
+                    });
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   List<Property> get _filteredProperties {
     return _allProperties.where((property) {
       final bool matchesSearch = _searchQuery.isEmpty ||
@@ -146,8 +222,8 @@ class _HomePageState extends State<HomePage> {
           property.location.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           property.price.toLowerCase().contains(_searchQuery.toLowerCase());
 
-      final bool matchesLocation = _selectedLocation == null ||
-          property.location == _selectedLocation;
+      final bool matchesLocation =
+          _selectedLocation == null || property.location == _selectedLocation;
 
       final bool matchesLotSize = switch (_selectedLotSize) {
         null => true,
@@ -167,7 +243,10 @@ class _HomePageState extends State<HomePage> {
         _ => true,
       };
 
-      return matchesSearch && matchesLocation && matchesLotSize && matchesBudget;
+      return matchesSearch &&
+          matchesLocation &&
+          matchesLotSize &&
+          matchesBudget;
     }).toList();
   }
 
@@ -227,7 +306,10 @@ class _HomePageState extends State<HomePage> {
         savedProperties: _savedProperties.toList(),
       ),
       const MessagesTab(),
-      const ProfileTab(),
+      ProfileTab(
+        profileImagePath: _profileImagePath,
+        onAvatarTap: _showAvatarOptions,
+      ),
     ];
 
     return Scaffold(
@@ -386,29 +468,36 @@ class SavedTab extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.separated(
-                itemCount: savedProperties.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final property = savedProperties[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.favorite, color: Colors.red),
-                      title: Text(property.title),
-                      subtitle: Text(property.location),
-                      trailing: Text(property.price),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PropertyDetailsPage(property: property),
+              child: savedProperties.isEmpty
+                  ? const EmptyState()
+                  : ListView.separated(
+                      itemCount: savedProperties.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final property = savedProperties[index];
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.favorite,
+                              color: Colors.red,
+                            ),
+                            title: Text(property.title),
+                            subtitle: Text(property.location),
+                            trailing: Text(property.price),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PropertyDetailsPage(property: property),
+                                ),
+                              );
+                            },
                           ),
                         );
                       },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -481,12 +570,14 @@ class MessagesTab extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+          color:
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -553,7 +644,14 @@ class MessagesTab extends StatelessWidget {
 }
 
 class ProfileTab extends StatelessWidget {
-  const ProfileTab({super.key});
+  final String? profileImagePath;
+  final VoidCallback onAvatarTap;
+
+  const ProfileTab({
+    super.key,
+    required this.profileImagePath,
+    required this.onAvatarTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -563,14 +661,50 @@ class ProfileTab extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            const CircleAvatar(
-              radius: 48,
-              backgroundColor: Color(0xFF2E7D32),
-              child: Icon(
-                Icons.person,
-                size: 50,
-                color: Colors.white,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                GestureDetector(
+                  onTap: onAvatarTap,
+                  child: CircleAvatar(
+                    radius: 48,
+                    backgroundColor: const Color(0xFF2E7D32),
+                    backgroundImage: profileImagePath != null
+                        ? FileImage(File(profileImagePath!))
+                        : null,
+                    child: profileImagePath == null
+                        ? const Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                ),
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: GestureDetector(
+                    onTap: onAvatarTap,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E7D32),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.edit,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             const Text(
@@ -583,7 +717,9 @@ class ProfileTab extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Real Estate Buyer Profile',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 30),
             Card(
@@ -687,7 +823,10 @@ class _ChatPageState extends State<ChatPage> {
               radius: 16,
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-              child: Text(widget.senderName[0], style: const TextStyle(fontSize: 14)),
+              child: Text(
+                widget.senderName[0],
+                style: const TextStyle(fontSize: 14),
+              ),
             ),
             const SizedBox(width: 12),
             Text(widget.senderName, style: const TextStyle(fontSize: 18)),
@@ -704,21 +843,34 @@ class _ChatPageState extends State<ChatPage> {
               itemBuilder: (context, index) {
                 final msg = _messages[index];
                 return Align(
-                  alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: msg.isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: msg.isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).cardColor,
+                      color: msg.isMe
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16).copyWith(
-                        bottomRight: msg.isMe ? const Radius.circular(0) : const Radius.circular(16),
-                        bottomLeft: !msg.isMe ? const Radius.circular(0) : const Radius.circular(16),
+                        bottomRight: msg.isMe
+                            ? const Radius.circular(0)
+                            : const Radius.circular(16),
+                        bottomLeft: !msg.isMe
+                            ? const Radius.circular(0)
+                            : const Radius.circular(16),
                       ),
                     ),
                     child: Text(
                       msg.text,
                       style: TextStyle(
-                        color: msg.isMe ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface,
+                        color: msg.isMe
+                            ? Theme.of(context).colorScheme.onPrimary
+                            : Theme.of(context).colorScheme.onSurface,
                         fontSize: 16,
                       ),
                     ),
@@ -739,7 +891,10 @@ class _ChatPageState extends State<ChatPage> {
                         hintText: 'Type a message...',
                         filled: true,
                         fillColor: Theme.of(context).cardColor,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
@@ -753,7 +908,10 @@ class _ChatPageState extends State<ChatPage> {
                     radius: 24,
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     child: IconButton(
-                      icon: Icon(Icons.send_rounded, color: Theme.of(context).colorScheme.onPrimary),
+                      icon: Icon(
+                        Icons.send_rounded,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                       onPressed: _sendMessage,
                     ),
                   ),
@@ -782,7 +940,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize the toggle switch based on the current app theme state
     _darkModeEnabled = appThemeNotifier.value == ThemeMode.dark;
   }
 
@@ -812,7 +969,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged: (value) {
               setState(() {
                 _darkModeEnabled = value;
-                appThemeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
+                appThemeNotifier.value =
+                    value ? ThemeMode.dark : ThemeMode.light;
               });
             },
           ),
@@ -1008,7 +1166,7 @@ class FilterDropdown extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         isExpanded: true,
         onChanged: onChanged,
         decoration: InputDecoration(
@@ -1169,8 +1327,12 @@ class PropertyCard extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isSaved ? Icons.favorite : Icons.favorite_border_rounded,
-                      color: isSaved ? Colors.red : Theme.of(context).iconTheme.color,
+                      isSaved
+                          ? Icons.favorite
+                          : Icons.favorite_border_rounded,
+                      color: isSaved
+                          ? Colors.red
+                          : Theme.of(context).iconTheme.color,
                     ),
                   ),
                 ),
@@ -1200,7 +1362,10 @@ class PropertyCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         property.location,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -1223,7 +1388,9 @@ class PropertyCard extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E3A23) : const Color(0xFFEAF6EC),
+                        color: isDark
+                            ? const Color(0xFF1E3A23)
+                            : const Color(0xFFEAF6EC),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -1244,14 +1411,16 @@ class PropertyCard extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PropertyDetailsPage(property: property),
+                          builder: (context) =>
+                              PropertyDetailsPage(property: property),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -1356,13 +1525,17 @@ class PropertyDetailsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      Icon(
+                        Icons.location_on_outlined,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         property.location,
                         style: TextStyle(
                           fontSize: 16,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1374,7 +1547,14 @@ class PropertyDetailsPage extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Price', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          Text(
+                            'Price',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             property.price,
@@ -1389,11 +1569,18 @@ class PropertyDetailsPage extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('Lot Size', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          Text(
+                            'Lot Size',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             property.size,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1478,7 +1665,8 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
   void initState() {
     super.initState();
     _messageController = TextEditingController(
-      text: 'Hi, I am interested in the ${widget.property.title} located at ${widget.property.location}. Please send me more details.',
+      text:
+          'Hi, I am interested in the ${widget.property.title} located at ${widget.property.location}. Please send me more details.',
     );
   }
 
@@ -1537,7 +1725,11 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
             const SizedBox(height: 12),
             _buildTextField(context, 'Full Name', Icons.person_outline),
             const SizedBox(height: 12),
-            _buildTextField(context, 'Email or Phone Number', Icons.contact_mail_outlined),
+            _buildTextField(
+              context,
+              'Email or Phone Number',
+              Icons.contact_mail_outlined,
+            ),
             const SizedBox(height: 24),
             Text(
               'Message',
@@ -1564,10 +1756,11 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // Mock send action: Close page and show success snackbar
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Message sent to agent successfully!')),
+                    const SnackBar(
+                      content: Text('Message sent to agent successfully!'),
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
