@@ -936,11 +936,41 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
   bool _locationEnabled = true;
   late bool _darkModeEnabled;
+  String _selectedCurrency = 'Philippine Peso (₱)';
 
   @override
   void initState() {
     super.initState();
     _darkModeEnabled = appThemeNotifier.value == ThemeMode.dark;
+  }
+
+  void _showCurrencyPicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              'Philippine Peso (₱)',
+              r'US Dollar ($)',
+              'Euro (€)',
+            ].map((currency) {
+              return ListTile(
+                title: Text(currency),
+                trailing: _selectedCurrency == currency
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () {
+                  setState(() => _selectedCurrency = currency);
+                  Navigator.pop(context);
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -985,6 +1015,26 @@ class _SettingsPageState extends State<SettingsPage> {
             },
           ),
           const Divider(),
+          ListTile(
+            title: const Text('Language'),
+            subtitle: const Text('English (US)'),
+            leading: const Icon(Icons.language),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {},
+          ),
+          ListTile(
+            title: const Text('Currency'),
+            subtitle: Text(_selectedCurrency),
+            leading: const Icon(Icons.payments_outlined),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _showCurrencyPicker,
+          ),
+          const Divider(),
+          ListTile(
+            title: const Text('Help & Support'),
+            leading: const Icon(Icons.help_outline),
+            onTap: () {},
+          ),
           ListTile(
             title: const Text('About'),
             leading: const Icon(Icons.info_outline),
