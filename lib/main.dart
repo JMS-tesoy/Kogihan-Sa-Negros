@@ -937,6 +937,9 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _locationEnabled = true;
   late bool _darkModeEnabled;
   String _selectedCurrency = 'Philippine Peso (₱)';
+  bool _notifyNewProperties = true;
+  bool _notifyPriceDrops = true;
+  bool _notifyMessages = true;
 
   @override
   void initState() {
@@ -992,6 +995,38 @@ class _SettingsPageState extends State<SettingsPage> {
               });
             },
           ),
+          if (_notificationsEnabled)
+            Padding(
+              padding: const EdgeInsets.only(left: 32.0),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('New Property Alerts'),
+                    dense: true,
+                    value: _notifyNewProperties,
+                    onChanged: (value) {
+                      setState(() => _notifyNewProperties = value);
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Price Drops on Saved'),
+                    dense: true,
+                    value: _notifyPriceDrops,
+                    onChanged: (value) {
+                      setState(() => _notifyPriceDrops = value);
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Agent Messages'),
+                    dense: true,
+                    value: _notifyMessages,
+                    onChanged: (value) {
+                      setState(() => _notifyMessages = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
           SwitchListTile(
             title: const Text('Dark Mode'),
             subtitle: const Text('Switch to a darker theme'),
