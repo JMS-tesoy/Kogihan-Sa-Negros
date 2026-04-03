@@ -680,7 +680,7 @@ class BuyerChecklistPage extends StatefulWidget {
 }
 
 class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
-  // Step 1: Initializing the first two categories
+  // Complete checklist categories
   final Map<String, Map<String, bool>> _checklist = {
     'About the land itself': {
       'What is the exact lot size?': false,
@@ -701,6 +701,62 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
       'Is there a tax declaration?': false,
       'Is the lot covered by TCT, CCT, or other documents?': false,
       'Are the documents ready for due diligence?': false,
+    },
+    'About legal and zoning': {
+      'Is this land residential, commercial, agricultural, or industrial?': false,
+      'Can I legally build a house, warehouse, resort, or business here?': false,
+      'Is it inside a protected area, easement, or right-of-way?': false,
+      'Are there zoning restrictions?': false,
+      'Are there setback requirements?': false,
+      'Is it allowed for foreigners through a corporation or other legal structure?': false,
+    },
+    'About utilities and development': {
+      'Is there electricity already nearby?': false,
+      'Is there water supply?': false,
+      'Is internet signal strong?': false,
+      'Is drainage available?': false,
+      'Is the road concrete or rough road?': false,
+      'Are there nearby developments already?': false,
+      'How far is it from schools, hospitals, markets, airport, or city center?': false,
+    },
+    'About price and payment': {
+      'What is the total price?': false,
+      'What is the price per square meter?': false,
+      'Is the price negotiable?': false,
+      'What is included in the price?': false,
+      'Who will pay for CGT, DST, transfer tax, registration, notary, and broker fees?': false,
+      'Is installment allowed?': false,
+      'What is the reservation fee?': false,
+      'Are there hidden costs after purchase?': false,
+    },
+    'About safety and risk': {
+      'Is the area flood-prone?': false,
+      'Is there a history of landslide?': false,
+      'Are there squatters, tenants, or occupants?': false,
+      'Are there boundary disputes?': false,
+      'Is the property under inheritance dispute?': false,
+      'Is the area peaceful and safe?': false,
+      'Are there future road projects that may affect the land?': false,
+      'Is there any issue with access through another property?': false,
+    },
+    'About investment value': {
+      'Why is the owner selling?': false,
+      'How long has it been on the market?': false,
+      'What makes this a good buy?': false,
+      'What are the future developments in the area?': false,
+      'What is the resale potential?': false,
+      'Is the area appreciating?': false,
+      'Is it good for flipping, farming, leasing, or long-term holding?': false,
+    },
+    'Questions buyers ask agents directly': {
+      'Can you send the exact location pin?': false,
+      'Can you send a copy of the title and tax declaration?': false,
+      'Can I schedule a site visit?': false,
+      'Can we verify the documents first before negotiating?': false,
+      'Is your listing exclusive or direct to owner?': false,
+      'How do you secure the transaction?': false,
+      'What is your commission arrangement?': false,
+      'Can you help with due diligence and transfer process?': false,
     },
   };
 
