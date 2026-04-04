@@ -7,11 +7,52 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
+import 'messaging_service.dart';
 import 'shared_properties.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
+
+String _messageInitial(String value) {
+  final String trimmed = value.trim();
+  if (trimmed.isEmpty) return '?';
+  return trimmed[0].toUpperCase();
+}
+
+String _formatMessageTime(DateTime? value) {
+  if (value == null) return '';
+
+  final DateTime localValue = value.toLocal();
+  final DateTime now = DateTime.now();
+  final Duration difference = now.difference(localValue);
+
+  if (difference.inDays == 0) {
+    final int hour = localValue.hour % 12 == 0 ? 12 : localValue.hour % 12;
+    final String minute = localValue.minute.toString().padLeft(2, '0');
+    final String suffix = localValue.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $suffix';
+  }
+
+  if (difference.inDays == 1) return 'Yesterday';
+
+  const List<String> months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[localValue.month - 1]} ${localValue.day}';
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -482,8 +523,64 @@ class SavedTab extends StatelessWidget {
   }
 }
 
-class MessagesTab extends StatelessWidget {
+class MessagesTab extends StatefulWidget {
   const MessagesTab({super.key});
+
+  @override
+  State<MessagesTab> createState() => _MessagesTabState();
+}
+
+class _MessagesTabState extends State<MessagesTab> {
+  bool _isLoading = true;
+  String? _errorText;
+  List<ConversationSummary> _conversations = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadConversations());
+  }
+
+  Future<void> _loadConversations({bool showLoader = true}) async {
+    if (showLoader && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorText = null;
+      });
+    }
+
+    try {
+      final List<ConversationSummary> conversations =
+          await MessagingService.fetchMyConversationSummaries();
+
+      if (!mounted) return;
+      setState(() {
+        _conversations = conversations;
+        _isLoading = false;
+        _errorText = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorText = 'Failed to load inbox.';
+      });
+    }
+  }
+
+  Future<void> _openConversation(ConversationSummary conversation) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          conversationId: conversation.id,
+          senderName: conversation.otherParticipantName,
+        ),
+      ),
+    );
+
+    await _loadConversations(showLoader: false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -507,7 +604,8 @@ class MessagesTab extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const BuyerChecklistPage()),
+                        builder: (context) => const BuyerChecklistPage(),
+                      ),
                     );
                   },
                   icon: const Icon(Icons.checklist),
@@ -517,32 +615,52 @@ class MessagesTab extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView(
-                children: [
-                  _buildMessageTile(
-                    context,
-                    'Juan Dela Cruz',
-                    'Hi, are you still interested in the Mountain View Land?',
-                    '10:30 AM',
-                    true,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMessageTile(
-                    context,
-                    'Maria Santos',
-                    'The documents for the Prime Residential Lot are ready.',
-                    'Yesterday',
-                    false,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMessageTile(
-                    context,
-                    'System',
-                    'Welcome to Kogihan Sa Negros! Explore our premium properties.',
-                    'Oct 12',
-                    false,
-                  ),
-                ],
+              child: RefreshIndicator(
+                onRefresh: () => _loadConversations(showLoader: false),
+                child: Builder(
+                  builder: (context) {
+                    if (_isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (_errorText != null) {
+                      return ListView(
+                        children: [
+                          const SizedBox(height: 120),
+                          Center(
+                            child: Text(
+                              _errorText!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    if (_conversations.isEmpty) {
+                      return ListView(
+                        children: const [
+                          SizedBox(height: 120),
+                          Center(
+                            child: Text('No messages yet.'),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return ListView.separated(
+                      itemCount: _conversations.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final ConversationSummary conversation =
+                            _conversations[index];
+                        return _buildMessageTile(context, conversation);
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -553,10 +671,7 @@ class MessagesTab extends StatelessWidget {
 
   Widget _buildMessageTile(
     BuildContext context,
-    String sender,
-    String snippet,
-    String time,
-    bool isUnread,
+    ConversationSummary conversation,
   ) {
     return Card(
       elevation: 0,
@@ -573,21 +688,25 @@ class MessagesTab extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-          child: Text(sender[0]),
+          child: Text(_messageInitial(conversation.otherParticipantName)),
         ),
         title: Text(
-          sender,
+          conversation.otherParticipantName,
           style: TextStyle(
-            fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+            fontWeight:
+                conversation.isUnread ? FontWeight.bold : FontWeight.normal,
           ),
         ),
         subtitle: Text(
-          snippet,
+          conversation.lastMessagePreview.isNotEmpty
+              ? conversation.lastMessagePreview
+              : 'No messages yet.',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
-            color: isUnread
+            fontWeight:
+                conversation.isUnread ? FontWeight.w600 : FontWeight.normal,
+            color: conversation.isUnread
                 ? Theme.of(context).colorScheme.onSurface
                 : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
@@ -597,16 +716,17 @@ class MessagesTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              time,
+              _formatMessageTime(conversation.lastMessageAt),
               style: TextStyle(
                 fontSize: 12,
-                color: isUnread
+                color: conversation.isUnread
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                fontWeight:
+                    conversation.isUnread ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            if (isUnread) ...[
+            if (conversation.isUnread) ...[
               const SizedBox(height: 4),
               Container(
                 width: 8,
@@ -619,17 +739,7 @@ class MessagesTab extends StatelessWidget {
             ]
           ],
         ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChatPage(
-                senderName: sender,
-                initialMessage: snippet,
-              ),
-            ),
-          );
-        },
+        onTap: () => _openConversation(conversation),
       ),
     );
   }
@@ -926,21 +1036,14 @@ class AccountPage extends StatelessWidget {
   }
 }
 
-class ChatMessage {
-  final String text;
-  final bool isMe;
-
-  ChatMessage({required this.text, required this.isMe});
-}
-
 class ChatPage extends StatefulWidget {
+  final String conversationId;
   final String senderName;
-  final String initialMessage;
 
   const ChatPage({
     super.key,
+    required this.conversationId,
     required this.senderName,
-    required this.initialMessage,
   });
 
   @override
@@ -949,14 +1052,18 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
-  late List<ChatMessage> _messages;
+  bool _isLoading = true;
+  bool _isSending = false;
+  String? _errorText;
+  List<ConversationMessage> _messages = const [];
+
+  String get _currentUserId =>
+      Supabase.instance.client.auth.currentUser?.id ?? '';
 
   @override
   void initState() {
     super.initState();
-    _messages = [
-      ChatMessage(text: widget.initialMessage, isMe: false),
-    ];
+    unawaited(_loadMessages());
   }
 
   @override
@@ -965,16 +1072,59 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
+  Future<void> _loadMessages({bool showLoader = true}) async {
+    if (showLoader && mounted) {
       setState(() {
-        _messages.add(
-          ChatMessage(
-            text: _messageController.text.trim(),
-            isMe: true,
-          ),
-        );
-        _messageController.clear();
+        _isLoading = true;
+        _errorText = null;
+      });
+    }
+
+    try {
+      await MessagingService.markConversationAsRead(widget.conversationId);
+      final List<ConversationMessage> messages =
+          await MessagingService.fetchConversationMessages(widget.conversationId);
+
+      if (!mounted) return;
+      setState(() {
+        _messages = messages;
+        _isLoading = false;
+        _errorText = null;
+        _isSending = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _isSending = false;
+        _errorText = 'Failed to load messages.';
+      });
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final String text = _messageController.text.trim();
+    if (text.isEmpty || _isSending) return;
+
+    setState(() {
+      _isSending = true;
+      _errorText = null;
+    });
+
+    _messageController.clear();
+
+    try {
+      await MessagingService.sendMessage(
+        conversationId: widget.conversationId,
+        body: text,
+      );
+      await _loadMessages(showLoader: false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+        _errorText = 'Failed to send message.';
+        _messageController.text = text;
       });
     }
   }
@@ -1003,48 +1153,77 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                return Align(
-                  alignment: msg.isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: msg.isMe
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(16).copyWith(
-                        bottomRight: msg.isMe
-                            ? const Radius.circular(0)
-                            : const Radius.circular(16),
-                        bottomLeft: !msg.isMe
-                            ? const Radius.circular(0)
-                            : const Radius.circular(16),
-                      ),
-                    ),
+            child: Builder(
+              builder: (context) {
+                if (_isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (_errorText != null && _messages.isEmpty) {
+                  return Center(
                     child: Text(
-                      msg.text,
+                      _errorText!,
                       style: TextStyle(
-                        color: msg.isMe
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).colorScheme.onSurface,
-                        fontSize: 16,
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
-                  ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final ConversationMessage msg = _messages[index];
+                    final bool isMe = msg.isFrom(_currentUserId);
+                    return Align(
+                      alignment:
+                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16).copyWith(
+                            bottomRight: isMe
+                                ? const Radius.circular(0)
+                                : const Radius.circular(16),
+                            bottomLeft: !isMe
+                                ? const Radius.circular(0)
+                                : const Radius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          msg.body,
+                          style: TextStyle(
+                            color: isMe
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : Theme.of(context).colorScheme.onSurface,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
           ),
+          if (_errorText != null && _messages.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                _errorText!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -1078,7 +1257,7 @@ class _ChatPageState extends State<ChatPage> {
                         Icons.send_rounded,
                         color: Theme.of(context).colorScheme.onPrimary,
                       ),
-                      onPressed: _sendMessage,
+                      onPressed: _isSending ? null : _sendMessage,
                     ),
                   ),
                 ],
@@ -2818,20 +2997,98 @@ class ContactAgentPage extends StatefulWidget {
 
 class _ContactAgentPageState extends State<ContactAgentPage> {
   late TextEditingController _messageController;
+  late TextEditingController _fullNameController;
+  late TextEditingController _contactController;
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
+    _fullNameController = TextEditingController();
+    _contactController = TextEditingController();
     _messageController = TextEditingController(
       text:
           'Hi, I am interested in the ${widget.property.title} located at ${widget.property.location}. Please send me more details.',
     );
+    unawaited(_loadProfile());
   }
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _contactController.dispose();
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProfile() async {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final MessagingProfile? profile = await MessagingService.fetchCurrentProfile();
+      if (!mounted) return;
+
+      _fullNameController.text = profile?.fullName?.trim().isNotEmpty == true
+          ? profile!.fullName!.trim()
+          : ((user.userMetadata?['full_name'] ??
+                      user.userMetadata?['name'] ??
+                      '')
+                  as String)
+              .trim();
+
+      final String preferredContact = (profile?.phone ?? '').trim().isNotEmpty
+          ? profile!.phone!.trim()
+          : ((profile?.email ?? user.email ?? user.phone ?? '')).trim();
+      _contactController.text = preferredContact;
+    } catch (_) {}
+  }
+
+  Future<void> _sendInquiry() async {
+    final String fullName = _fullNameController.text.trim();
+    final String contactValue = _contactController.text.trim();
+    final String message = _messageController.text.trim();
+
+    if (fullName.isEmpty || contactValue.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete your name, contact, and message.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      await MessagingService.startConversationForProperty(
+        property: widget.property,
+        body: message,
+        fullName: fullName,
+        contactValue: contactValue,
+      );
+
+      if (!mounted) return;
+      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Message sent to agent successfully!'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send message: $e'),
+        ),
+      );
+      setState(() {
+        _isSending = false;
+      });
+    }
   }
 
   @override
@@ -2881,12 +3138,18 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                   ),
             ),
             const SizedBox(height: 12),
-            _buildTextField(context, 'Full Name', Icons.person_outline),
+            _buildTextField(
+              context,
+              'Full Name',
+              Icons.person_outline,
+              _fullNameController,
+            ),
             const SizedBox(height: 12),
             _buildTextField(
               context,
               'Email or Phone Number',
               Icons.contact_mail_outlined,
+              _contactController,
             ),
             const SizedBox(height: 24),
             Text(
@@ -2913,14 +3176,7 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Message sent to agent successfully!'),
-                    ),
-                  );
-                },
+                onPressed: _isSending ? null : _sendInquiry,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -2944,8 +3200,14 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
     );
   }
 
-  Widget _buildTextField(BuildContext context, String hint, IconData icon) {
+  Widget _buildTextField(
+    BuildContext context,
+    String hint,
+    IconData icon,
+    TextEditingController controller,
+  ) {
     return TextField(
+      controller: controller,
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: Icon(icon),

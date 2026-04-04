@@ -1,8 +1,45 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'main.dart' show ChatPage;
+import 'messaging_service.dart';
 import 'shared_properties.dart';
+
+String _formatInboxTime(DateTime? value) {
+  if (value == null) return '';
+
+  final DateTime localValue = value.toLocal();
+  final DateTime now = DateTime.now();
+  final Duration difference = now.difference(localValue);
+
+  if (difference.inDays == 0) {
+    final int hour = localValue.hour % 12 == 0 ? 12 : localValue.hour % 12;
+    final String minute = localValue.minute.toString().padLeft(2, '0');
+    final String suffix = localValue.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $suffix';
+  }
+
+  if (difference.inDays == 1) return 'Yesterday';
+
+  const List<String> months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[localValue.month - 1]} ${localValue.day}';
+}
 
 class AgentInquiry {
   final String id;
@@ -10,6 +47,7 @@ class AgentInquiry {
   final String message;
   final String timeLabel;
   final bool isUnread;
+  final String conversationTitle;
 
   const AgentInquiry({
     required this.id,
@@ -17,6 +55,7 @@ class AgentInquiry {
     required this.message,
     required this.timeLabel,
     required this.isUnread,
+    required this.conversationTitle,
   });
 
   AgentInquiry copyWith({
@@ -25,6 +64,7 @@ class AgentInquiry {
     String? message,
     String? timeLabel,
     bool? isUnread,
+    String? conversationTitle,
   }) {
     return AgentInquiry(
       id: id ?? this.id,
@@ -32,6 +72,20 @@ class AgentInquiry {
       message: message ?? this.message,
       timeLabel: timeLabel ?? this.timeLabel,
       isUnread: isUnread ?? this.isUnread,
+      conversationTitle: conversationTitle ?? this.conversationTitle,
+    );
+  }
+
+  factory AgentInquiry.fromConversationSummary(ConversationSummary summary) {
+    return AgentInquiry(
+      id: summary.id,
+      buyerName: summary.otherParticipantName,
+      message: summary.lastMessagePreview.isNotEmpty
+          ? summary.lastMessagePreview
+          : 'No messages yet.',
+      timeLabel: _formatInboxTime(summary.lastMessageAt),
+      isUnread: summary.isUnread,
+      conversationTitle: summary.title,
     );
   }
 }
@@ -49,29 +103,8 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
-  final List<AgentInquiry> _inquiries = [
-    const AgentInquiry(
-      id: 'inquiry-1',
-      buyerName: 'Juan Dela Cruz',
-      message: 'Hi, is the Mountain View Land still available?',
-      timeLabel: '10:30 AM',
-      isUnread: true,
-    ),
-    const AgentInquiry(
-      id: 'inquiry-2',
-      buyerName: 'Maria Santos',
-      message: 'Can you send the title copy for the Prime Residential Lot?',
-      timeLabel: 'Yesterday',
-      isUnread: true,
-    ),
-    const AgentInquiry(
-      id: 'inquiry-3',
-      buyerName: 'Carlo Reyes',
-      message: 'I want to schedule a site visit this weekend.',
-      timeLabel: 'Apr 2',
-      isUnread: false,
-    ),
-  ];
+  List<AgentInquiry> _inquiries = const [];
+  bool _isInboxLoading = true;
 
   int get _unreadInquiryCount =>
       _inquiries.where((inquiry) => inquiry.isUnread).length;
@@ -82,6 +115,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_refreshDashboard);
+    unawaited(_loadInquiries());
   }
 
   @override
@@ -93,6 +127,32 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void _refreshDashboard() {
     if (!mounted) return;
     setState(() {});
+  }
+
+  Future<void> _loadInquiries({bool showLoader = true}) async {
+    if (showLoader && mounted) {
+      setState(() {
+        _isInboxLoading = true;
+      });
+    }
+
+    try {
+      final List<ConversationSummary> summaries =
+          await MessagingService.fetchMyConversationSummaries();
+      if (!mounted) return;
+      setState(() {
+        _inquiries = summaries
+            .map(AgentInquiry.fromConversationSummary)
+            .toList();
+        _isInboxLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _inquiries = const [];
+        _isInboxLoading = false;
+      });
+    }
   }
 
   Future<void> _openAddPropertyPage() async {
@@ -147,6 +207,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
 
     if (!mounted) return;
+    await _loadInquiries(showLoader: false);
   }
 
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
@@ -208,7 +269,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
             child: ListTile(
               leading: const Icon(Icons.mail, color: Colors.blue),
               title: const Text('Agent Inbox'),
-              subtitle: Text('$_unreadInquiryCount unread inquiry(s)'),
+              subtitle: Text(
+                _isInboxLoading
+                    ? 'Loading inquiries...'
+                    : '$_unreadInquiryCount unread inquiry(s)',
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _openInboxPage,
             ),
@@ -546,6 +611,10 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
         });
         widget.onMarkAsRead(inquiry.id);
       }
+
+      try {
+        await MessagingService.markConversationAsRead(inquiry.id);
+      } catch (_) {}
     }
 
     await Navigator.push(
@@ -641,6 +710,13 @@ class InquiryDetailsPage extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              inquiry.conversationTitle,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
             const SizedBox(height: 12),
             Card(
               child: Padding(
@@ -657,10 +733,14 @@ class InquiryDetailsPage extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Reply action for ${inquiry.buyerName}.'),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatPage(
+                        conversationId: inquiry.id,
+                        senderName: inquiry.buyerName,
+                      ),
                     ),
                   );
                 },
