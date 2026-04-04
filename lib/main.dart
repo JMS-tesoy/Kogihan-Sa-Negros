@@ -2267,18 +2267,52 @@ class SearchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        TextField(
-          controller: searchController,
-          onChanged: onSearchChanged,
-          decoration: InputDecoration(
-            hintText: 'Search by city, barangay, or price',
-            prefixIcon: const Icon(Icons.search),
-            filled: true,
-            fillColor: Theme.of(context).cardColor,
-            contentPadding: const EdgeInsets.symmetric(vertical: 18),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F4F6),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: searchController,
+            onChanged: onSearchChanged,
+            style: const TextStyle(
+              color: Color(0xFF1F2933),
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search by city, barangay, or price',
+              hintStyle: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              prefixIcon: Icon(
+                Icons.search,
+                color: Colors.grey.shade800,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 18,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
         ),
@@ -2348,19 +2382,53 @@ class FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLightTheme = Theme.of(context).brightness == Brightness.light;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: isLightTheme
+            ? const Color(0xFFF1F4F6)
+            : Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: isLightTheme
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: DropdownButtonFormField<String>(
         initialValue: value,
         isExpanded: true,
         onChanged: onChanged,
+        icon: Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: isLightTheme
+              ? const Color(0xFF52606D)
+              : Theme.of(context).iconTheme.color,
+        ),
+        style: TextStyle(
+          color: isLightTheme
+              ? const Color(0xFF1F2933)
+              : Theme.of(context).textTheme.bodyMedium?.color,
+          fontWeight: FontWeight.w500,
+        ),
+        dropdownColor: Theme.of(context).cardColor,
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: TextStyle(
+            color: isLightTheme
+                ? const Color(0xFF52606D)
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
         items: items.map((item) {
           return DropdownMenuItem<String>(
