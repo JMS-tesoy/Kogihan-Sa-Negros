@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'agent_dashboard_page.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
@@ -1410,7 +1411,17 @@ class _LoginPageState extends State<LoginPage> {
     if (role == 'admin') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const AdminHomePage()),
+        MaterialPageRoute(
+          builder: (context) => AdminHomePage(
+            onLogout: () {
+              Supabase.instance.client.auth.signOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+          ),
+        ),
       );
     } else {
       Navigator.pushReplacement(
@@ -2126,66 +2137,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class AdminHomePage extends StatelessWidget {
-  const AdminHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agent Dashboard'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              Supabase.instance.client.auth.signOut();
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-          )
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.add_home_work, color: Color(0xFF2E7D32)),
-              title: const Text('Add New Property'),
-              subtitle: const Text('Create a new listing'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.edit_note, color: Colors.orange),
-              title: const Text('Manage Properties'),
-              subtitle: const Text('Edit or delete existing listings'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.mail, color: Colors.blue),
-              title: const Text('Agent Inbox'),
-              subtitle: const Text('View inquiries from buyers'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-          ),
-        ],
       ),
     );
   }
