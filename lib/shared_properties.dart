@@ -1,7 +1,5 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Property {
   final String id;
@@ -57,38 +55,58 @@ class Property {
   @override
   int get hashCode => id.hashCode;
 
-  Map<String, dynamic> toJson() {
+  factory Property.fromMap(Map<String, dynamic> map) {
+    return Property(
+      id: map['id'] as String,
+      title: (map['title'] ?? '') as String,
+      location: (map['location'] ?? '') as String,
+      price: (map['price'] ?? '') as String,
+      priceValue: _toInt(map['price_value']),
+      size: (map['size'] ?? '') as String,
+      sizeValue: _toInt(map['size_value']),
+      tag: (map['tag'] ?? '') as String,
+      imageColor: Color(_toInt(map['image_color'])),
+    );
+  }
+
+  Map<String, dynamic> toInsertMap() {
     return {
-      'id': id,
       'title': title,
       'location': location,
       'price': price,
-      'priceValue': priceValue,
+      'price_value': priceValue,
       'size': size,
-      'sizeValue': sizeValue,
+      'size_value': sizeValue,
       'tag': tag,
-      'imageColor': imageColor.toARGB32(),
+      'image_color': _toSigned32Bit(imageColor.toARGB32()),
     };
   }
 
-  factory Property.fromJson(Map<String, dynamic> json) {
-    return Property(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      location: json['location'] as String,
-      price: json['price'] as String,
-      priceValue: json['priceValue'] as int,
-      size: json['size'] as String,
-      sizeValue: json['sizeValue'] as int,
-      tag: json['tag'] as String,
-      imageColor: Color(json['imageColor'] as int),
-    );
+  Map<String, dynamic> toUpdateMap() {
+    return {
+      'title': title,
+      'location': location,
+      'price': price,
+      'price_value': priceValue,
+      'size': size,
+      'size_value': sizeValue,
+      'tag': tag,
+      'image_color': _toSigned32Bit(imageColor.toARGB32()),
+    };
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int _toSigned32Bit(int value) {
+    return value > 0x7FFFFFFF ? value - 0x100000000 : value;
   }
 }
 
-const String _propertiesStorageKey = 'agent_properties_v1';
-
-const List<Property> _defaultProperties = [
+const List<Property> _fallbackProperties = [
   Property(
     id: 'property-1',
     title: 'Prime Residential Lot',
@@ -147,29 +165,64 @@ const List<Property> _defaultProperties = [
 ];
 
 final ValueNotifier<List<Property>> appPropertiesNotifier =
-    ValueNotifier<List<Property>>(List<Property>.from(_defaultProperties));
+    ValueNotifier<List<Property>>(List<Property>.from(_fallbackProperties));
 
 Future<void> loadProperties() async {
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  final String? rawJson = prefs.getString(_propertiesStorageKey);
+  try {
+    final List<dynamic> response = await Supabase.instance.client
+        .from('properties')
+        .select()
+        .order('created_at', ascending: false);
 
-  if (rawJson == null || rawJson.isEmpty) {
-    appPropertiesNotifier.value = List<Property>.from(_defaultProperties);
-    return;
+    appPropertiesNotifier.value = response
+        .map((item) => Property.fromMap(Map<String, dynamic>.from(item as Map)))
+        .toList();
+  } catch (_) {
+    appPropertiesNotifier.value = List<Property>.from(_fallbackProperties);
   }
-
-  final List<dynamic> decoded = jsonDecode(rawJson) as List<dynamic>;
-  appPropertiesNotifier.value = decoded
-      .map((item) => Property.fromJson(Map<String, dynamic>.from(item as Map)))
-      .toList();
 }
 
-Future<void> saveProperties(List<Property> properties) async {
-  appPropertiesNotifier.value = List<Property>.from(properties);
+Future<Property> createProperty(Property property) async {
+  final Map<String, dynamic> response = await Supabase.instance.client
+      .from('properties')
+      .insert(property.toInsertMap())
+      .select()
+      .single();
 
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  final String rawJson = jsonEncode(
-    properties.map((property) => property.toJson()).toList(),
-  );
-  await prefs.setString(_propertiesStorageKey, rawJson);
+  final Property createdProperty =
+      Property.fromMap(Map<String, dynamic>.from(response));
+
+  appPropertiesNotifier.value = [createdProperty, ...appPropertiesNotifier.value];
+  return createdProperty;
+}
+
+Future<Property> updateProperty(Property property) async {
+  final Map<String, dynamic> response = await Supabase.instance.client
+      .from('properties')
+      .update(property.toUpdateMap())
+      .eq('id', property.id)
+      .select()
+      .single();
+
+  final Property updatedProperty =
+      Property.fromMap(Map<String, dynamic>.from(response));
+  final List<Property> updatedProperties =
+      List<Property>.from(appPropertiesNotifier.value);
+  final int index =
+      updatedProperties.indexWhere((item) => item.id == updatedProperty.id);
+
+  if (index != -1) {
+    updatedProperties[index] = updatedProperty;
+    appPropertiesNotifier.value = updatedProperties;
+  }
+
+  return updatedProperty;
+}
+
+Future<void> deleteProperty(String propertyId) async {
+  await Supabase.instance.client.from('properties').delete().eq('id', propertyId);
+
+  appPropertiesNotifier.value = appPropertiesNotifier.value
+      .where((property) => property.id != propertyId)
+      .toList();
 }

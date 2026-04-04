@@ -78,6 +78,23 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   List<Property> get _properties => appPropertiesNotifier.value;
 
+  @override
+  void initState() {
+    super.initState();
+    appPropertiesNotifier.addListener(_refreshDashboard);
+  }
+
+  @override
+  void dispose() {
+    appPropertiesNotifier.removeListener(_refreshDashboard);
+    super.dispose();
+  }
+
+  void _refreshDashboard() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Future<void> _openAddPropertyPage() async {
     final Property? newProperty = await Navigator.push(
       context,
@@ -88,12 +105,19 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     if (newProperty == null || !mounted) return;
 
-    await saveProperties([newProperty, ..._properties]);
-    setState(() {});
+    try {
+      final Property createdProperty = await createProperty(newProperty);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${newProperty.title} added successfully.')),
-    );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${createdProperty.title} added successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to add property: $e')),
+      );
+    }
   }
 
   Future<void> _openManagePropertiesPage() async {
@@ -102,14 +126,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
       MaterialPageRoute(
         builder: (context) => ManagePropertiesPage(
           properties: _properties,
-          onUpdateProperty: _updateProperty,
-          onDeleteProperty: _deleteProperty,
+          onUpdateProperty: _updatePropertyRecord,
+          onDeleteProperty: _deletePropertyRecord,
         ),
       ),
     );
 
     if (!mounted) return;
-    setState(() {});
   }
 
   Future<void> _openInboxPage() async {
@@ -124,26 +147,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
 
     if (!mounted) return;
-    setState(() {});
   }
 
-  Future<void> _updateProperty(Property updatedProperty) async {
-    final int index =
-        _properties.indexWhere((property) => property.id == updatedProperty.id);
-
-    if (index == -1) return;
-
-    final List<Property> updatedProperties = List<Property>.from(_properties);
-    updatedProperties[index] = updatedProperty;
-    await saveProperties(updatedProperties);
-    setState(() {});
+  Future<void> _updatePropertyRecord(Property updatedProperty) async {
+    await updateProperty(updatedProperty);
   }
 
-  Future<void> _deleteProperty(String propertyId) async {
-    await saveProperties(
-      _properties.where((property) => property.id != propertyId).toList(),
-    );
-    setState(() {});
+  Future<void> _deletePropertyRecord(String propertyId) async {
+    await deleteProperty(propertyId);
   }
 
   void _markInquiryAsRead(String inquiryId) {

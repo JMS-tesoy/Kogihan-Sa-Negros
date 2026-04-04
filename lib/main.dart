@@ -15,7 +15,6 @@ final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await loadProperties();
 
   try {
     await Supabase.initialize(
@@ -23,6 +22,7 @@ void main() async {
       url: 'https://vludvvjkrrqzjahxjdjl.supabase.co',
       anonKey: 'sb_publishable_xrlYmyU6k2ItwhoSycq_iQ_4RxiPGdJ',
     );
+    await loadProperties();
     developer.log('✅ Supabase connected successfully!', name: 'Supabase');
   } catch (e, stackTrace) {
     developer.log('❌ Supabase connection failed', name: 'Supabase', error: e, stackTrace: stackTrace);
@@ -104,6 +104,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_syncAvailableProperties);
+    unawaited(loadProperties());
   }
 
   @override
@@ -1347,7 +1348,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _routeByRole(User? user) async {
     final role =
-        (user?.userMetadata?['role'] as String?)?.toLowerCase() ?? 'user';
+        ((user?.appMetadata?['role'] ?? user?.userMetadata?['role'])
+                as String?)
+            ?.toLowerCase() ??
+            'user';
+
+    if (user != null) {
+      await loadProperties();
+    }
 
     if (!mounted) return;
     if (role == 'admin') {
