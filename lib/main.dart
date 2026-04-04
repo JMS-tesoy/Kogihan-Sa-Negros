@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
+import 'shared_properties.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
@@ -14,6 +15,7 @@ final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadProperties();
 
   try {
     await Supabase.initialize(
@@ -77,28 +79,6 @@ class RealEstateApp extends StatelessWidget {
   }
 }
 
-class Property {
-  final String title;
-  final String location;
-  final String price;
-  final int priceValue;
-  final String size;
-  final int sizeValue;
-  final String tag;
-  final Color imageColor;
-
-  const Property({
-    required this.title,
-    required this.location,
-    required this.price,
-    required this.priceValue,
-    required this.size,
-    required this.sizeValue,
-    required this.tag,
-    required this.imageColor,
-  });
-}
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -115,67 +95,29 @@ class _HomePageState extends State<HomePage> {
   String? _selectedLotSize;
   String? _selectedBudget;
   final Set<Property> _savedProperties = {};
+  List<Property> _availableProperties = List<Property>.from(appPropertiesNotifier.value);
 
   String? _profileImagePath;
   final ImagePicker _imagePicker = ImagePicker();
 
-  final List<Property> _allProperties = const [
-    Property(
-      title: 'Prime Residential Lot',
-      location: 'Dumaguete City',
-      price: '₱1,200,000',
-      priceValue: 1200000,
-      size: '500 sqm',
-      sizeValue: 500,
-      tag: 'Featured',
-      imageColor: Color(0xFF9CCC65),
-    ),
-    Property(
-      title: 'Mountain View Land',
-      location: 'Valencia',
-      price: '₱2,450,000',
-      priceValue: 2450000,
-      size: '1,200 sqm',
-      sizeValue: 1200,
-      tag: 'Hot Deal',
-      imageColor: Color(0xFFA1887F),
-    ),
-    Property(
-      title: 'Farm Lot Investment',
-      location: 'Bais City',
-      price: '₱3,100,000',
-      priceValue: 3100000,
-      size: '2,000 sqm',
-      sizeValue: 2000,
-      tag: 'New',
-      imageColor: Color(0xFF64B5F6),
-    ),
-    Property(
-      title: 'Highway Frontage Lot',
-      location: 'Sibulan',
-      price: '₱4,800,000',
-      priceValue: 4800000,
-      size: '1,500 sqm',
-      sizeValue: 1500,
-      tag: 'Premium',
-      imageColor: Color(0xFFBA68C8),
-    ),
-    Property(
-      title: 'Affordable Starter Lot',
-      location: 'Bayawan City',
-      price: '₱900,000',
-      priceValue: 900000,
-      size: '300 sqm',
-      sizeValue: 300,
-      tag: 'Budget',
-      imageColor: Color(0xFFFFB74D),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    appPropertiesNotifier.addListener(_syncAvailableProperties);
+  }
 
   @override
   void dispose() {
+    appPropertiesNotifier.removeListener(_syncAvailableProperties);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _syncAvailableProperties() {
+    if (!mounted) return;
+    setState(() {
+      _availableProperties = List<Property>.from(appPropertiesNotifier.value);
+    });
   }
 
   Future<void> _pickAvatarFromGallery() async {
@@ -249,7 +191,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Property> get _filteredProperties {
-    return _allProperties.where((property) {
+    return _availableProperties.where((property) {
       final bool matchesSearch = _searchQuery.isEmpty ||
           property.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           property.location.toLowerCase().contains(_searchQuery.toLowerCase()) ||

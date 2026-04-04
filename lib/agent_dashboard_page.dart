@@ -1,40 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
-class AgentPropertyItem {
-  final String id;
-  final String title;
-  final String location;
-  final String price;
-  final String size;
-  final String status;
-
-  const AgentPropertyItem({
-    required this.id,
-    required this.title,
-    required this.location,
-    required this.price,
-    required this.size,
-    required this.status,
-  });
-
-  AgentPropertyItem copyWith({
-    String? id,
-    String? title,
-    String? location,
-    String? price,
-    String? size,
-    String? status,
-  }) {
-    return AgentPropertyItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      location: location ?? this.location,
-      price: price ?? this.price,
-      size: size ?? this.size,
-      status: status ?? this.status,
-    );
-  }
-}
+import 'shared_properties.dart';
 
 class AgentInquiry {
   final String id;
@@ -81,25 +49,6 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
-  final List<AgentPropertyItem> _properties = [
-    const AgentPropertyItem(
-      id: 'property-1',
-      title: 'Prime Residential Lot',
-      location: 'Dumaguete City',
-      price: '₱1,200,000',
-      size: '500 sqm',
-      status: 'Active',
-    ),
-    const AgentPropertyItem(
-      id: 'property-2',
-      title: 'Mountain View Land',
-      location: 'Valencia',
-      price: '₱2,450,000',
-      size: '1,200 sqm',
-      status: 'Draft',
-    ),
-  ];
-
   final List<AgentInquiry> _inquiries = [
     const AgentInquiry(
       id: 'inquiry-1',
@@ -127,8 +76,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int get _unreadInquiryCount =>
       _inquiries.where((inquiry) => inquiry.isUnread).length;
 
+  List<Property> get _properties => appPropertiesNotifier.value;
+
   Future<void> _openAddPropertyPage() async {
-    final AgentPropertyItem? newProperty = await Navigator.push(
+    final Property? newProperty = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const PropertyFormPage(),
@@ -137,9 +88,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     if (newProperty == null || !mounted) return;
 
-    setState(() {
-      _properties.insert(0, newProperty);
-    });
+    await saveProperties([newProperty, ..._properties]);
+    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${newProperty.title} added successfully.')),
@@ -177,21 +127,23 @@ class _AdminHomePageState extends State<AdminHomePage> {
     setState(() {});
   }
 
-  void _updateProperty(AgentPropertyItem updatedProperty) {
+  Future<void> _updateProperty(Property updatedProperty) async {
     final int index =
         _properties.indexWhere((property) => property.id == updatedProperty.id);
 
     if (index == -1) return;
 
-    setState(() {
-      _properties[index] = updatedProperty;
-    });
+    final List<Property> updatedProperties = List<Property>.from(_properties);
+    updatedProperties[index] = updatedProperty;
+    await saveProperties(updatedProperties);
+    setState(() {});
   }
 
-  void _deleteProperty(String propertyId) {
-    setState(() {
-      _properties.removeWhere((property) => property.id == propertyId);
-    });
+  Future<void> _deleteProperty(String propertyId) async {
+    await saveProperties(
+      _properties.where((property) => property.id != propertyId).toList(),
+    );
+    setState(() {});
   }
 
   void _markInquiryAsRead(String inquiryId) {
@@ -257,7 +209,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
 }
 
 class PropertyFormPage extends StatefulWidget {
-  final AgentPropertyItem? initialProperty;
+  final Property? initialProperty;
 
   const PropertyFormPage({
     super.key,
@@ -290,7 +242,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _sizeController =
         TextEditingController(text: widget.initialProperty?.size ?? '');
     _statusController =
-        TextEditingController(text: widget.initialProperty?.status ?? 'Active');
+        TextEditingController(text: widget.initialProperty?.tag ?? 'Active');
   }
 
   @override
@@ -306,17 +258,39 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    final AgentPropertyItem property = AgentPropertyItem(
+    final int parsedPriceValue = _extractNumber(_priceController.text);
+    final int parsedSizeValue = _extractNumber(_sizeController.text);
+
+    final Property property = Property(
       id: widget.initialProperty?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       title: _titleController.text.trim(),
       location: _locationController.text.trim(),
       price: _priceController.text.trim(),
+      priceValue: parsedPriceValue > 0 ? parsedPriceValue : 0,
       size: _sizeController.text.trim(),
-      status: _statusController.text.trim(),
+      sizeValue: parsedSizeValue > 0 ? parsedSizeValue : 0,
+      tag: _statusController.text.trim(),
+      imageColor: widget.initialProperty?.imageColor ?? _randomColor(),
     );
 
     Navigator.pop(context, property);
+  }
+
+  int _extractNumber(String input) {
+    final String digitsOnly = input.replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(digitsOnly) ?? 0;
+  }
+
+  Color _randomColor() {
+    final List<Color> colors = [
+      const Color(0xFF9CCC65),
+      const Color(0xFFA1887F),
+      const Color(0xFF64B5F6),
+      const Color(0xFFBA68C8),
+      const Color(0xFFFFB74D),
+    ];
+    return colors[Random().nextInt(colors.length)];
   }
 
   @override
@@ -333,12 +307,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(
-                labelText: 'Property title',
+                labelText: 'Clean title',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a property title.';
+                  return 'Please enter a clean title.';
                 }
                 return null;
               },
@@ -347,12 +321,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             TextFormField(
               controller: _locationController,
               decoration: const InputDecoration(
-                labelText: 'Location',
+                labelText: 'Grid coordinate',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a location.';
+                  return 'Please enter a grid coordinate.';
                 }
                 return null;
               },
@@ -389,12 +363,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             TextFormField(
               controller: _statusController,
               decoration: const InputDecoration(
-                labelText: 'Status',
+                labelText: 'Card tag',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a status.';
+                  return 'Please enter a card tag.';
                 }
                 return null;
               },
@@ -415,9 +389,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 }
 
 class ManagePropertiesPage extends StatefulWidget {
-  final List<AgentPropertyItem> properties;
-  final ValueChanged<AgentPropertyItem> onUpdateProperty;
-  final ValueChanged<String> onDeleteProperty;
+  final List<Property> properties;
+  final Future<void> Function(Property property) onUpdateProperty;
+  final Future<void> Function(String propertyId) onDeleteProperty;
 
   const ManagePropertiesPage({
     super.key,
@@ -431,16 +405,16 @@ class ManagePropertiesPage extends StatefulWidget {
 }
 
 class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
-  late List<AgentPropertyItem> _properties;
+  late List<Property> _properties;
 
   @override
   void initState() {
     super.initState();
-    _properties = List<AgentPropertyItem>.from(widget.properties);
+    _properties = List<Property>.from(widget.properties);
   }
 
-  Future<void> _editProperty(AgentPropertyItem property) async {
-    final AgentPropertyItem? updatedProperty = await Navigator.push(
+  Future<void> _editProperty(Property property) async {
+    final Property? updatedProperty = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PropertyFormPage(initialProperty: property),
@@ -457,18 +431,18 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     setState(() {
       _properties[index] = updatedProperty;
     });
-    widget.onUpdateProperty(updatedProperty);
+    await widget.onUpdateProperty(updatedProperty);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${updatedProperty.title} updated successfully.')),
     );
   }
 
-  void _deleteProperty(AgentPropertyItem property) {
+  Future<void> _deleteProperty(Property property) async {
     setState(() {
       _properties.removeWhere((item) => item.id == property.id);
     });
-    widget.onDeleteProperty(property.id);
+    await widget.onDeleteProperty(property.id);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${property.title} deleted.')),
@@ -490,7 +464,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
               itemCount: _properties.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final AgentPropertyItem property = _properties[index];
+                final Property property = _properties[index];
                 return Card(
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
@@ -498,7 +472,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        '${property.location}\n${property.price} • ${property.size}\nStatus: ${property.status}',
+                        'Grid: ${property.location}\n${property.price} • ${property.size}\nTag: ${property.tag}',
                       ),
                     ),
                     isThreeLine: true,
