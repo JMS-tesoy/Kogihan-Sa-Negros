@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
+final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -892,17 +893,18 @@ class ProfileTab extends StatelessWidget {
             const SizedBox(height: 30),
             Card(
               child: ListTile(
-                leading: const Icon(Icons.email_outlined),
-                title: const Text('Email'),
-                subtitle: const Text('bossjo@example.com'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.phone_outlined),
-                title: const Text('Phone'),
-                subtitle: const Text('+63 9XX XXX XXXX'),
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Account'),
+                subtitle: const Text('Personal contact details'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AccountPage(),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 12),
@@ -935,6 +937,42 @@ class ProfileTab extends StatelessWidget {
                     (route) => false,
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AccountPage extends StatelessWidget {
+  const AccountPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Account'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.email_outlined),
+                title: const Text('Email'),
+                subtitle: const Text('bossjo@example.com'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.phone_outlined),
+                title: const Text('Phone'),
+                subtitle: const Text('+63 9XX XXX XXXX'),
               ),
             ),
           ],
@@ -1118,9 +1156,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
-  bool _locationEnabled = true;
   late bool _darkModeEnabled;
-  String _selectedCurrency = 'Philippine Peso (₱)';
   bool _notifyNewProperties = true;
   bool _notifyPriceDrops = true;
   bool _notifyMessages = true;
@@ -1133,32 +1169,24 @@ class _SettingsPageState extends State<SettingsPage> {
     _currentFontSizeScale = appFontScaleNotifier.value;
   }
 
-  void _showCurrencyPicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              'Philippine Peso (₱)',
-              r'US Dollar ($)',
-              'Euro (€)',
-            ].map((currency) {
-              return ListTile(
-                title: Text(currency),
-                trailing: _selectedCurrency == currency
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () {
-                  setState(() => _selectedCurrency = currency);
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
-          ),
-        );
-      },
+  Widget _buildCompactSwitchTile({
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool dense = false,
+  }) {
+    return SwitchListTile(
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle),
+      value: value,
+      dense: dense,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onChanged: onChanged,
+      activeColor: Theme.of(context).colorScheme.primary,
+      controlAffinity: ListTileControlAffinity.trailing,
     );
   }
 
@@ -1171,16 +1199,28 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
-          SwitchListTile(
-            title: const Text('Push Notifications'),
-            subtitle: const Text('Receive alerts for new properties'),
-            value: _notificationsEnabled,
-            onChanged: (value) {
-              setState(() {
-                _notificationsEnabled = value;
-              });
-            },
-          ),
+          Theme(
+            data: Theme.of(context).copyWith(
+              switchTheme: SwitchThemeData(
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            child: Column(
+              children: [
+                Transform.scale(
+                  scale: 0.88,
+                  alignment: Alignment.centerRight,
+                  child: _buildCompactSwitchTile(
+                    title: 'Push Notifications',
+                    subtitle: 'Receive alerts for new properties',
+                    value: _notificationsEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        _notificationsEnabled = value;
+                      });
+                    },
+                  ),
+                ),
           // Font Sizing Feature
           ListTile(
             title: const Text('Font Size'),
@@ -1216,69 +1256,99 @@ class _SettingsPageState extends State<SettingsPage> {
               padding: const EdgeInsets.only(left: 32.0),
               child: Column(
                 children: [
-                  SwitchListTile(
-                    title: const Text('New Property Alerts'),
-                    dense: true,
-                    value: _notifyNewProperties,
-                    onChanged: (value) {
-                      setState(() => _notifyNewProperties = value);
-                    },
+                  Transform.scale(
+                    scale: 0.88,
+                    alignment: Alignment.centerRight,
+                    child: _buildCompactSwitchTile(
+                      title: 'New Property Alerts',
+                      value: _notifyNewProperties,
+                      dense: true,
+                      onChanged: (value) {
+                        setState(() => _notifyNewProperties = value);
+                      },
+                    ),
                   ),
-                  SwitchListTile(
-                    title: const Text('Price Drops on Saved'),
-                    dense: true,
-                    value: _notifyPriceDrops,
-                    onChanged: (value) {
-                      setState(() => _notifyPriceDrops = value);
-                    },
+                  Transform.scale(
+                    scale: 0.88,
+                    alignment: Alignment.centerRight,
+                    child: _buildCompactSwitchTile(
+                      title: 'Price Drops on Saved',
+                      value: _notifyPriceDrops,
+                      dense: true,
+                      onChanged: (value) {
+                        setState(() => _notifyPriceDrops = value);
+                      },
+                    ),
                   ),
-                  SwitchListTile(
-                    title: const Text('Agent Messages'),
-                    dense: true,
-                    value: _notifyMessages,
-                    onChanged: (value) {
-                      setState(() => _notifyMessages = value);
-                    },
+                  Transform.scale(
+                    scale: 0.88,
+                    alignment: Alignment.centerRight,
+                    child: _buildCompactSwitchTile(
+                      title: 'Agent Messages',
+                      value: _notifyMessages,
+                      dense: true,
+                      onChanged: (value) {
+                        setState(() => _notifyMessages = value);
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Switch to a darker theme'),
-            value: _darkModeEnabled,
-            onChanged: (value) {
-              setState(() {
-                _darkModeEnabled = value;
-                appThemeNotifier.value =
-                    value ? ThemeMode.dark : ThemeMode.light;
-              });
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Location Services'),
-            subtitle: const Text('Allow app to access your location'),
-            value: _locationEnabled,
-            onChanged: (value) {
-              setState(() {
-                _locationEnabled = value;
-              });
-            },
+                Transform.scale(
+                  scale: 0.88,
+                  alignment: Alignment.centerRight,
+                  child: _buildCompactSwitchTile(
+                    title: 'Dark Mode',
+                    subtitle: 'Switch to a darker theme',
+                    value: _darkModeEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        _darkModeEnabled = value;
+                        appThemeNotifier.value =
+                            value ? ThemeMode.dark : ThemeMode.light;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
           const Divider(),
           ListTile(
-            title: const Text('Language'),
-            subtitle: const Text('English (US)'),
-            leading: const Icon(Icons.language),
+            title: const Text('Reset Password'),
+            subtitle: const Text('Change password for this account'),
+            leading: const Icon(Icons.lock_reset),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ChangePasswordPage(),
+                ),
+              );
+            },
           ),
-          ListTile(
-            title: const Text('Currency'),
-            subtitle: Text(_selectedCurrency),
-            leading: const Icon(Icons.payments_outlined),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _showCurrencyPicker,
+          ValueListenableBuilder<String?>(
+            valueListenable: appPinCodeNotifier,
+            builder: (context, pinCode, child) {
+              return ListTile(
+                title: const Text('PIN Code'),
+                subtitle: Text(
+                  pinCode == null ? 'Set a 4-digit PIN' : 'PIN is configured',
+                ),
+                leading: const Icon(Icons.pin_outlined),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PinCodePage(),
+                    ),
+                  );
+                },
+              );
+            },
           ),
           const Divider(),
           ListTile(
@@ -1851,6 +1921,205 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('Send Reset Email'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ChangePasswordPage extends StatefulWidget {
+  const ChangePasswordPage({super.key});
+
+  @override
+  State<ChangePasswordPage> createState() => _ChangePasswordPageState();
+}
+
+class _ChangePasswordPageState extends State<ChangePasswordPage> {
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  bool _isLoading = false;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _changePassword() async {
+    final newPassword = _newPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (newPassword.isEmpty || confirmPassword.isEmpty) {
+      setState(() {
+        _errorText = 'Please enter and confirm your new password.';
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setState(() {
+        _errorText = 'Password must be at least 6 characters.';
+      });
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      setState(() {
+        _errorText = 'Passwords do not match.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorText = null;
+    });
+
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated successfully.')),
+      );
+      Navigator.pop(context);
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = 'Failed to update password. Please try again.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset Password')),
+      body: Center(
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  user?.email ?? 'Logged in account',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Change the password for your current account.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: _obscureNewPassword,
+                  decoration: InputDecoration(
+                    hintText: 'New Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureNewPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureNewPassword = !_obscureNewPassword;
+                        });
+                      },
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).cardColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    hintText: 'Confirm New Password',
+                    prefixIcon: const Icon(Icons.verified_user_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword =
+                              !_obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).cardColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                if (_errorText != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _errorText!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _changePassword,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Update Password'),
                   ),
                 ),
               ],
@@ -2716,6 +2985,155 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+}
+
+class PinCodePage extends StatefulWidget {
+  const PinCodePage({super.key});
+
+  @override
+  State<PinCodePage> createState() => _PinCodePageState();
+}
+
+class _PinCodePageState extends State<PinCodePage> {
+  final TextEditingController _pinController = TextEditingController();
+  final TextEditingController _confirmPinController = TextEditingController();
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentPin = appPinCodeNotifier.value;
+    if (currentPin != null) {
+      _pinController.text = currentPin;
+      _confirmPinController.text = currentPin;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    _confirmPinController.dispose();
+    super.dispose();
+  }
+
+  void _savePinCode() {
+    final pin = _pinController.text.trim();
+    final confirmPin = _confirmPinController.text.trim();
+
+    if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
+      setState(() {
+        _errorText = 'PIN must be exactly 4 digits.';
+      });
+      return;
+    }
+
+    if (pin != confirmPin) {
+      setState(() {
+        _errorText = 'PIN entries do not match.';
+      });
+      return;
+    }
+
+    appPinCodeNotifier.value = pin;
+    setState(() {
+      _errorText = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PIN code saved.')),
+    );
+    Navigator.pop(context);
+  }
+
+  void _clearPinCode() {
+    appPinCodeNotifier.value = null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PIN code removed.')),
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('PIN Code'),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextField(
+                controller: _pinController,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  hintText: 'Enter 4-digit PIN',
+                  prefixIcon: const Icon(Icons.pin_outlined),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirmPinController,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  hintText: 'Confirm PIN',
+                  prefixIcon: const Icon(Icons.verified_user_outlined),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _savePinCode,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Save PIN'),
+                ),
+              ),
+              if (appPinCodeNotifier.value != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _clearPinCode,
+                    child: const Text('Remove PIN'),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
