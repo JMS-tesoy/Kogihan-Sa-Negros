@@ -919,6 +919,22 @@ class ProfileTab extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Log Out'),
+                textColor: Colors.red,
+                onTap: () {
+                  Supabase.instance.client.auth.signOut();
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -1272,19 +1288,6 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('About'),
             leading: const Icon(Icons.info_outline),
             onTap: () {},
-          ),
-          ListTile(
-            title: const Text('Log Out'),
-            leading: const Icon(Icons.logout, color: Colors.red),
-            textColor: Colors.red,
-          onTap: () {
-            Supabase.instance.client.auth.signOut();
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginPage()),
-              (route) => false,
-            );
-          },
           ),
         ],
       ),
