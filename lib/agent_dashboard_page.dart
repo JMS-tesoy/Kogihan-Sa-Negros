@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'main.dart' show ChatPage;
 import 'messaging_service.dart';
 import 'shared_properties.dart';
 
@@ -105,6 +105,7 @@ class AdminHomePage extends StatefulWidget {
 class _AdminHomePageState extends State<AdminHomePage> {
   List<AgentInquiry> _inquiries = const [];
   bool _isInboxLoading = true;
+  RealtimeChannel? _inboxChannel;
 
   int get _unreadInquiryCount =>
       _inquiries.where((inquiry) => inquiry.isUnread).length;
@@ -116,17 +117,46 @@ class _AdminHomePageState extends State<AdminHomePage> {
     super.initState();
     appPropertiesNotifier.addListener(_refreshDashboard);
     unawaited(_loadInquiries());
+    _subscribeToInboxUpdates();
   }
 
   @override
   void dispose() {
     appPropertiesNotifier.removeListener(_refreshDashboard);
+    if (_inboxChannel != null) {
+      unawaited(Supabase.instance.client.removeChannel(_inboxChannel!));
+    }
     super.dispose();
   }
 
   void _refreshDashboard() {
     if (!mounted) return;
     setState(() {});
+  }
+
+  void _subscribeToInboxUpdates() {
+    final SupabaseClient client = Supabase.instance.client;
+    _inboxChannel = client
+        .channel('agent-inbox-dashboard')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_loadInquiries(showLoader: false));
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'conversations',
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_loadInquiries(showLoader: false));
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadInquiries({bool showLoader = true}) async {
@@ -595,11 +625,60 @@ class AgentInboxPage extends StatefulWidget {
 
 class _AgentInboxPageState extends State<AgentInboxPage> {
   late List<AgentInquiry> _inquiries;
+  RealtimeChannel? _inboxChannel;
 
   @override
   void initState() {
     super.initState();
     _inquiries = List<AgentInquiry>.from(widget.inquiries);
+    _subscribeToInboxUpdates();
+    unawaited(_refreshInquiries());
+  }
+
+  @override
+  void dispose() {
+    if (_inboxChannel != null) {
+      unawaited(Supabase.instance.client.removeChannel(_inboxChannel!));
+    }
+    super.dispose();
+  }
+
+  void _subscribeToInboxUpdates() {
+    final SupabaseClient client = Supabase.instance.client;
+    _inboxChannel = client
+        .channel('agent-inbox-page')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_refreshInquiries());
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'conversations',
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_refreshInquiries());
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _refreshInquiries() async {
+    try {
+      final List<ConversationSummary> summaries =
+          await MessagingService.fetchMyConversationSummaries();
+      if (!mounted) return;
+      setState(() {
+        _inquiries = summaries
+            .map(AgentInquiry.fromConversationSummary)
+            .toList();
+      });
+    } catch (_) {}
   }
 
   Future<void> _openInquiry(AgentInquiry inquiry) async {
@@ -612,9 +691,7 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
         widget.onMarkAsRead(inquiry.id);
       }
 
-      try {
-        await MessagingService.markConversationAsRead(inquiry.id);
-      } catch (_) {}
+      unawaited(MessagingService.markConversationAsRead(inquiry.id));
     }
 
     await Navigator.push(
@@ -623,6 +700,8 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
         builder: (context) => InquiryDetailsPage(inquiry: inquiry),
       ),
     );
+
+    await _refreshInquiries();
   }
 
   @override
@@ -631,61 +710,69 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
       appBar: AppBar(
         title: const Text('Agent Inbox'),
       ),
-      body: _inquiries.isEmpty
-          ? const Center(
-              child: Text('No buyer inquiries yet.'),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _inquiries.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final AgentInquiry inquiry = _inquiries[index];
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(inquiry.buyerName[0]),
-                    ),
-                    title: Text(
-                      inquiry.buyerName,
-                      style: TextStyle(
-                        fontWeight: inquiry.isUnread
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      inquiry.message,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(inquiry.timeLabel),
-                        if (inquiry.isUnread) ...[
-                          const SizedBox(height: 6),
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Colors.blue,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    onTap: () => _openInquiry(inquiry),
+      body: RefreshIndicator(
+        onRefresh: _refreshInquiries,
+        child: _inquiries.isEmpty
+            ? ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(
+                    child: Text('No buyer inquiries yet.'),
                   ),
-                );
-              },
-            ),
+                ],
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _inquiries.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final AgentInquiry inquiry = _inquiries[index];
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(inquiry.buyerName[0]),
+                      ),
+                      title: Text(
+                        inquiry.buyerName,
+                        style: TextStyle(
+                          fontWeight: inquiry.isUnread
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        inquiry.message,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(inquiry.timeLabel),
+                          if (inquiry.isUnread) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      onTap: () => _openInquiry(inquiry),
+                    ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
 
-class InquiryDetailsPage extends StatelessWidget {
+class InquiryDetailsPage extends StatefulWidget {
   final AgentInquiry inquiry;
 
   const InquiryDetailsPage({
@@ -694,62 +781,474 @@ class InquiryDetailsPage extends StatelessWidget {
   });
 
   @override
+  State<InquiryDetailsPage> createState() => _InquiryDetailsPageState();
+}
+
+class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
+  late final TextEditingController _replyController;
+  late final ScrollController _messagesScrollController;
+  bool _isSending = false;
+  bool _isLoadingMessages = true;
+  List<ConversationMessage> _messages = const [];
+  RealtimeChannel? _messagesChannel;
+
+  String get _currentUserId =>
+      Supabase.instance.client.auth.currentUser?.id ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _replyController = TextEditingController();
+    _messagesScrollController = ScrollController();
+    _subscribeToMessageUpdates();
+    unawaited(_loadMessages(scrollToBottom: true));
+  }
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    _messagesScrollController.dispose();
+    if (_messagesChannel != null) {
+      unawaited(Supabase.instance.client.removeChannel(_messagesChannel!));
+    }
+    super.dispose();
+  }
+
+  void _subscribeToMessageUpdates() {
+    _messagesChannel = Supabase.instance.client
+        .channel('agent-thread-${widget.inquiry.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: widget.inquiry.id,
+          ),
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_loadMessages(scrollToBottom: true));
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadMessages({bool scrollToBottom = false}) async {
+    try {
+      final List<ConversationMessage> messages =
+          await MessagingService.fetchConversationMessages(widget.inquiry.id);
+      final int previousCount = _messages.length;
+      if (!mounted) return;
+      setState(() {
+        _messages = messages;
+        _isLoadingMessages = false;
+      });
+      if (scrollToBottom || messages.length > previousCount) {
+        _scrollToBottom();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMessages = false;
+      });
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+      _messagesScrollController.animateTo(
+        _messagesScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  Future<void> _sendReply() async {
+    final String replyText = _replyController.text.trim();
+    if (replyText.isEmpty || _isSending) return;
+
+    final ConversationMessage optimisticMessage = ConversationMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: widget.inquiry.id,
+      senderId: _currentUserId,
+      body: replyText,
+      createdAt: DateTime.now(),
+      readAt: null,
+    );
+
+    setState(() {
+      _isSending = true;
+      _messages = [..._messages, optimisticMessage];
+    });
+    _replyController.clear();
+    _scrollToBottom();
+
+    try {
+      await MessagingService.sendMessage(
+        conversationId: widget.inquiry.id,
+        body: replyText,
+      );
+
+      if (!mounted) return;
+      await _loadMessages(scrollToBottom: true);
+    } catch (e) {
+      if (!mounted) return;
+      _replyController.text = replyText;
+      setState(() {
+        _messages = _messages
+            .where((message) => message.id != optimisticMessage.id)
+            .toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send reply: $e'),
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+      });
+    }
+  }
+
+  Future<void> _showMessageActions(ConversationMessage message) async {
+    final String? action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit message'),
+                onTap: () => Navigator.pop(context, 'edit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text(
+                  'Delete message',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.pop(context, 'delete'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'edit') {
+      await _editMessage(message);
+    } else if (action == 'delete') {
+      await _deleteMessage(message);
+    }
+  }
+
+  Future<void> _editMessage(ConversationMessage message) async {
+    final TextEditingController controller =
+        TextEditingController(text: message.body);
+
+    final String? updatedText = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit message'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Update your message',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || updatedText == null || updatedText.isEmpty) return;
+    if (updatedText == message.body.trim()) return;
+
+    try {
+      await MessagingService.updateMessage(
+        messageId: message.id,
+        body: updatedText,
+      );
+      await _loadMessages(scrollToBottom: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to edit message: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteMessage(ConversationMessage message) async {
+    final bool shouldDelete = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Delete message'),
+              content:
+                  const Text('This message will be removed from the chat.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted || !shouldDelete) return;
+
+    try {
+      await MessagingService.deleteMessage(message.id);
+      await _loadMessages(scrollToBottom: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $e')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(inquiry.buyerName),
+        title: Text(widget.inquiry.buyerName),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Buyer Message',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+      body: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Messages',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              inquiry.conversationTitle,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.inquiry.conversationTitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(inquiry.message),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: _isLoadingMessages
+                        ? const Center(child: CircularProgressIndicator())
+                        : _messages.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 80),
+                                  Center(
+                                    child: Text('No messages yet.'),
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                controller: _messagesScrollController,
+                                itemCount: _messages.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final ConversationMessage message =
+                                      _messages[index];
+                                  final bool isAgentMessage =
+                                      message.isFrom(_currentUserId);
+
+                                  return Align(
+                                    alignment: isAgentMessage
+                                        ? Alignment.centerRight
+                                        : Alignment.centerLeft,
+                                    child: GestureDetector(
+                                      onLongPress:
+                                          isAgentMessage && !message.isPending
+                                              ? () => _showMessageActions(
+                                                    message,
+                                                  )
+                                              : null,
+                                      child: TweenAnimationBuilder<double>(
+                                        key: ValueKey(message.id),
+                                        tween: Tween(begin: 0, end: 1),
+                                        duration:
+                                            const Duration(milliseconds: 220),
+                                        curve: Curves.easeOutCubic,
+                                        builder: (context, value, child) {
+                                          return Opacity(
+                                            opacity: value,
+                                            child: Transform.translate(
+                                              offset: Offset(
+                                                isAgentMessage
+                                                    ? (1 - value) * 18
+                                                    : -(1 - value) * 18,
+                                                (1 - value) * 10,
+                                              ),
+                                              child: child,
+                                            ),
+                                          );
+                                        },
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 320,
+                                          ),
+                                          child: Card(
+                                            color: isAgentMessage
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primaryContainer
+                                                : null,
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(16),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    message.body,
+                                                    style: TextStyle(
+                                                      color: isAgentMessage
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .onPrimaryContainer
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    isAgentMessage
+                                                        ? (message.isPending
+                                                            ? 'Sending...'
+                                                            : 'Sent')
+                                                        : _formatInboxTime(
+                                                            message.createdAt,
+                                                          ),
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: isAgentMessage
+                                                              ? Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .onPrimaryContainer
+                                                                  .withOpacity(
+                                                                    0.75,
+                                                                  )
+                                                              : Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Received: ${inquiry.timeLabel}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatPage(
-                        conversationId: inquiry.id,
-                        senderName: inquiry.buyerName,
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _replyController,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Type your reply...',
+                        filled: true,
+                        fillColor: Theme.of(context).cardColor,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
+                      onSubmitted: (_) => _sendReply(),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.reply),
-                label: const Text('Reply'),
+                  ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: _isSending
+                          ? SizedBox(
+                              key: const ValueKey('sending'),
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).colorScheme.onPrimary,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              key: const ValueKey('send'),
+                              onPressed: _sendReply,
+                              icon: Icon(
+                                Icons.send_rounded,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

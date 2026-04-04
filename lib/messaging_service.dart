@@ -138,6 +138,7 @@ class ConversationMessage {
   });
 
   bool isFrom(String userId) => senderId == userId;
+  bool get isPending => id.startsWith('local-');
 
   factory ConversationMessage.fromMap(Map<String, dynamic> map) {
     return ConversationMessage(
@@ -242,6 +243,20 @@ class MessagingService {
       'sender_id': user.id,
       'body': body.trim(),
     });
+  }
+
+  static Future<void> updateMessage({
+    required String messageId,
+    required String body,
+  }) async {
+    await _client
+        .from('messages')
+        .update({'body': body.trim()})
+        .eq('id', messageId);
+  }
+
+  static Future<void> deleteMessage(String messageId) async {
+    await _client.from('messages').delete().eq('id', messageId);
   }
 
   static Future<String> startConversationForProperty({

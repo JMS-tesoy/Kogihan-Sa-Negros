@@ -1052,10 +1052,12 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _messagesScrollController = ScrollController();
   bool _isLoading = true;
   bool _isSending = false;
   String? _errorText;
   List<ConversationMessage> _messages = const [];
+  RealtimeChannel? _messagesChannel;
 
   String get _currentUserId =>
       Supabase.instance.client.auth.currentUser?.id ?? '';
@@ -1063,16 +1065,55 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadMessages());
+    _subscribeToMessageUpdates();
+    unawaited(_loadMessages(scrollToBottom: true));
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _messagesScrollController.dispose();
+    if (_messagesChannel != null) {
+      unawaited(Supabase.instance.client.removeChannel(_messagesChannel!));
+    }
     super.dispose();
   }
 
-  Future<void> _loadMessages({bool showLoader = true}) async {
+  void _subscribeToMessageUpdates() {
+    _messagesChannel = Supabase.instance.client
+        .channel('buyer-chat-${widget.conversationId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: widget.conversationId,
+          ),
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_loadMessages(showLoader: false, scrollToBottom: true));
+          },
+        )
+        .subscribe();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+      _messagesScrollController.animateTo(
+        _messagesScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  Future<void> _loadMessages({
+    bool showLoader = true,
+    bool scrollToBottom = false,
+  }) async {
     if (showLoader && mounted) {
       setState(() {
         _isLoading = true;
@@ -1084,6 +1125,7 @@ class _ChatPageState extends State<ChatPage> {
       await MessagingService.markConversationAsRead(widget.conversationId);
       final List<ConversationMessage> messages =
           await MessagingService.fetchConversationMessages(widget.conversationId);
+      final int previousCount = _messages.length;
 
       if (!mounted) return;
       setState(() {
@@ -1092,6 +1134,9 @@ class _ChatPageState extends State<ChatPage> {
         _errorText = null;
         _isSending = false;
       });
+      if (scrollToBottom || messages.length > previousCount) {
+        _scrollToBottom();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1106,26 +1151,162 @@ class _ChatPageState extends State<ChatPage> {
     final String text = _messageController.text.trim();
     if (text.isEmpty || _isSending) return;
 
+    final ConversationMessage optimisticMessage = ConversationMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: widget.conversationId,
+      senderId: _currentUserId,
+      body: text,
+      createdAt: DateTime.now(),
+      readAt: null,
+    );
+
     setState(() {
       _isSending = true;
       _errorText = null;
+      _messages = [..._messages, optimisticMessage];
     });
 
     _messageController.clear();
+    _scrollToBottom();
 
     try {
       await MessagingService.sendMessage(
         conversationId: widget.conversationId,
         body: text,
       );
-      await _loadMessages(showLoader: false);
+      await _loadMessages(showLoader: false, scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isSending = false;
         _errorText = 'Failed to send message.';
+        _messages = _messages
+            .where((message) => message.id != optimisticMessage.id)
+            .toList();
         _messageController.text = text;
       });
+    }
+  }
+
+  Future<void> _showMessageActions(ConversationMessage message) async {
+    final String? action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit message'),
+                onTap: () => Navigator.pop(context, 'edit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text(
+                  'Delete message',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.pop(context, 'delete'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'edit') {
+      await _editMessage(message);
+    } else if (action == 'delete') {
+      await _deleteMessage(message);
+    }
+  }
+
+  Future<void> _editMessage(ConversationMessage message) async {
+    final TextEditingController controller =
+        TextEditingController(text: message.body);
+
+    final String? updatedText = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit message'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Update your message',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || updatedText == null || updatedText.isEmpty) return;
+    if (updatedText == message.body.trim()) return;
+
+    try {
+      await MessagingService.updateMessage(
+        messageId: message.id,
+        body: updatedText,
+      );
+      await _loadMessages(showLoader: false, scrollToBottom: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to edit message: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteMessage(ConversationMessage message) async {
+    final bool shouldDelete = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Delete message'),
+              content:
+                  const Text('This message will be removed from the chat.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted || !shouldDelete) return;
+
+    try {
+      await MessagingService.deleteMessage(message.id);
+      await _loadMessages(showLoader: false, scrollToBottom: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $e')),
+      );
     }
   }
 
@@ -1171,6 +1352,7 @@ class _ChatPageState extends State<ChatPage> {
                 }
 
                 return ListView.builder(
+                  controller: _messagesScrollController,
                   padding: const EdgeInsets.all(16),
                   itemCount: _messages.length,
                   itemBuilder: (context, index) {
@@ -1179,32 +1361,77 @@ class _ChatPageState extends State<ChatPage> {
                     return Align(
                       alignment:
                           isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(16).copyWith(
-                            bottomRight: isMe
-                                ? const Radius.circular(0)
-                                : const Radius.circular(16),
-                            bottomLeft: !isMe
-                                ? const Radius.circular(0)
-                                : const Radius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          msg.body,
-                          style: TextStyle(
-                            color: isMe
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : Theme.of(context).colorScheme.onSurface,
-                            fontSize: 16,
+                      child: GestureDetector(
+                        onLongPress: isMe && !msg.isPending
+                            ? () => _showMessageActions(msg)
+                            : null,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey(msg.id),
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) {
+                            return Opacity(
+                              opacity: value,
+                              child: Transform.translate(
+                                offset: Offset(
+                                  isMe ? (1 - value) * 18 : -(1 - value) * 18,
+                                  (1 - value) * 10,
+                                ),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(16).copyWith(
+                                bottomRight: isMe
+                                    ? const Radius.circular(0)
+                                    : const Radius.circular(16),
+                                bottomLeft: !isMe
+                                    ? const Radius.circular(0)
+                                    : const Radius.circular(16),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  msg.body,
+                                  style: TextStyle(
+                                    color: isMe
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                if (isMe) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    msg.isPending ? 'Sending...' : 'Sent',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary
+                                          .withOpacity(0.85),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1252,12 +1479,30 @@ class _ChatPageState extends State<ChatPage> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.send_rounded,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      ),
-                      onPressed: _isSending ? null : _sendMessage,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: _isSending
+                          ? SizedBox(
+                              key: const ValueKey('sending'),
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).colorScheme.onPrimary,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              key: const ValueKey('send'),
+                              icon: Icon(
+                                Icons.send_rounded,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                              onPressed: _sendMessage,
+                            ),
                     ),
                   ),
                 ],

@@ -134,15 +134,27 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+  target_conversation_id uuid;
+  latest_message record;
 begin
+  target_conversation_id := coalesce(new.conversation_id, old.conversation_id);
+
+  select body, created_at
+  into latest_message
+  from public.messages
+  where conversation_id = target_conversation_id
+  order by created_at desc, id desc
+  limit 1;
+
   update public.conversations
   set
-    last_message_preview = left(new.body, 120),
-    last_message_at = new.created_at,
+    last_message_preview = coalesce(left(latest_message.body, 120), ''),
+    last_message_at = latest_message.created_at,
     updated_at = now()
-  where id = new.conversation_id;
+  where id = target_conversation_id;
 
-  return new;
+  return coalesce(new, old);
 end;
 $$;
 
@@ -167,7 +179,7 @@ execute function public.sync_profile_from_auth_user();
 
 drop trigger if exists messages_touch_conversation on public.messages;
 create trigger messages_touch_conversation
-after insert on public.messages
+after insert or update or delete on public.messages
 for each row
 execute function public.touch_conversation_from_message();
 
@@ -345,32 +357,59 @@ with check (
 );
 
 drop policy if exists "Participants can update messages" on public.messages;
-create policy "Participants can update messages"
+create policy "Senders can update own messages"
 on public.messages
 for update
 to authenticated
 using (
   public.is_admin()
-  or exists (
-    select 1
-    from public.conversations
-    where public.conversations.id = public.messages.conversation_id
-      and (
-        public.conversations.buyer_id = auth.uid()
-        or public.conversations.agent_id = auth.uid()
-      )
+  or (
+    auth.uid() = sender_id
+    and exists (
+      select 1
+      from public.conversations
+      where public.conversations.id = public.messages.conversation_id
+        and (
+          public.conversations.buyer_id = auth.uid()
+          or public.conversations.agent_id = auth.uid()
+        )
+    )
   )
 )
 with check (
   public.is_admin()
-  or exists (
-    select 1
-    from public.conversations
-    where public.conversations.id = public.messages.conversation_id
-      and (
-        public.conversations.buyer_id = auth.uid()
-        or public.conversations.agent_id = auth.uid()
-      )
+  or (
+    auth.uid() = sender_id
+    and exists (
+      select 1
+      from public.conversations
+      where public.conversations.id = public.messages.conversation_id
+        and (
+          public.conversations.buyer_id = auth.uid()
+          or public.conversations.agent_id = auth.uid()
+        )
+    )
+  )
+);
+
+drop policy if exists "Senders can delete own messages" on public.messages;
+create policy "Senders can delete own messages"
+on public.messages
+for delete
+to authenticated
+using (
+  public.is_admin()
+  or (
+    auth.uid() = sender_id
+    and exists (
+      select 1
+      from public.conversations
+      where public.conversations.id = public.messages.conversation_id
+        and (
+          public.conversations.buyer_id = auth.uid()
+          or public.conversations.agent_id = auth.uid()
+        )
+    )
   )
 );
 
