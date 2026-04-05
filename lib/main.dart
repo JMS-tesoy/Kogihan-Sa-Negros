@@ -10,7 +10,9 @@ import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
 import 'shared_properties.dart';
 
-final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
+final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
+  ThemeMode.light,
+);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 
@@ -66,7 +68,12 @@ void main() async {
     await loadProperties();
     developer.log('✅ Supabase connected successfully!', name: 'Supabase');
   } catch (e, stackTrace) {
-    developer.log('❌ Supabase connection failed', name: 'Supabase', error: e, stackTrace: stackTrace);
+    developer.log(
+      '❌ Supabase connection failed',
+      name: 'Supabase',
+      error: e,
+      stackTrace: stackTrace,
+    );
   }
 
   runApp(const RealEstateApp());
@@ -89,9 +96,9 @@ class RealEstateApp extends StatelessWidget {
               themeMode: currentMode,
               builder: (context, child) {
                 return MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    textScaler: TextScaler.linear(fontScale),
-                  ),
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(fontScale)),
                   child: child!,
                 );
               },
@@ -111,7 +118,7 @@ class RealEstateApp extends StatelessWidget {
                 ),
                 scaffoldBackgroundColor: const Color(0xFF121212),
               ),
-            home: const LoginPage(),
+              home: const LoginPage(),
             );
           },
         );
@@ -136,7 +143,9 @@ class _HomePageState extends State<HomePage> {
   String? _selectedLotSize;
   String? _selectedBudget;
   final Set<Property> _savedProperties = {};
-  List<Property> _availableProperties = List<Property>.from(appPropertiesNotifier.value);
+  List<Property> _availableProperties = List<Property>.from(
+    appPropertiesNotifier.value,
+  );
 
   String? _profileImagePath;
   final ImagePicker _imagePicker = ImagePicker();
@@ -234,9 +243,12 @@ class _HomePageState extends State<HomePage> {
 
   List<Property> get _filteredProperties {
     return _availableProperties.where((property) {
-      final bool matchesSearch = _searchQuery.isEmpty ||
+      final bool matchesSearch =
+          _searchQuery.isEmpty ||
           property.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          property.location.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          property.location.toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
           property.price.toLowerCase().contains(_searchQuery.toLowerCase());
 
       final bool matchesLocation =
@@ -319,9 +331,7 @@ class _HomePageState extends State<HomePage> {
         onResetFilters: _resetFilters,
       ),
       const MapTab(),
-      SavedTab(
-        savedProperties: _savedProperties.toList(),
-      ),
+      SavedTab(savedProperties: _savedProperties.toList()),
       const MessagesTab(),
       ProfileTab(
         profileImagePath: _profileImagePath,
@@ -464,10 +474,7 @@ class MapTab extends StatelessWidget {
 class SavedTab extends StatelessWidget {
   final List<Property> savedProperties;
 
-  const SavedTab({
-    super.key,
-    required this.savedProperties,
-  });
+  const SavedTab({super.key, required this.savedProperties});
 
   @override
   Widget build(BuildContext context) {
@@ -479,9 +486,9 @@ class SavedTab extends StatelessWidget {
           children: [
             Text(
               'Saved Properties',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -596,8 +603,8 @@ class _MessagesTabState extends State<MessagesTab> {
                 Text(
                   'Inbox',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -643,9 +650,7 @@ class _MessagesTabState extends State<MessagesTab> {
                       return ListView(
                         children: const [
                           SizedBox(height: 120),
-                          Center(
-                            child: Text('No messages yet.'),
-                          ),
+                          Center(child: Text('No messages yet.')),
                         ],
                       );
                     }
@@ -677,14 +682,12 @@ class _MessagesTabState extends State<MessagesTab> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color:
-              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -693,8 +696,9 @@ class _MessagesTabState extends State<MessagesTab> {
         title: Text(
           conversation.otherParticipantName,
           style: TextStyle(
-            fontWeight:
-                conversation.isUnread ? FontWeight.bold : FontWeight.normal,
+            fontWeight: conversation.isUnread
+                ? FontWeight.bold
+                : FontWeight.normal,
           ),
         ),
         subtitle: Text(
@@ -704,8 +708,9 @@ class _MessagesTabState extends State<MessagesTab> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontWeight:
-                conversation.isUnread ? FontWeight.w600 : FontWeight.normal,
+            fontWeight: conversation.isUnread
+                ? FontWeight.w600
+                : FontWeight.normal,
             color: conversation.isUnread
                 ? Theme.of(context).colorScheme.onSurface
                 : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -722,8 +727,9 @@ class _MessagesTabState extends State<MessagesTab> {
                 color: conversation.isUnread
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight:
-                    conversation.isUnread ? FontWeight.bold : FontWeight.normal,
+                fontWeight: conversation.isUnread
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
             if (conversation.isUnread) ...[
@@ -736,7 +742,7 @@ class _MessagesTabState extends State<MessagesTab> {
                   shape: BoxShape.circle,
                 ),
               ),
-            ]
+            ],
           ],
         ),
         onTap: () => _openConversation(conversation),
@@ -776,12 +782,15 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
       'Are the documents ready for due diligence?': false,
     },
     'About legal and zoning': {
-      'Is this land residential, commercial, agricultural, or industrial?': false,
-      'Can I legally build a house, warehouse, resort, or business here?': false,
+      'Is this land residential, commercial, agricultural, or industrial?':
+          false,
+      'Can I legally build a house, warehouse, resort, or business here?':
+          false,
       'Is it inside a protected area, easement, or right-of-way?': false,
       'Are there zoning restrictions?': false,
       'Are there setback requirements?': false,
-      'Is it allowed for foreigners through a corporation or other legal structure?': false,
+      'Is it allowed for foreigners through a corporation or other legal structure?':
+          false,
     },
     'About utilities and development': {
       'Is there electricity already nearby?': false,
@@ -790,14 +799,16 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
       'Is drainage available?': false,
       'Is the road concrete or rough road?': false,
       'Are there nearby developments already?': false,
-      'How far is it from schools, hospitals, markets, airport, or city center?': false,
+      'How far is it from schools, hospitals, markets, airport, or city center?':
+          false,
     },
     'About price and payment': {
       'What is the total price?': false,
       'What is the price per square meter?': false,
       'Is the price negotiable?': false,
       'What is included in the price?': false,
-      'Who will pay for CGT, DST, transfer tax, registration, notary, and broker fees?': false,
+      'Who will pay for CGT, DST, transfer tax, registration, notary, and broker fees?':
+          false,
       'Is installment allowed?': false,
       'What is the reservation fee?': false,
       'Are there hidden costs after purchase?': false,
@@ -836,10 +847,7 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buyer Checklist'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Buyer Checklist'), centerTitle: true),
       body: ListView(
         children: _checklist.keys.map((category) {
           return ExpansionTile(
@@ -932,10 +940,7 @@ class ProfileTab extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               'Boss JO',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1006,10 +1011,7 @@ class AccountPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Account'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Account'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1124,7 +1126,9 @@ class _ChatPageState extends State<ChatPage> {
     try {
       await MessagingService.markConversationAsRead(widget.conversationId);
       final List<ConversationMessage> messages =
-          await MessagingService.fetchConversationMessages(widget.conversationId);
+          await MessagingService.fetchConversationMessages(
+            widget.conversationId,
+          );
       final int previousCount = _messages.length;
 
       if (!mounted) return;
@@ -1224,8 +1228,9 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _editMessage(ConversationMessage message) async {
-    final TextEditingController controller =
-        TextEditingController(text: message.body);
+    final TextEditingController controller = TextEditingController(
+      text: message.body,
+    );
 
     final String? updatedText = await showDialog<String>(
       context: context,
@@ -1237,9 +1242,7 @@ class _ChatPageState extends State<ChatPage> {
             autofocus: true,
             minLines: 1,
             maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Update your message',
-            ),
+            decoration: const InputDecoration(hintText: 'Update your message'),
           ),
           actions: [
             TextButton(
@@ -1268,20 +1271,22 @@ class _ChatPageState extends State<ChatPage> {
       await _loadMessages(showLoader: false, scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to edit message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
     }
   }
 
   Future<void> _deleteMessage(ConversationMessage message) async {
-    final bool shouldDelete = await showDialog<bool>(
+    final bool shouldDelete =
+        await showDialog<bool>(
           context: context,
           builder: (context) {
             return AlertDialog(
               title: const Text('Delete message'),
-              content:
-                  const Text('This message will be removed from the chat.'),
+              content: const Text(
+                'This message will be removed from the chat.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -1304,9 +1309,9 @@ class _ChatPageState extends State<ChatPage> {
       await _loadMessages(showLoader: false, scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
     }
   }
 
@@ -1359,8 +1364,9 @@ class _ChatPageState extends State<ChatPage> {
                     final ConversationMessage msg = _messages[index];
                     final bool isMe = msg.isFrom(_currentUserId);
                     return Align(
-                      alignment:
-                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: GestureDetector(
                         onLongPress: isMe && !msg.isPending
                             ? () => _showMessageActions(msg)
@@ -1408,12 +1414,12 @@ class _ChatPageState extends State<ChatPage> {
                                   msg.body,
                                   style: TextStyle(
                                     color: isMe
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .onPrimary
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                     fontSize: 16,
                                   ),
                                 ),
@@ -1423,10 +1429,9 @@ class _ChatPageState extends State<ChatPage> {
                                     msg.isPending ? 'Sending...' : 'Sent',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimary
-                                          .withOpacity(0.85),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary.withOpacity(0.85),
                                     ),
                                   ),
                                 ],
@@ -1446,9 +1451,7 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
                 _errorText!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           SafeArea(
@@ -1561,10 +1564,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: ListView(
         children: [
           Theme(
@@ -1589,80 +1589,85 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
-          // Font Sizing Feature
-          ListTile(
-            title: const Text('Font Size'),
-            subtitle: Text(
-                'Adjust text size for better readability (${_currentFontSizeScale.toStringAsFixed(1)}x)'),
-            leading: const Icon(Icons.format_size),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Slider(
-              value: _currentFontSizeScale,
-              min: 0.8,
-              max: 1.5,
-              divisions: 7, // Allows for 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5
-              label: _currentFontSizeScale.toStringAsFixed(1),
-              onChanged: (double value) {
-                setState(() {
-                  _currentFontSizeScale = value;
-                  appFontScaleNotifier.value = value;
-                });
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-            child: Text(
-              'This is an example text. Adjust the slider above to see the font size change.',
-              textScaleFactor: _currentFontSizeScale,
-            ),
-          ),
-          if (_notificationsEnabled)
-            Padding(
-              padding: const EdgeInsets.only(left: 32.0),
-              child: Column(
-                children: [
-                  Transform.scale(
-                    scale: 0.88,
-                    alignment: Alignment.centerRight,
-                    child: _buildCompactSwitchTile(
-                      title: 'New Property Alerts',
-                      value: _notifyNewProperties,
-                      dense: true,
-                      onChanged: (value) {
-                        setState(() => _notifyNewProperties = value);
-                      },
+                // Font Sizing Feature
+                ListTile(
+                  title: const Text('Font Size'),
+                  subtitle: Text(
+                    'Adjust text size for better readability (${_currentFontSizeScale.toStringAsFixed(1)}x)',
+                  ),
+                  leading: const Icon(Icons.format_size),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Slider(
+                    value: _currentFontSizeScale,
+                    min: 0.8,
+                    max: 1.5,
+                    divisions:
+                        7, // Allows for 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5
+                    label: _currentFontSizeScale.toStringAsFixed(1),
+                    onChanged: (double value) {
+                      setState(() {
+                        _currentFontSizeScale = value;
+                        appFontScaleNotifier.value = value;
+                      });
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 8.0,
+                  ),
+                  child: Text(
+                    'This is an example text. Adjust the slider above to see the font size change.',
+                    textScaleFactor: _currentFontSizeScale,
+                  ),
+                ),
+                if (_notificationsEnabled)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32.0),
+                    child: Column(
+                      children: [
+                        Transform.scale(
+                          scale: 0.88,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'New Property Alerts',
+                            value: _notifyNewProperties,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyNewProperties = value);
+                            },
+                          ),
+                        ),
+                        Transform.scale(
+                          scale: 0.88,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'Price Drops on Saved',
+                            value: _notifyPriceDrops,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyPriceDrops = value);
+                            },
+                          ),
+                        ),
+                        Transform.scale(
+                          scale: 0.88,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'Agent Messages',
+                            value: _notifyMessages,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyMessages = value);
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Transform.scale(
-                    scale: 0.88,
-                    alignment: Alignment.centerRight,
-                    child: _buildCompactSwitchTile(
-                      title: 'Price Drops on Saved',
-                      value: _notifyPriceDrops,
-                      dense: true,
-                      onChanged: (value) {
-                        setState(() => _notifyPriceDrops = value);
-                      },
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: 0.88,
-                    alignment: Alignment.centerRight,
-                    child: _buildCompactSwitchTile(
-                      title: 'Agent Messages',
-                      value: _notifyMessages,
-                      dense: true,
-                      onChanged: (value) {
-                        setState(() => _notifyMessages = value);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
                 Transform.scale(
                   scale: 0.88,
                   alignment: Alignment.centerRight,
@@ -1673,8 +1678,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     onChanged: (value) {
                       setState(() {
                         _darkModeEnabled = value;
-                        appThemeNotifier.value =
-                            value ? ThemeMode.dark : ThemeMode.light;
+                        appThemeNotifier.value = value
+                            ? ThemeMode.dark
+                            : ThemeMode.light;
                       });
                     },
                   ),
@@ -1710,9 +1716,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => PinCodePage(),
-                    ),
+                    MaterialPageRoute(builder: (context) => PinCodePage()),
                   );
                 },
               );
@@ -1754,8 +1758,9 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
       if (data.event == AuthChangeEvent.signedIn) {
         _routeByRole(data.session?.user);
       }
@@ -1772,10 +1777,9 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _routeByRole(User? user) async {
     final role =
-        ((user?.appMetadata?['role'] ?? user?.userMetadata?['role'])
-                as String?)
+        ((user?.appMetadata['role'] ?? user?.userMetadata?['role']) as String?)
             ?.toLowerCase() ??
-            'user';
+        'user';
 
     if (user != null) {
       await loadProperties();
@@ -1854,7 +1858,9 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: kIsWeb ? null : 'com.example.flutter_application_1://login-callback/',
+        redirectTo: kIsWeb
+            ? null
+            : 'com.example.flutter_application_1://login-callback/',
       );
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -1888,14 +1894,17 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.landscape_rounded,
-                      size: 80, color: Color(0xFF2E7D32)),
+                  const Icon(
+                    Icons.landscape_rounded,
+                    size: 80,
+                    color: Color(0xFF2E7D32),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Land Finder',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
                     'Sign in to continue',
@@ -1968,15 +1977,17 @@ class _LoginPageState extends State<LoginPage> {
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _signIn,
                               style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                               ),
                               child: _isLoading
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('Login'),
                             ),
@@ -1985,20 +1996,23 @@ class _LoginPageState extends State<LoginPage> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed:
-                                  _isGoogleLoading ? null : _signInWithGoogle,
+                              onPressed: _isGoogleLoading
+                                  ? null
+                                  : _signInWithGoogle,
                               icon: _isGoogleLoading
                                   ? const SizedBox(
                                       height: 18,
                                       width: 18,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Icon(Icons.g_mobiledata),
                               label: const Text('Continue with Google'),
                               style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -2011,7 +2025,8 @@ class _LoginPageState extends State<LoginPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => const SignUpPage()),
+                                  builder: (context) => const SignUpPage(),
+                                ),
                               );
                             },
                             child: const Text('Create an account'),
@@ -2021,8 +2036,9 @@ class _LoginPageState extends State<LoginPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) =>
-                                        const ForgotPasswordPage()),
+                                  builder: (context) =>
+                                      const ForgotPasswordPage(),
+                                ),
                               );
                             },
                             child: const Text('Forgot password?'),
@@ -2089,7 +2105,8 @@ class _SignUpPageState extends State<SignUpPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Account created. Please verify your email before logging in.'),
+            'Account created. Please verify your email before logging in.',
+          ),
         ),
       );
       Navigator.pop(context);
@@ -2167,10 +2184,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
                 if (_errorText != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _errorText!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -2286,10 +2300,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 if (_errorText != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _errorText!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -2416,8 +2427,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 Text(
                   user?.email ?? 'Logged in account',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    fontWeight: FontWeight.w600,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
@@ -2470,8 +2481,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       ),
                       onPressed: () {
                         setState(() {
-                          _obscureConfirmPassword =
-                              !_obscureConfirmPassword;
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
                         });
                       },
                     ),
@@ -2485,10 +2495,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 ),
                 if (_errorText != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _errorText!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -2530,15 +2537,15 @@ class TopHeader extends StatelessWidget {
               Text(
                 'Kogihan Sa Negros',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 'Explore premium lots and investment-ready properties.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -2618,10 +2625,7 @@ class SearchSection extends StatelessWidget {
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
-              prefixIcon: Icon(
-                Icons.search,
-                color: Colors.grey.shade800,
-              ),
+              prefixIcon: Icon(Icons.search, color: Colors.grey.shade800),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 18,
                 vertical: 18,
@@ -2676,11 +2680,7 @@ class SearchSection extends StatelessWidget {
               child: FilterDropdown(
                 label: 'Budget',
                 value: selectedBudget,
-                items: const [
-                  'Below ₱1M',
-                  '₱1M - ₱3M',
-                  'Above ₱3M',
-                ],
+                items: const ['Below ₱1M', '₱1M - ₱3M', 'Above ₱3M'],
                 onChanged: onBudgetChanged,
               ),
             ),
@@ -2758,10 +2758,7 @@ class FilterDropdown extends StatelessWidget {
         items: items.map((item) {
           return DropdownMenuItem<String>(
             value: item,
-            child: Text(
-              item,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(item, overflow: TextOverflow.ellipsis),
           );
         }).toList(),
       ),
@@ -2788,15 +2785,12 @@ class SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
-        TextButton(
-          onPressed: onPressed,
-          child: Text(actionText),
-        ),
+        TextButton(onPressed: onPressed, child: Text(actionText)),
       ],
     );
   }
@@ -2909,9 +2903,7 @@ class PropertyCard extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isSaved
-                          ? Icons.favorite
-                          : Icons.favorite_border_rounded,
+                      isSaved ? Icons.favorite : Icons.favorite_border_rounded,
                       color: isSaved
                           ? Colors.red
                           : Theme.of(context).iconTheme.color,
@@ -2928,9 +2920,9 @@ class PropertyCard extends StatelessWidget {
               children: [
                 Text(
                   property.title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -2945,8 +2937,7 @@ class PropertyCard extends StatelessWidget {
                       child: Text(
                         property.location,
                         style: TextStyle(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -3001,8 +2992,7 @@ class PropertyCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor:
-                          Theme.of(context).colorScheme.onPrimary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -3022,10 +3012,7 @@ class PropertyCard extends StatelessWidget {
 class PropertyDetailsPage extends StatelessWidget {
   final Property property;
 
-  const PropertyDetailsPage({
-    super.key,
-    required this.property,
-  });
+  const PropertyDetailsPage({super.key, required this.property});
 
   @override
   Widget build(BuildContext context) {
@@ -3101,8 +3088,8 @@ class PropertyDetailsPage extends StatelessWidget {
                   Text(
                     property.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -3116,8 +3103,7 @@ class PropertyDetailsPage extends StatelessWidget {
                         property.location,
                         style: TextStyle(
                           fontSize: 16,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -3132,9 +3118,9 @@ class PropertyDetailsPage extends StatelessWidget {
                           Text(
                             'Price',
                             style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -3154,9 +3140,9 @@ class PropertyDetailsPage extends StatelessWidget {
                           Text(
                             'Lot Size',
                             style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -3174,10 +3160,7 @@ class PropertyDetailsPage extends StatelessWidget {
                   const SizedBox(height: 32),
                   const Text(
                     'Description',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -3216,10 +3199,7 @@ class PropertyDetailsPage extends StatelessWidget {
             ),
             child: const Text(
               'Contact Agent',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -3231,10 +3211,7 @@ class PropertyDetailsPage extends StatelessWidget {
 class ContactAgentPage extends StatefulWidget {
   final Property property;
 
-  const ContactAgentPage({
-    super.key,
-    required this.property,
-  });
+  const ContactAgentPage({super.key, required this.property});
 
   @override
   State<ContactAgentPage> createState() => _ContactAgentPageState();
@@ -3271,16 +3248,17 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
     if (user == null) return;
 
     try {
-      final MessagingProfile? profile = await MessagingService.fetchCurrentProfile();
+      final MessagingProfile? profile =
+          await MessagingService.fetchCurrentProfile();
       if (!mounted) return;
 
       _fullNameController.text = profile?.fullName?.trim().isNotEmpty == true
           ? profile!.fullName!.trim()
           : ((user.userMetadata?['full_name'] ??
-                      user.userMetadata?['name'] ??
-                      '')
-                  as String)
-              .trim();
+                        user.userMetadata?['name'] ??
+                        '')
+                    as String)
+                .trim();
 
       final String preferredContact = (profile?.phone ?? '').trim().isNotEmpty
           ? profile!.phone!.trim()
@@ -3319,17 +3297,13 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
       final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Message sent to agent successfully!'),
-        ),
+        const SnackBar(content: Text('Message sent to agent successfully!')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send message: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
       setState(() {
         _isSending = false;
       });
@@ -3339,10 +3313,7 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Contact Agent'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Contact Agent'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -3362,8 +3333,8 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                     Text(
                       'Juan Dela Cruz',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       'Senior Real Estate Agent',
@@ -3378,9 +3349,9 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
             const SizedBox(height: 32),
             Text(
               'Your Details',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             _buildTextField(
@@ -3399,9 +3370,9 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
             const SizedBox(height: 24),
             Text(
               'Message',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -3432,10 +3403,7 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                 ),
                 child: const Text(
                   'Send Message',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -3519,27 +3487,24 @@ class _PinCodePageState extends State<PinCodePage> {
       _errorText = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PIN code saved.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('PIN code saved.')));
     Navigator.pop(context);
   }
 
   void _clearPinCode() {
     appPinCodeNotifier.value = null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PIN code removed.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('PIN code removed.')));
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('PIN Code'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('PIN Code'), centerTitle: true),
       body: Center(
         child: SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
@@ -3582,10 +3547,7 @@ class _PinCodePageState extends State<PinCodePage> {
               ),
               if (_errorText != null) ...[
                 const SizedBox(height: 12),
-                Text(
-                  _errorText!,
-                  style: const TextStyle(color: Colors.red),
-                ),
+                Text(_errorText!, style: const TextStyle(color: Colors.red)),
               ],
               const SizedBox(height: 20),
               SizedBox(
@@ -3633,10 +3595,7 @@ class EmptyState extends StatelessWidget {
           SizedBox(height: 12),
           Text(
             'No properties matched your filters.',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ],
       ),

@@ -78,12 +78,15 @@ class ConversationSummary {
     Map<String, dynamic> map,
     String currentUserId,
   ) {
-    final Map<String, dynamic> buyer =
-        Map<String, dynamic>.from((map['buyer'] as Map?) ?? const {});
-    final Map<String, dynamic> agent =
-        Map<String, dynamic>.from((map['agent'] as Map?) ?? const {});
-    final Map<String, dynamic> property =
-        Map<String, dynamic>.from((map['property'] as Map?) ?? const {});
+    final Map<String, dynamic> buyer = Map<String, dynamic>.from(
+      (map['buyer'] as Map?) ?? const {},
+    );
+    final Map<String, dynamic> agent = Map<String, dynamic>.from(
+      (map['agent'] as Map?) ?? const {},
+    );
+    final Map<String, dynamic> property = Map<String, dynamic>.from(
+      (map['property'] as Map?) ?? const {},
+    );
     final List<dynamic> messageList = (map['messages'] as List?) ?? const [];
     final Map<String, dynamic>? latestMessage = messageList.isEmpty
         ? null
@@ -94,8 +97,10 @@ class ConversationSummary {
     final bool isBuyer = currentUserId == buyerId;
     final Map<String, dynamic> otherParty = isBuyer ? agent : buyer;
     final String otherId = (isBuyer ? agentId : buyerId);
-    final String preview = ((map['last_message_preview'] as String?) ?? '').trim();
-    final String latestBody = ((latestMessage?['body'] as String?) ?? '').trim();
+    final String preview = ((map['last_message_preview'] as String?) ?? '')
+        .trim();
+    final String latestBody = ((latestMessage?['body'] as String?) ?? '')
+        .trim();
 
     return ConversationSummary(
       id: map['id'] as String,
@@ -112,7 +117,8 @@ class ConversationSummary {
         'id': otherId,
         ...otherParty,
       }).displayName,
-      isUnread: latestMessage != null &&
+      isUnread:
+          latestMessage != null &&
           latestMessage['sender_id'] != currentUserId &&
           latestMessage['read_at'] == null,
       propertyTitle: property['title'] as String?,
@@ -178,7 +184,8 @@ class MessagingService {
     return MessagingProfile.fromMap(response);
   }
 
-  static Future<List<ConversationSummary>> fetchMyConversationSummaries() async {
+  static Future<List<ConversationSummary>>
+  fetchMyConversationSummaries() async {
     final User user = _currentUser;
     final List<dynamic> response = await _client
         .from('conversations')
@@ -195,15 +202,18 @@ class MessagingService {
         .limit(1, referencedTable: 'messages');
 
     return response
-        .map((item) => ConversationSummary.fromMap(
-              Map<String, dynamic>.from(item as Map),
-              user.id,
-            ))
+        .map(
+          (item) => ConversationSummary.fromMap(
+            Map<String, dynamic>.from(item as Map),
+            user.id,
+          ),
+        )
         .toList();
   }
 
   static Future<int> fetchMyUnreadConversationCount() async {
-    final List<ConversationSummary> summaries = await fetchMyConversationSummaries();
+    final List<ConversationSummary> summaries =
+        await fetchMyConversationSummaries();
     return summaries.where((summary) => summary.isUnread).length;
   }
 
@@ -217,9 +227,11 @@ class MessagingService {
         .order('created_at', ascending: true);
 
     return response
-        .map((item) => ConversationMessage.fromMap(
-              Map<String, dynamic>.from(item as Map),
-            ))
+        .map(
+          (item) => ConversationMessage.fromMap(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
         .toList();
   }
 
@@ -266,10 +278,7 @@ class MessagingService {
     required String contactValue,
   }) async {
     final User user = _currentUser;
-    await _upsertCurrentProfile(
-      fullName: fullName,
-      contactValue: contactValue,
-    );
+    await _upsertCurrentProfile(fullName: fullName, contactValue: contactValue);
 
     final Map<String, dynamic>? agentResponse = await _client
         .from('profiles')
@@ -331,8 +340,8 @@ class MessagingService {
       'full_name': fullName.trim().isNotEmpty
           ? fullName.trim()
           : existingProfile?.fullName ??
-              user.userMetadata?['full_name'] ??
-              user.userMetadata?['name'],
+                user.userMetadata?['full_name'] ??
+                user.userMetadata?['name'],
       'email': isEmailContact
           ? contactValue.trim()
           : existingProfile?.email ?? user.email,

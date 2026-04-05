@@ -93,10 +93,7 @@ class AgentInquiry {
 class AdminHomePage extends StatefulWidget {
   final VoidCallback onLogout;
 
-  const AdminHomePage({
-    super.key,
-    required this.onLogout,
-  });
+  const AdminHomePage({super.key, required this.onLogout});
 
   @override
   State<AdminHomePage> createState() => _AdminHomePageState();
@@ -188,9 +185,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Future<void> _openAddPropertyPage() async {
     final Property? newProperty = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const PropertyFormPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const PropertyFormPage()),
     );
 
     if (newProperty == null || !mounted) return;
@@ -204,9 +199,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add property: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add property: $e')));
     }
   }
 
@@ -249,8 +244,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   void _markInquiryAsRead(String inquiryId) {
-    final int index =
-        _inquiries.indexWhere((inquiry) => inquiry.id == inquiryId);
+    final int index = _inquiries.indexWhere(
+      (inquiry) => inquiry.id == inquiryId,
+    );
 
     if (index == -1 || !_inquiries[index].isUnread) return;
 
@@ -277,7 +273,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
         children: [
           Card(
             child: ListTile(
-              leading: const Icon(Icons.add_home_work, color: Color(0xFF2E7D32)),
+              leading: const Icon(
+                Icons.add_home_work,
+                color: Color(0xFF2E7D32),
+              ),
               title: const Text('Add New Property'),
               subtitle: const Text('Create a new listing'),
               trailing: const Icon(Icons.chevron_right),
@@ -317,10 +316,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
 class PropertyFormPage extends StatefulWidget {
   final Property? initialProperty;
 
-  const PropertyFormPage({
-    super.key,
-    this.initialProperty,
-  });
+  const PropertyFormPage({super.key, this.initialProperty});
 
   @override
   State<PropertyFormPage> createState() => _PropertyFormPageState();
@@ -339,16 +335,21 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   @override
   void initState() {
     super.initState();
-    _titleController =
-        TextEditingController(text: widget.initialProperty?.title ?? '');
-    _locationController =
-        TextEditingController(text: widget.initialProperty?.location ?? '');
-    _priceController =
-        TextEditingController(text: widget.initialProperty?.price ?? '');
-    _sizeController =
-        TextEditingController(text: widget.initialProperty?.size ?? '');
-    _statusController =
-        TextEditingController(text: widget.initialProperty?.tag ?? 'Active');
+    _titleController = TextEditingController(
+      text: widget.initialProperty?.title ?? '',
+    );
+    _locationController = TextEditingController(
+      text: widget.initialProperty?.location ?? '',
+    );
+    _priceController = TextEditingController(
+      text: widget.initialProperty?.price ?? '',
+    );
+    _sizeController = TextEditingController(
+      text: widget.initialProperty?.size ?? '',
+    );
+    _statusController = TextEditingController(
+      text: widget.initialProperty?.tag ?? 'Active',
+    );
   }
 
   @override
@@ -368,7 +369,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     final int parsedSizeValue = _extractNumber(_sizeController.text);
 
     final Property property = Property(
-      id: widget.initialProperty?.id ??
+      id:
+          widget.initialProperty?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       title: _titleController.text.trim(),
       location: _locationController.text.trim(),
@@ -529,8 +531,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
 
     if (updatedProperty == null || !mounted) return;
 
-    final int index =
-        _properties.indexWhere((item) => item.id == updatedProperty.id);
+    final int index = _properties.indexWhere(
+      (item) => item.id == updatedProperty.id,
+    );
 
     if (index == -1) return;
 
@@ -550,21 +553,17 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     });
     await widget.onDeleteProperty(property.id);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${property.title} deleted.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${property.title} deleted.')));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Properties'),
-      ),
+      appBar: AppBar(title: const Text('Manage Properties')),
       body: _properties.isEmpty
-          ? const Center(
-              child: Text('No properties available.'),
-            )
+          ? const Center(child: Text('No properties available.'))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _properties.length,
@@ -707,18 +706,14 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agent Inbox'),
-      ),
+      appBar: AppBar(title: const Text('Agent Inbox')),
       body: RefreshIndicator(
         onRefresh: _refreshInquiries,
         child: _inquiries.isEmpty
             ? ListView(
                 children: const [
                   SizedBox(height: 120),
-                  Center(
-                    child: Text('No buyer inquiries yet.'),
-                  ),
+                  Center(child: Text('No buyer inquiries yet.')),
                 ],
               )
             : ListView.separated(
@@ -729,9 +724,7 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
                   final AgentInquiry inquiry = _inquiries[index];
                   return Card(
                     child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(inquiry.buyerName[0]),
-                      ),
+                      leading: CircleAvatar(child: Text(inquiry.buyerName[0])),
                       title: Text(
                         inquiry.buyerName,
                         style: TextStyle(
@@ -775,10 +768,7 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
 class InquiryDetailsPage extends StatefulWidget {
   final AgentInquiry inquiry;
 
-  const InquiryDetailsPage({
-    super.key,
-    required this.inquiry,
-  });
+  const InquiryDetailsPage({super.key, required this.inquiry});
 
   @override
   State<InquiryDetailsPage> createState() => _InquiryDetailsPageState();
@@ -902,11 +892,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
             .where((message) => message.id != optimisticMessage.id)
             .toList();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send reply: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send reply: $e')));
     } finally {
       if (!mounted) return;
       setState(() {
@@ -951,8 +939,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
   }
 
   Future<void> _editMessage(ConversationMessage message) async {
-    final TextEditingController controller =
-        TextEditingController(text: message.body);
+    final TextEditingController controller = TextEditingController(
+      text: message.body,
+    );
 
     final String? updatedText = await showDialog<String>(
       context: context,
@@ -964,9 +953,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
             autofocus: true,
             minLines: 1,
             maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Update your message',
-            ),
+            decoration: const InputDecoration(hintText: 'Update your message'),
           ),
           actions: [
             TextButton(
@@ -995,20 +982,22 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to edit message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
     }
   }
 
   Future<void> _deleteMessage(ConversationMessage message) async {
-    final bool shouldDelete = await showDialog<bool>(
+    final bool shouldDelete =
+        await showDialog<bool>(
           context: context,
           builder: (context) {
             return AlertDialog(
               title: const Text('Delete message'),
-              content:
-                  const Text('This message will be removed from the chat.'),
+              content: const Text(
+                'This message will be removed from the chat.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -1031,18 +1020,16 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.inquiry.buyerName),
-      ),
+      appBar: AppBar(title: Text(widget.inquiry.buyerName)),
       body: Column(
         children: [
           Expanded(
@@ -1054,135 +1041,128 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                   Text(
                     'Messages',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     widget.inquiry.conversationTitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Expanded(
                     child: _isLoadingMessages
                         ? const Center(child: CircularProgressIndicator())
                         : _messages.isEmpty
-                            ? ListView(
-                                children: const [
-                                  SizedBox(height: 80),
-                                  Center(
-                                    child: Text('No messages yet.'),
-                                  ),
-                                ],
-                              )
-                            : ListView.separated(
-                                controller: _messagesScrollController,
-                                itemCount: _messages.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 12),
-                                itemBuilder: (context, index) {
-                                  final ConversationMessage message =
-                                      _messages[index];
-                                  final bool isAgentMessage =
-                                      message.isFrom(_currentUserId);
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 80),
+                              Center(child: Text('No messages yet.')),
+                            ],
+                          )
+                        : ListView.separated(
+                            controller: _messagesScrollController,
+                            itemCount: _messages.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final ConversationMessage message =
+                                  _messages[index];
+                              final bool isAgentMessage = message.isFrom(
+                                _currentUserId,
+                              );
 
-                                  return Align(
-                                    alignment: isAgentMessage
-                                        ? Alignment.centerRight
-                                        : Alignment.centerLeft,
-                                    child: GestureDetector(
-                                      onLongPress:
-                                          isAgentMessage && !message.isPending
-                                              ? () => _showMessageActions(
-                                                    message,
-                                                  )
-                                              : null,
-                                      child: TweenAnimationBuilder<double>(
-                                        key: ValueKey(message.id),
-                                        tween: Tween(begin: 0, end: 1),
-                                        duration:
-                                            const Duration(milliseconds: 220),
-                                        curve: Curves.easeOutCubic,
-                                        builder: (context, value, child) {
-                                          return Opacity(
-                                            opacity: value,
-                                            child: Transform.translate(
-                                              offset: Offset(
-                                                isAgentMessage
-                                                    ? (1 - value) * 18
-                                                    : -(1 - value) * 18,
-                                                (1 - value) * 10,
-                                              ),
-                                              child: child,
-                                            ),
-                                          );
-                                        },
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 320,
+                              return Align(
+                                alignment: isAgentMessage
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: GestureDetector(
+                                  onLongPress:
+                                      isAgentMessage && !message.isPending
+                                      ? () => _showMessageActions(message)
+                                      : null,
+                                  child: TweenAnimationBuilder<double>(
+                                    key: ValueKey(message.id),
+                                    tween: Tween(begin: 0, end: 1),
+                                    duration: const Duration(milliseconds: 220),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, value, child) {
+                                      return Opacity(
+                                        opacity: value,
+                                        child: Transform.translate(
+                                          offset: Offset(
+                                            isAgentMessage
+                                                ? (1 - value) * 18
+                                                : -(1 - value) * 18,
+                                            (1 - value) * 10,
                                           ),
-                                          child: Card(
-                                            color: isAgentMessage
-                                                ? Theme.of(context)
-                                                    .colorScheme
-                                                    .primaryContainer
-                                                : null,
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(16),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    message.body,
-                                                    style: TextStyle(
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 320,
+                                      ),
+                                      child: Card(
+                                        color: isAgentMessage
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primaryContainer
+                                            : null,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                message.body,
+                                                style: TextStyle(
+                                                  color: isAgentMessage
+                                                      ? Theme.of(context)
+                                                            .colorScheme
+                                                            .onPrimaryContainer
+                                                      : null,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                isAgentMessage
+                                                    ? (message.isPending
+                                                          ? 'Sending...'
+                                                          : 'Sent')
+                                                    : _formatInboxTime(
+                                                        message.createdAt,
+                                                      ),
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
                                                       color: isAgentMessage
                                                           ? Theme.of(context)
-                                                              .colorScheme
-                                                              .onPrimaryContainer
-                                                          : null,
+                                                                .colorScheme
+                                                                .onPrimaryContainer
+                                                                .withOpacity(
+                                                                  0.75,
+                                                                )
+                                                          : Theme.of(context)
+                                                                .colorScheme
+                                                                .onSurfaceVariant,
                                                     ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    isAgentMessage
-                                                        ? (message.isPending
-                                                            ? 'Sending...'
-                                                            : 'Sent')
-                                                        : _formatInboxTime(
-                                                            message.createdAt,
-                                                          ),
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: isAgentMessage
-                                                              ? Theme.of(
-                                                                      context)
-                                                                  .colorScheme
-                                                                  .onPrimaryContainer
-                                                                  .withOpacity(
-                                                                    0.75,
-                                                                  )
-                                                              : Theme.of(
-                                                                      context)
-                                                                  .colorScheme
-                                                                  .onSurfaceVariant,
-                                                        ),
-                                                  ),
-                                                ],
                                               ),
-                                            ),
+                                            ],
                                           ),
                                         ),
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
