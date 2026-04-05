@@ -678,6 +678,10 @@ class _MessagesTabState extends State<MessagesTab> {
     BuildContext context,
     ConversationSummary conversation,
   ) {
+    final String previewText = conversation.lastMessagePreview.isNotEmpty
+        ? conversation.lastMessagePreview
+        : 'No messages yet.';
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -691,30 +695,45 @@ class _MessagesTabState extends State<MessagesTab> {
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-          child: Text(_messageInitial(conversation.otherParticipantName)),
+          child: Text(_messageInitial(conversation.title)),
         ),
         title: Text(
-          conversation.otherParticipantName,
+          conversation.title,
           style: TextStyle(
             fontWeight: conversation.isUnread
                 ? FontWeight.bold
                 : FontWeight.normal,
           ),
         ),
-        subtitle: Text(
-          conversation.lastMessagePreview.isNotEmpty
-              ? conversation.lastMessagePreview
-              : 'No messages yet.',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: conversation.isUnread
-                ? FontWeight.w600
-                : FontWeight.normal,
-            color: conversation.isUnread
-                ? Theme.of(context).colorScheme.onSurface
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              conversation.otherParticipantName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              previewText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: conversation.isUnread
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+                color: conversation.isUnread
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
