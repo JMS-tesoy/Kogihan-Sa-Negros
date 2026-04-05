@@ -1382,12 +1382,22 @@ class _ChatPageState extends State<ChatPage> {
                   itemBuilder: (context, index) {
                     final ConversationMessage msg = _messages[index];
                     final bool isMe = msg.isFrom(_currentUserId);
+                    final bool isLightTheme =
+                        Theme.of(context).brightness == Brightness.light;
                     final Color bubbleColor = isMe
-                        ? Theme.of(context).colorScheme.primaryContainer
-                        : Theme.of(context).colorScheme.secondaryContainer;
+                        ? (isLightTheme
+                              ? const Color(0xFFDDF2E4)
+                              : Theme.of(context).colorScheme.primaryContainer)
+                        : (isLightTheme
+                              ? const Color(0xFFE5EFFC)
+                              : Theme.of(context).colorScheme.secondaryContainer);
                     final Color textColor = isMe
-                        ? Theme.of(context).colorScheme.onPrimaryContainer
-                        : Theme.of(context).colorScheme.onSecondaryContainer;
+                        ? (isLightTheme
+                              ? const Color(0xFF123524)
+                              : Theme.of(context).colorScheme.onPrimaryContainer)
+                        : (isLightTheme
+                              ? const Color(0xFF17324D)
+                              : Theme.of(context).colorScheme.onSecondaryContainer);
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
@@ -1446,10 +1456,7 @@ class _ChatPageState extends State<ChatPage> {
                                     msg.isPending ? 'Sending...' : 'Sent',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimaryContainer
-                                          .withValues(alpha: 0.85),
+                                      color: textColor.withValues(alpha: 0.85),
                                     ),
                                   ),
                                 ],

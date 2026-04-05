@@ -1142,28 +1142,34 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                               final bool isAgentMessage = message.isFrom(
                                 _currentUserId,
                               );
+                              final bool isLightTheme =
+                                  Theme.of(context).brightness ==
+                                  Brightness.light;
                               final Color bubbleColor = isAgentMessage
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.secondaryContainer;
+                                  ? (isLightTheme
+                                        ? const Color(0xFFDDF2E4)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.primaryContainer)
+                                  : (isLightTheme
+                                        ? const Color(0xFFE5EFFC)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.secondaryContainer);
                               final Color textColor = isAgentMessage
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.onSecondaryContainer;
+                                  ? (isLightTheme
+                                        ? const Color(0xFF123524)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimaryContainer)
+                                  : (isLightTheme
+                                        ? const Color(0xFF17324D)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSecondaryContainer);
                               final Color metaColor = isAgentMessage
-                                  ? Theme.of(context)
-                                        .colorScheme
-                                        .onPrimaryContainer
-                                        .withValues(alpha: 0.75)
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.onSecondaryContainer;
+                                  ? textColor.withValues(alpha: 0.75)
+                                  : textColor.withValues(alpha: 0.8);
 
                               return Align(
                                 alignment: isAgentMessage
