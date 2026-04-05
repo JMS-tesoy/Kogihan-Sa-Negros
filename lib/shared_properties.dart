@@ -11,6 +11,7 @@ class Property {
   final String size;
   final int sizeValue;
   final String tag;
+  final String titleStatus;
   final String description;
   final Color imageColor;
   final String? imageUrl;
@@ -25,6 +26,7 @@ class Property {
     required this.size,
     required this.sizeValue,
     required this.tag,
+    required this.titleStatus,
     required this.description,
     required this.imageColor,
     this.imageUrl,
@@ -40,6 +42,7 @@ class Property {
     String? size,
     int? sizeValue,
     String? tag,
+    String? titleStatus,
     String? description,
     Color? imageColor,
     String? imageUrl,
@@ -54,6 +57,7 @@ class Property {
       size: size ?? this.size,
       sizeValue: sizeValue ?? this.sizeValue,
       tag: tag ?? this.tag,
+      titleStatus: titleStatus ?? this.titleStatus,
       description: description ?? this.description,
       imageColor: imageColor ?? this.imageColor,
       imageUrl: imageUrl ?? this.imageUrl,
@@ -78,6 +82,7 @@ class Property {
       size: (map['size'] ?? '') as String,
       sizeValue: _toInt(map['size_value']),
       tag: (map['tag'] ?? '') as String,
+      titleStatus: (map['title_status'] ?? '') as String,
       description: (map['description'] ?? '') as String,
       imageColor: Color(_toInt(map['image_color'])),
       imageUrl: _toNullableString(map['image_url']),
@@ -94,6 +99,7 @@ class Property {
       'size': size,
       'size_value': sizeValue,
       'tag': tag,
+      'title_status': titleStatus,
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
@@ -110,6 +116,7 @@ class Property {
       'size': size,
       'size_value': sizeValue,
       'tag': tag,
+      'title_status': titleStatus,
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
@@ -143,6 +150,7 @@ const List<Property> _fallbackProperties = [
     size: '500 sqm',
     sizeValue: 500,
     tag: 'Featured',
+    titleStatus: 'Clean Title',
     description:
         'A clean residential lot ideal for a primary home build. Easy road access, stable neighborhood demand, and ready for site viewing.',
     imageColor: Color(0xFF9CCC65),
@@ -159,6 +167,7 @@ const List<Property> _fallbackProperties = [
     size: '1,200 sqm',
     sizeValue: 1200,
     tag: 'Hot Deal',
+    titleStatus: 'Transfer Certificate of Title',
     description:
         'Elevated land parcel with open mountain views and strong long-term value for vacation home or subdivision planning.',
     imageColor: Color(0xFFA1887F),
@@ -175,6 +184,7 @@ const List<Property> _fallbackProperties = [
     size: '2,000 sqm',
     sizeValue: 2000,
     tag: 'New',
+    titleStatus: 'Tax Declaration',
     description:
         'Spacious agricultural lot suited for farming, agri-tourism, or long-term land banking with room for future expansion.',
     imageColor: Color(0xFF64B5F6),
@@ -191,6 +201,7 @@ const List<Property> _fallbackProperties = [
     size: '1,500 sqm',
     sizeValue: 1500,
     tag: 'Premium',
+    titleStatus: 'Mother Title',
     description:
         'High-visibility lot with direct highway exposure, suitable for commercial development, showroom use, or mixed-use investment.',
     imageColor: Color(0xFFBA68C8),
@@ -207,6 +218,7 @@ const List<Property> _fallbackProperties = [
     size: '300 sqm',
     sizeValue: 300,
     tag: 'Budget',
+    titleStatus: 'Clean Title',
     description:
         'Entry-level lot for first-time buyers seeking an accessible parcel for a modest home build or initial property investment.',
     imageColor: Color(0xFFFFB74D),

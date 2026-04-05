@@ -589,6 +589,15 @@ class PropertyFormPage extends StatefulWidget {
 }
 
 class _PropertyFormPageState extends State<PropertyFormPage> {
+  static const List<String> _titleStatusOptions = [
+    'Clean Title',
+    'Transfer Certificate of Title',
+    'Tax Declaration',
+    'Mother Title',
+    'CLOA',
+    'Pending Verification',
+  ];
+
   late final TextEditingController _referenceCodeController;
   late final TextEditingController _titleController;
   late final TextEditingController _locationController;
@@ -600,6 +609,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
+  late String _selectedTitleStatus;
 
   bool get _isEditing => widget.initialProperty != null;
   String get _previewReferenceCode {
@@ -630,6 +640,11 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   String get _previewTag {
     final String value = _statusController.text.trim();
     return value.isEmpty ? 'Active' : value;
+  }
+
+  String get _previewTitleStatus {
+    final String value = _selectedTitleStatus.trim();
+    return value.isEmpty ? 'Title status not set' : value;
   }
 
   String get _previewDescription {
@@ -700,6 +715,41 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
       ),
       validator: validator,
+    );
+  }
+
+  Widget _buildSelectionField({
+    required BuildContext context,
+    required String label,
+    required IconData icon,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    String? helperText,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: helperText,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      items: items
+          .map(
+            (item) => DropdownMenuItem<String>(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      validator: (selectedValue) {
+        if (selectedValue == null || selectedValue.trim().isEmpty) {
+          return 'Please select a title status.';
+        }
+        return null;
+      },
     );
   }
 
@@ -853,6 +903,10 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                       avatar: const Icon(Icons.straighten, size: 18),
                     ),
                     Chip(
+                      label: Text(_previewTitleStatus),
+                      avatar: const Icon(Icons.verified_outlined, size: 18),
+                    ),
+                    Chip(
                       label: Text(
                         imageUrl.isEmpty ? 'No image yet' : 'Image attached',
                       ),
@@ -989,6 +1043,10 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _statusController = TextEditingController(
       text: widget.initialProperty?.tag ?? 'Active',
     );
+    _selectedTitleStatus =
+        widget.initialProperty?.titleStatus.trim().isNotEmpty == true
+        ? widget.initialProperty!.titleStatus
+        : _titleStatusOptions.first;
     _descriptionController = TextEditingController(
       text: widget.initialProperty?.description ?? '',
     );
@@ -1028,6 +1086,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       size: _sizeController.text.trim(),
       sizeValue: parsedSizeValue > 0 ? parsedSizeValue : 0,
       tag: _statusController.text.trim(),
+      titleStatus: _selectedTitleStatus,
       description: _descriptionController.text.trim(),
       imageColor: widget.initialProperty?.imageColor ?? _randomColor(),
       imageUrl: _imageUrlController.text.trim().isEmpty
@@ -1184,6 +1243,22 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                       return 'Please enter a card tag.';
                     }
                     return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildSelectionField(
+                  context: context,
+                  label: 'Title status',
+                  icon: Icons.verified_outlined,
+                  value: _selectedTitleStatus,
+                  items: _titleStatusOptions,
+                  helperText:
+                      'Agents choose the legal title status shown on user-facing cards.',
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedTitleStatus = value;
+                    });
                   },
                 ),
               ],
@@ -1369,7 +1444,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        'Grid: ${property.location}\n${property.price} • ${property.size}\nTag: ${property.tag}',
+                        'Grid: ${property.location}\n${property.price} • ${property.size}\nTag: ${property.tag} • Title: ${property.titleStatus}',
                       ),
                     ),
                     isThreeLine: true,
