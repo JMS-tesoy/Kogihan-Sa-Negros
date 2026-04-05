@@ -345,9 +345,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
         children: [
           Card(
             child: ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.add_home_work,
-                color: Color(0xFF2E7D32),
+                color: Theme.of(context).colorScheme.primary,
               ),
               title: const Text('Add New Property'),
               subtitle: const Text('Create a new listing'),
@@ -1139,34 +1139,16 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                             itemBuilder: (context, index) {
                               final ConversationMessage message =
                                   _messages[index];
+                              final ThemeData theme = Theme.of(context);
                               final bool isAgentMessage = message.isFrom(
                                 _currentUserId,
                               );
-                              final bool isLightTheme =
-                                  Theme.of(context).brightness ==
-                                  Brightness.light;
                               final Color bubbleColor = isAgentMessage
-                                  ? (isLightTheme
-                                        ? const Color(0xFFDDF2E4)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.primaryContainer)
-                                  : (isLightTheme
-                                        ? const Color(0xFFE5EFFC)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.secondaryContainer);
+                                  ? theme.colorScheme.primaryContainer
+                                  : theme.colorScheme.secondaryContainer;
                               final Color textColor = isAgentMessage
-                                  ? (isLightTheme
-                                        ? const Color(0xFF123524)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.onPrimaryContainer)
-                                  : (isLightTheme
-                                        ? const Color(0xFF17324D)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.onSecondaryContainer);
+                                  ? theme.colorScheme.onPrimaryContainer
+                                  : theme.colorScheme.onSecondaryContainer;
                               final Color metaColor = isAgentMessage
                                   ? textColor.withValues(alpha: 0.75)
                                   : textColor.withValues(alpha: 0.8);

@@ -56,6 +56,73 @@ String _formatMessageTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
+ThemeData _buildLightTheme() {
+  const Color seedColor = Color(0xFF2563EB);
+  final ColorScheme scheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    brightness: Brightness.light,
+  ).copyWith(
+    primary: const Color(0xFF2563EB),
+    onPrimary: Colors.white,
+    primaryContainer: const Color(0xFFDBEAFE),
+    onPrimaryContainer: const Color(0xFF123B7A),
+    secondary: const Color(0xFF64748B),
+    onSecondary: Colors.white,
+    secondaryContainer: const Color(0xFFE8EEF6),
+    onSecondaryContainer: const Color(0xFF243449),
+    surface: const Color(0xFFFFFFFF),
+    onSurface: const Color(0xFF0F172A),
+    surfaceContainerHighest: const Color(0xFFEEF2F6),
+    onSurfaceVariant: const Color(0xFF475569),
+    outline: const Color(0xFFD7DFE8),
+    outlineVariant: const Color(0xFFE6ECF2),
+    shadow: const Color(0xFF0F172A),
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+    cardColor: scheme.surface,
+    dividerColor: scheme.outlineVariant,
+    canvasColor: scheme.surface,
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: scheme.surface,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scheme.surface,
+      indicatorColor: scheme.primaryContainer,
+      surfaceTintColor: Colors.transparent,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        surfaceTintColor: Colors.transparent,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: scheme.primary,
+      ),
+    ),
+    iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+    textTheme: ThemeData.light().textTheme.apply(
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    ),
+  );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -102,14 +169,7 @@ class RealEstateApp extends StatelessWidget {
                   child: child!,
                 );
               },
-              theme: ThemeData(
-                useMaterial3: true,
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: const Color(0xFF2E7D32),
-                  brightness: Brightness.light,
-                ),
-                scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-              ),
+              theme: _buildLightTheme(),
               darkTheme: ThemeData(
                 useMaterial3: true,
                 colorScheme: ColorScheme.fromSeed(
@@ -169,6 +229,14 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _availableProperties = List<Property>.from(appPropertiesNotifier.value);
     });
+  }
+
+  String _normalizeSearchText(String value) {
+    return value.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  String _digitsOnly(String value) {
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
   Future<void> _pickAvatarFromGallery() async {
@@ -242,14 +310,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Property> get _filteredProperties {
+    final String normalizedQuery = _normalizeSearchText(_searchQuery);
+    final String numericQuery = _digitsOnly(_searchQuery);
+
     return _availableProperties.where((property) {
+      final String normalizedTitle = _normalizeSearchText(property.title);
+      final String normalizedLocation = _normalizeSearchText(property.location);
+      final String normalizedPrice = _normalizeSearchText(property.price);
+      final String numericPrice = _digitsOnly(property.price);
+
       final bool matchesSearch =
-          _searchQuery.isEmpty ||
-          property.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          property.location.toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          property.price.toLowerCase().contains(_searchQuery.toLowerCase());
+          normalizedQuery.isEmpty ||
+          normalizedTitle.contains(normalizedQuery) ||
+          normalizedLocation.contains(normalizedQuery) ||
+          normalizedPrice.contains(normalizedQuery) ||
+          (numericQuery.isNotEmpty && numericPrice.contains(numericQuery));
 
       final bool matchesLocation =
           _selectedLocation == null || property.location == _selectedLocation;
@@ -1055,7 +1130,7 @@ class ProfileTab extends StatelessWidget {
                   onTap: onAvatarTap,
                   child: CircleAvatar(
                     radius: 48,
-                    backgroundColor: const Color(0xFF2E7D32),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     backgroundImage: profileImagePath != null
                         ? FileImage(File(profileImagePath!))
                         : null,
@@ -1076,7 +1151,7 @@ class ProfileTab extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2E7D32),
+                        color: Theme.of(context).colorScheme.primary,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Theme.of(context).scaffoldBackgroundColor,
@@ -2087,10 +2162,10 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.landscape_rounded,
                     size: 80,
-                    color: Color(0xFF2E7D32),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -2721,6 +2796,9 @@ class TopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLightTheme = theme.brightness == Brightness.light;
+
     return Row(
       children: [
         Expanded(
@@ -2747,13 +2825,20 @@ class TopHeader extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: isLightTheme
+                ? Color.alphaBlend(
+                    theme.colorScheme.primary.withValues(alpha: 0.04),
+                    theme.cardColor,
+                  )
+                : theme.cardColor,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x14000000),
+                color: isLightTheme
+                    ? theme.colorScheme.shadow.withValues(alpha: 0.06)
+                    : const Color(0x14000000),
                 blurRadius: 12,
-                offset: Offset(0, 4),
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -2790,15 +2875,33 @@ class SearchSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLightTheme = theme.brightness == Brightness.light;
+    final Color searchSurface = isLightTheme
+        ? Color.alphaBlend(
+            theme.colorScheme.primary.withValues(alpha: 0.035),
+            theme.colorScheme.surface,
+          )
+        : const Color(0xFFF1F4F6);
+    final Color searchShadow = isLightTheme
+        ? theme.colorScheme.shadow.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
+    final Color textColor = isLightTheme
+        ? theme.colorScheme.onSurface
+        : const Color(0xFF1F2933);
+    final Color mutedColor = isLightTheme
+        ? theme.colorScheme.onSurfaceVariant
+        : Colors.grey.shade700;
+
     return Column(
       children: [
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F4F6),
+            color: searchSurface,
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: searchShadow,
                 blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
@@ -2807,18 +2910,18 @@ class SearchSection extends StatelessWidget {
           child: TextField(
             controller: searchController,
             onChanged: onSearchChanged,
-            style: const TextStyle(
-              color: Color(0xFF1F2933),
+            style: TextStyle(
+              color: textColor,
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
               hintText: 'Search by city, barangay, or price',
               hintStyle: TextStyle(
-                color: Colors.grey.shade700,
+                color: mutedColor,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
-              prefixIcon: Icon(Icons.search, color: Colors.grey.shade800),
+              prefixIcon: Icon(Icons.search, color: mutedColor),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 18,
                 vertical: 18,
@@ -2901,18 +3004,26 @@ class FilterDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLightTheme = Theme.of(context).brightness == Brightness.light;
+    final ThemeData theme = Theme.of(context);
+    final Color dropdownSurface = isLightTheme
+        ? Color.alphaBlend(
+            theme.colorScheme.primary.withValues(alpha: 0.03),
+            theme.colorScheme.surface,
+          )
+        : theme.cardColor;
+    final Color dropdownShadow = isLightTheme
+        ? theme.colorScheme.shadow.withValues(alpha: 0.05)
+        : Colors.transparent;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isLightTheme
-            ? const Color(0xFFF1F4F6)
-            : Theme.of(context).cardColor,
+        color: dropdownSurface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: isLightTheme
             ? [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: dropdownShadow,
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -2926,22 +3037,22 @@ class FilterDropdown extends StatelessWidget {
         icon: Icon(
           Icons.keyboard_arrow_down_rounded,
           color: isLightTheme
-              ? const Color(0xFF52606D)
-              : Theme.of(context).iconTheme.color,
+              ? theme.colorScheme.onSurfaceVariant
+              : theme.iconTheme.color,
         ),
         style: TextStyle(
           color: isLightTheme
-              ? const Color(0xFF1F2933)
-              : Theme.of(context).textTheme.bodyMedium?.color,
+              ? theme.colorScheme.onSurface
+              : theme.textTheme.bodyMedium?.color,
           fontWeight: FontWeight.w500,
         ),
-        dropdownColor: Theme.of(context).cardColor,
+        dropdownColor: theme.cardColor,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
             color: isLightTheme
-                ? const Color(0xFF52606D)
-                : Theme.of(context).colorScheme.onSurfaceVariant,
+                ? theme.colorScheme.onSurfaceVariant
+                : theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
           border: InputBorder.none,
@@ -3003,17 +3114,23 @@ class PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ThemeData theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
+        border: isDark
+            ? null
+            : Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color: isDark
+                ? const Color(0x12000000)
+                : theme.colorScheme.shadow.withValues(alpha: 0.05),
             blurRadius: 16,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -3071,7 +3188,7 @@ class PropertyCard extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32),
+                    color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Text(
@@ -3141,10 +3258,10 @@ class PropertyCard extends StatelessWidget {
                   children: [
                     Text(
                       property.price,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF2E7D32),
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                     const Spacer(),
@@ -3156,14 +3273,16 @@ class PropertyCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isDark
                             ? const Color(0xFF1E3A23)
-                            : const Color(0xFFEAF6EC),
+                            : theme.colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         property.size,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E7D32),
+                          color: isDark
+                              ? const Color(0xFF2E7D32)
+                              : theme.colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ),
@@ -3256,7 +3375,7 @@ class PropertyDetailsPage extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32),
+                          color: Theme.of(context).colorScheme.primary,
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: Text(
@@ -3319,10 +3438,10 @@ class PropertyDetailsPage extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             property.price,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E7D32),
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                         ],
@@ -3514,9 +3633,9 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
           children: [
             Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 32,
-                  backgroundColor: Color(0xFF2E7D32),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   child: Icon(Icons.person, color: Colors.white, size: 36),
                 ),
                 const SizedBox(width: 16),
@@ -3776,17 +3895,27 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLightTheme = theme.brightness == Brightness.light;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
+        border: isLightTheme
+            ? Border.all(color: theme.colorScheme.outlineVariant)
+            : null,
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.search_off, size: 48, color: Colors.grey),
-          SizedBox(height: 12),
-          Text(
+          Icon(
+            Icons.search_off,
+            size: 48,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          const Text(
             'No properties matched your filters.',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
