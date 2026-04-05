@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'messaging_service.dart';
@@ -418,6 +419,55 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  Widget _buildOverviewTile({
+    required BuildContext context,
+    required String value,
+    required String label,
+    required IconData icon,
+    required Color accentColor,
+  }) {
+    final ThemeData theme = Theme.of(context);
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accentColor, size: 20),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -481,6 +531,48 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 : '$_unreadInquiryCount unread inquiry(s)',
             onTap: _openInboxPage,
           ),
+          const SizedBox(height: 22),
+          Text(
+            'Quick Overview',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'A quick snapshot of your current dashboard activity.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildOverviewTile(
+                context: context,
+                value: '${_properties.length}',
+                label: 'Listings',
+                icon: Icons.home_work_rounded,
+                accentColor: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              _buildOverviewTile(
+                context: context,
+                value: '$_unreadInquiryCount',
+                label: 'Unread',
+                icon: Icons.mark_email_unread_rounded,
+                accentColor: Colors.blue,
+              ),
+              const SizedBox(width: 12),
+              _buildOverviewTile(
+                context: context,
+                value: '${_inquiries.length}',
+                label: 'Threads',
+                icon: Icons.forum_rounded,
+                accentColor: Colors.orange,
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -504,8 +596,337 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   late final TextEditingController _statusController;
   late final TextEditingController _imageUrlController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final ImagePicker _imagePicker = ImagePicker();
+  bool _isUploadingImage = false;
 
   bool get _isEditing => widget.initialProperty != null;
+  String get _previewTitle {
+    final String value = _titleController.text.trim();
+    return value.isEmpty ? 'Property Title' : value;
+  }
+
+  String get _previewLocation {
+    final String value = _locationController.text.trim();
+    return value.isEmpty ? 'Grid coordinate' : value;
+  }
+
+  String get _previewPrice {
+    final String value = _priceController.text.trim();
+    return value.isEmpty ? '₱0' : value;
+  }
+
+  String get _previewSize {
+    final String value = _sizeController.text.trim();
+    return value.isEmpty ? '0 sqm' : value;
+  }
+
+  String get _previewTag {
+    final String value = _statusController.text.trim();
+    return value.isEmpty ? 'Active' : value;
+  }
+
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hintText,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    String? helperText,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        helperText: helperText,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget _buildPreviewCard(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String imageUrl = _imageUrlController.text.trim();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: SizedBox(
+              height: 180,
+              width: double.infinity,
+              child: imageUrl.isEmpty
+                  ? Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF60A5FA)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.add_photo_alternate_outlined,
+                              color: Colors.white,
+                              size: 42,
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              'Image preview will appear here',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: Center(
+                            child: Text(
+                              'Unable to load image preview',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _previewTag,
+                        style: TextStyle(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _previewPrice,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _previewTitle,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _previewLocation,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    Chip(
+                      label: Text(_previewSize),
+                      avatar: const Icon(Icons.straighten, size: 18),
+                    ),
+                    Chip(
+                      label: Text(
+                        imageUrl.isEmpty ? 'No image yet' : 'Image attached',
+                      ),
+                      avatar: const Icon(Icons.image_outlined, size: 18),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _contentTypeForFileName(String fileName) {
+    final String extension = fileName.contains('.')
+        ? fileName.split('.').last.toLowerCase()
+        : '';
+
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> _pickAndUploadPropertyImage() async {
+    if (_isUploadingImage) return;
+
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again before uploading.')),
+      );
+      return;
+    }
+
+    final XFile? pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+      final String originalName = pickedFile.name.trim().isEmpty
+          ? 'property-image.jpg'
+          : pickedFile.name.trim();
+      final String extension = originalName.contains('.')
+          ? originalName.split('.').last.toLowerCase()
+          : 'jpg';
+      final String filePath =
+          '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
+
+      await Supabase.instance.client.storage.from('property-images').uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: FileOptions(
+          cacheControl: '3600',
+          upsert: true,
+          contentType: _contentTypeForFileName(originalName),
+        ),
+      );
+
+      final String publicUrl = Supabase.instance.client.storage
+          .from('property-images')
+          .getPublicUrl(filePath);
+
+      setState(() {
+        _imageUrlController.text = publicUrl;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Property image uploaded successfully.')),
+      );
+    } on StorageException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload failed: ${error.message}')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unexpected upload error: $error')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isUploadingImage = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -585,6 +1006,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Property' : 'Add New Property'),
@@ -594,89 +1017,181 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Clean title',
-                border: OutlineInputBorder(),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.primary.withValues(alpha: 0.78),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(28),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a clean title.';
-                }
-                return null;
-              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isEditing ? 'Update Listing' : 'Create New Listing',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fill in the property details below and review the live preview before saving.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'Grid coordinate',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a grid coordinate.';
-                }
-                return null;
-              },
+            const SizedBox(height: 18),
+            _buildPreviewCard(context),
+            const SizedBox(height: 18),
+            _buildSectionCard(
+              context: context,
+              title: 'Property Details',
+              subtitle: 'Enter the main listing information shown on the card.',
+              children: [
+                _buildFormField(
+                  controller: _titleController,
+                  label: 'Clean title',
+                  hintText: 'Example: Prime Residential Lot',
+                  icon: Icons.title_rounded,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a clean title.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _locationController,
+                  label: 'Grid coordinate',
+                  hintText: 'Example: 9.3077, 123.3054',
+                  icon: Icons.location_on_outlined,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a grid coordinate.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _priceController,
+                  label: 'Price',
+                  hintText: 'Example: ₱1,200,000',
+                  icon: Icons.payments_outlined,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a price.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _sizeController,
+                  label: 'Lot size',
+                  hintText: 'Example: 500 sqm',
+                  icon: Icons.straighten_rounded,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a lot size.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _statusController,
+                  label: 'Card tag',
+                  hintText: 'Example: Featured',
+                  icon: Icons.sell_outlined,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a card tag.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _priceController,
-              decoration: const InputDecoration(
-                labelText: 'Price',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a price.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _sizeController,
-              decoration: const InputDecoration(
-                labelText: 'Lot size',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a lot size.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _statusController,
-              decoration: const InputDecoration(
-                labelText: 'Card tag',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a card tag.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Image URL (optional)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
+            const SizedBox(height: 16),
+            _buildSectionCard(
+              context: context,
+              title: 'Media',
+              subtitle: 'Attach an image URL to make the listing preview more complete.',
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isUploadingImage ? null : _pickAndUploadPropertyImage,
+                    icon: _isUploadingImage
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_upload_outlined),
+                    label: Text(
+                      _isUploadingImage
+                          ? 'Uploading image...'
+                          : 'Upload Image From Device',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _imageUrlController,
+                  label: 'Image URL (optional)',
+                  hintText: 'https://example.com/property.jpg',
+                  icon: Icons.image_outlined,
+                  keyboardType: TextInputType.url,
+                  helperText:
+                      'Upload from device or paste a direct image link to show a live preview.',
+                ),
+                if (_imageUrlController.text.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _imageUrlController.clear();
+                        });
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Remove image'),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
                 child: Text(_isEditing ? 'Save Changes' : 'Add Property'),
               ),
             ),
