@@ -1142,6 +1142,28 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                               final bool isAgentMessage = message.isFrom(
                                 _currentUserId,
                               );
+                              final Color bubbleColor = isAgentMessage
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.secondaryContainer;
+                              final Color textColor = isAgentMessage
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSecondaryContainer;
+                              final Color metaColor = isAgentMessage
+                                  ? Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer
+                                        .withValues(alpha: 0.75)
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSecondaryContainer;
 
                               return Align(
                                 alignment: isAgentMessage
@@ -1176,11 +1198,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                         maxWidth: 320,
                                       ),
                                       child: Card(
-                                        color: isAgentMessage
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primaryContainer
-                                            : null,
+                                        color: bubbleColor,
                                         child: Padding(
                                           padding: const EdgeInsets.all(16),
                                           child: Column(
@@ -1190,11 +1208,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                               Text(
                                                 message.body,
                                                 style: TextStyle(
-                                                  color: isAgentMessage
-                                                      ? Theme.of(context)
-                                                            .colorScheme
-                                                            .onPrimaryContainer
-                                                      : null,
+                                                  color: textColor,
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
@@ -1209,18 +1223,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall
-                                                    ?.copyWith(
-                                                      color: isAgentMessage
-                                                          ? Theme.of(context)
-                                                                .colorScheme
-                                                                .onPrimaryContainer
-                                                                .withOpacity(
-                                                                  0.75,
-                                                                )
-                                                          : Theme.of(context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
-                                                    ),
+                                                    ?.copyWith(color: metaColor),
                                               ),
                                             ],
                                           ),

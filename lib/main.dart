@@ -1382,6 +1382,12 @@ class _ChatPageState extends State<ChatPage> {
                   itemBuilder: (context, index) {
                     final ConversationMessage msg = _messages[index];
                     final bool isMe = msg.isFrom(_currentUserId);
+                    final Color bubbleColor = isMe
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : Theme.of(context).colorScheme.secondaryContainer;
+                    final Color textColor = isMe
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSecondaryContainer;
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
@@ -1414,9 +1420,7 @@ class _ChatPageState extends State<ChatPage> {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: isMe
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).cardColor,
+                              color: bubbleColor,
                               borderRadius: BorderRadius.circular(16).copyWith(
                                 bottomRight: isMe
                                     ? const Radius.circular(0)
@@ -1432,13 +1436,7 @@ class _ChatPageState extends State<ChatPage> {
                                 Text(
                                   msg.body,
                                   style: TextStyle(
-                                    color: isMe
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onPrimary
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
+                                    color: textColor,
                                     fontSize: 16,
                                   ),
                                 ),
@@ -1448,9 +1446,10 @@ class _ChatPageState extends State<ChatPage> {
                                     msg.isPending ? 'Sending...' : 'Sent',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimary.withOpacity(0.85),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimaryContainer
+                                          .withValues(alpha: 0.85),
                                     ),
                                   ),
                                 ],
