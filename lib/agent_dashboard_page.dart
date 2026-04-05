@@ -589,17 +589,24 @@ class PropertyFormPage extends StatefulWidget {
 }
 
 class _PropertyFormPageState extends State<PropertyFormPage> {
+  late final TextEditingController _referenceCodeController;
   late final TextEditingController _titleController;
   late final TextEditingController _locationController;
   late final TextEditingController _priceController;
   late final TextEditingController _sizeController;
   late final TextEditingController _statusController;
+  late final TextEditingController _descriptionController;
   late final TextEditingController _imageUrlController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
 
   bool get _isEditing => widget.initialProperty != null;
+  String get _previewReferenceCode {
+    final String value = _referenceCodeController.text.trim();
+    return value.isEmpty ? 'Listing code' : value;
+  }
+
   String get _previewTitle {
     final String value = _titleController.text.trim();
     return value.isEmpty ? 'Property Title' : value;
@@ -617,12 +624,19 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
   String get _previewSize {
     final String value = _sizeController.text.trim();
-    return value.isEmpty ? '0 sqm' : value;
+    return value.isEmpty ? 'Lot size not set' : value;
   }
 
   String get _previewTag {
     final String value = _statusController.text.trim();
     return value.isEmpty ? 'Active' : value;
+  }
+
+  String get _previewDescription {
+    final String value = _descriptionController.text.trim();
+    return value.isEmpty
+        ? 'Add a property description so buyers understand the land offering.'
+        : value;
   }
 
   Widget _buildSectionCard({
@@ -670,11 +684,14 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     String? helperText,
+    int? maxLines,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       onChanged: (_) => setState(() {}),
+      minLines: maxLines != null && maxLines > 1 ? maxLines : 1,
+      maxLines: maxLines ?? 1,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
@@ -760,6 +777,20 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
               children: [
                 Row(
                   children: [
+                    Icon(
+                      Icons.pin_outlined,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _previewReferenceCode,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -777,7 +808,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                         ),
                       ),
                     ),
-                    const Spacer(),
                     Text(
                       _previewPrice,
                       style: theme.textTheme.titleMedium?.copyWith(
@@ -829,6 +859,16 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                       avatar: const Icon(Icons.image_outlined, size: 18),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _previewDescription,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -931,6 +971,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   @override
   void initState() {
     super.initState();
+    _referenceCodeController = TextEditingController(
+      text: widget.initialProperty?.referenceCode ?? '',
+    );
     _titleController = TextEditingController(
       text: widget.initialProperty?.title ?? '',
     );
@@ -946,6 +989,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _statusController = TextEditingController(
       text: widget.initialProperty?.tag ?? 'Active',
     );
+    _descriptionController = TextEditingController(
+      text: widget.initialProperty?.description ?? '',
+    );
     _imageUrlController = TextEditingController(
       text: widget.initialProperty?.imageUrl ?? '',
     );
@@ -953,11 +999,13 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
   @override
   void dispose() {
+    _referenceCodeController.dispose();
     _titleController.dispose();
     _locationController.dispose();
     _priceController.dispose();
     _sizeController.dispose();
     _statusController.dispose();
+    _descriptionController.dispose();
     _imageUrlController.dispose();
     super.dispose();
   }
@@ -972,6 +1020,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       id:
           widget.initialProperty?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
+      referenceCode: _referenceCodeController.text.trim(),
       title: _titleController.text.trim(),
       location: _locationController.text.trim(),
       price: _priceController.text.trim(),
@@ -979,6 +1028,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       size: _sizeController.text.trim(),
       sizeValue: parsedSizeValue > 0 ? parsedSizeValue : 0,
       tag: _statusController.text.trim(),
+      description: _descriptionController.text.trim(),
       imageColor: widget.initialProperty?.imageColor ?? _randomColor(),
       imageUrl: _imageUrlController.text.trim().isEmpty
           ? null
@@ -1055,9 +1105,23 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             const SizedBox(height: 18),
             _buildSectionCard(
               context: context,
-              title: 'Property Details',
-              subtitle: 'Enter the main listing information shown on the card.',
+              title: 'Listing Identity',
+              subtitle: 'Add the core listing details the agent should track and publish.',
               children: [
+                _buildFormField(
+                  controller: _referenceCodeController,
+                  label: 'Listing code',
+                  hintText: 'Example: LF-000120008',
+                  icon: Icons.pin_outlined,
+                  helperText: 'Use a unique internal reference code for this land listing.',
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a listing code.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
                 _buildFormField(
                   controller: _titleController,
                   label: 'Clean title',
@@ -1073,12 +1137,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 const SizedBox(height: 12),
                 _buildFormField(
                   controller: _locationController,
-                  label: 'Grid coordinate',
-                  hintText: 'Example: 9.3077, 123.3054',
+                  label: 'Location / area',
+                  hintText: 'Example: Dumaguete City or 9.3077, 123.3054',
                   icon: Icons.location_on_outlined,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a grid coordinate.';
+                      return 'Please enter a location or area.';
                     }
                     return null;
                   },
@@ -1118,6 +1182,28 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a card tag.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSectionCard(
+              context: context,
+              title: 'Listing Content',
+              subtitle: 'Describe the land clearly so buyers understand the offer before they inquire.',
+              children: [
+                _buildFormField(
+                  controller: _descriptionController,
+                  label: 'Description',
+                  hintText:
+                      'Describe access, terrain, nearby landmarks, ideal use, and key selling points.',
+                  icon: Icons.description_outlined,
+                  maxLines: 5,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a property description.';
                     }
                     return null;
                   },

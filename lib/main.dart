@@ -3427,6 +3427,25 @@ class PropertyDetailsPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.pin_outlined,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        property.referenceCode,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   Text(
                     property.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -3506,7 +3525,9 @@ class PropertyDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'This is a premium property located in the heart of the region. Perfect for investment or building your dream home, it offers great accessibility and scenic surroundings. Contact an agent for an exact lot plan and title verification.',
+                    property.description.trim().isEmpty
+                        ? 'No description available for this property yet.'
+                        : property.description,
                     style: TextStyle(
                       fontSize: 16,
                       color: Theme.of(context).colorScheme.onSurface,

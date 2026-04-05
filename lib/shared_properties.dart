@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Property {
   final String id;
+  final String referenceCode;
   final String title;
   final String location;
   final String price;
@@ -10,11 +11,13 @@ class Property {
   final String size;
   final int sizeValue;
   final String tag;
+  final String description;
   final Color imageColor;
   final String? imageUrl;
 
   const Property({
     required this.id,
+    required this.referenceCode,
     required this.title,
     required this.location,
     required this.price,
@@ -22,12 +25,14 @@ class Property {
     required this.size,
     required this.sizeValue,
     required this.tag,
+    required this.description,
     required this.imageColor,
     this.imageUrl,
   });
 
   Property copyWith({
     String? id,
+    String? referenceCode,
     String? title,
     String? location,
     String? price,
@@ -35,11 +40,13 @@ class Property {
     String? size,
     int? sizeValue,
     String? tag,
+    String? description,
     Color? imageColor,
     String? imageUrl,
   }) {
     return Property(
       id: id ?? this.id,
+      referenceCode: referenceCode ?? this.referenceCode,
       title: title ?? this.title,
       location: location ?? this.location,
       price: price ?? this.price,
@@ -47,6 +54,7 @@ class Property {
       size: size ?? this.size,
       sizeValue: sizeValue ?? this.sizeValue,
       tag: tag ?? this.tag,
+      description: description ?? this.description,
       imageColor: imageColor ?? this.imageColor,
       imageUrl: imageUrl ?? this.imageUrl,
     );
@@ -62,6 +70,7 @@ class Property {
   factory Property.fromMap(Map<String, dynamic> map) {
     return Property(
       id: map['id'] as String,
+      referenceCode: (map['reference_code'] ?? '') as String,
       title: (map['title'] ?? '') as String,
       location: (map['location'] ?? '') as String,
       price: (map['price'] ?? '') as String,
@@ -69,6 +78,7 @@ class Property {
       size: (map['size'] ?? '') as String,
       sizeValue: _toInt(map['size_value']),
       tag: (map['tag'] ?? '') as String,
+      description: (map['description'] ?? '') as String,
       imageColor: Color(_toInt(map['image_color'])),
       imageUrl: _toNullableString(map['image_url']),
     );
@@ -76,6 +86,7 @@ class Property {
 
   Map<String, dynamic> toInsertMap() {
     return {
+      'reference_code': referenceCode,
       'title': title,
       'location': location,
       'price': price,
@@ -83,6 +94,7 @@ class Property {
       'size': size,
       'size_value': sizeValue,
       'tag': tag,
+      'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
     };
@@ -90,6 +102,7 @@ class Property {
 
   Map<String, dynamic> toUpdateMap() {
     return {
+      'reference_code': referenceCode,
       'title': title,
       'location': location,
       'price': price,
@@ -97,6 +110,7 @@ class Property {
       'size': size,
       'size_value': sizeValue,
       'tag': tag,
+      'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
     };
@@ -121,6 +135,7 @@ class Property {
 const List<Property> _fallbackProperties = [
   Property(
     id: 'property-1',
+    referenceCode: 'LF-000120008',
     title: 'Prime Residential Lot',
     location: '9.3077, 123.3054',
     price: '₱1,200,000',
@@ -128,12 +143,15 @@ const List<Property> _fallbackProperties = [
     size: '500 sqm',
     sizeValue: 500,
     tag: 'Featured',
+    description:
+        'A clean residential lot ideal for a primary home build. Easy road access, stable neighborhood demand, and ready for site viewing.',
     imageColor: Color(0xFF9CCC65),
     imageUrl:
         'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-2',
+    referenceCode: 'LF-000120009',
     title: 'Mountain View Land',
     location: '9.2516, 123.2400',
     price: '₱2,450,000',
@@ -141,12 +159,15 @@ const List<Property> _fallbackProperties = [
     size: '1,200 sqm',
     sizeValue: 1200,
     tag: 'Hot Deal',
+    description:
+        'Elevated land parcel with open mountain views and strong long-term value for vacation home or subdivision planning.',
     imageColor: Color(0xFFA1887F),
     imageUrl:
         'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-3',
+    referenceCode: 'LF-000120010',
     title: 'Farm Lot Investment',
     location: '10.3370, 123.8980',
     price: '₱3,100,000',
@@ -154,12 +175,15 @@ const List<Property> _fallbackProperties = [
     size: '2,000 sqm',
     sizeValue: 2000,
     tag: 'New',
+    description:
+        'Spacious agricultural lot suited for farming, agri-tourism, or long-term land banking with room for future expansion.',
     imageColor: Color(0xFF64B5F6),
     imageUrl:
         'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-4',
+    referenceCode: 'LF-000120011',
     title: 'Highway Frontage Lot',
     location: '9.3580, 123.2851',
     price: '₱4,800,000',
@@ -167,12 +191,15 @@ const List<Property> _fallbackProperties = [
     size: '1,500 sqm',
     sizeValue: 1500,
     tag: 'Premium',
+    description:
+        'High-visibility lot with direct highway exposure, suitable for commercial development, showroom use, or mixed-use investment.',
     imageColor: Color(0xFFBA68C8),
     imageUrl:
         'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-5',
+    referenceCode: 'LF-000120012',
     title: 'Affordable Starter Lot',
     location: '9.3647, 122.8044',
     price: '₱900,000',
@@ -180,6 +207,8 @@ const List<Property> _fallbackProperties = [
     size: '300 sqm',
     sizeValue: 300,
     tag: 'Budget',
+    description:
+        'Entry-level lot for first-time buyers seeking an accessible parcel for a modest home build or initial property investment.',
     imageColor: Color(0xFFFFB74D),
     imageUrl:
         'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
