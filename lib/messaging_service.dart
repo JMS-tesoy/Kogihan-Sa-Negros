@@ -235,6 +235,24 @@ class MessagingService {
         .toList();
   }
 
+  static Future<List<ConversationMessage>> fetchConversationMessagesForConversations(
+    List<String> conversationIds,
+  ) async {
+    if (conversationIds.isEmpty) return const [];
+
+    final List<Future<List<ConversationMessage>>> requests = conversationIds
+        .map(fetchConversationMessages)
+        .toList();
+
+    final List<List<ConversationMessage>> results = await Future.wait(requests);
+    final List<ConversationMessage> messages = results
+        .expand((items) => items)
+        .toList();
+
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return messages;
+  }
+
   static Future<void> markConversationAsRead(String conversationId) async {
     final User user = _currentUser;
     await _client
@@ -243,6 +261,14 @@ class MessagingService {
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .isFilter('read_at', null);
+  }
+
+  static Future<void> markConversationsAsRead(List<String> conversationIds) async {
+    if (conversationIds.isEmpty) return;
+
+    await Future.wait(
+      conversationIds.map(markConversationAsRead),
+    );
   }
 
   static Future<void> sendMessage({
