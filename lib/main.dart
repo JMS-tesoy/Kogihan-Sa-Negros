@@ -537,15 +537,105 @@ class MessagesTab extends StatefulWidget {
   State<MessagesTab> createState() => _MessagesTabState();
 }
 
+class _InboxCardPalette {
+  final Color background;
+  final Color border;
+  final Color accent;
+  final Color avatarBackground;
+  final Color avatarForeground;
+
+  const _InboxCardPalette({
+    required this.background,
+    required this.border,
+    required this.accent,
+    required this.avatarBackground,
+    required this.avatarForeground,
+  });
+}
+
 class _MessagesTabState extends State<MessagesTab> {
   bool _isLoading = true;
   String? _errorText;
   List<ConversationSummary> _conversations = const [];
 
+  static const List<_InboxCardPalette> _lightInboxPalettes = [
+    _InboxCardPalette(
+      background: Color(0xFFF2F8F2),
+      border: Color(0xFFB8D7BB),
+      accent: Color(0xFF2E7D32),
+      avatarBackground: Color(0xFFD9ECD8),
+      avatarForeground: Color(0xFF1F5A24),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFFF3F7FD),
+      border: Color(0xFFBDD0EA),
+      accent: Color(0xFF2B6CB0),
+      avatarBackground: Color(0xFFDCE7F8),
+      avatarForeground: Color(0xFF1F4E85),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFFFBF6EF),
+      border: Color(0xFFE5CFAE),
+      accent: Color(0xFF9A6700),
+      avatarBackground: Color(0xFFF2E4CA),
+      avatarForeground: Color(0xFF704C00),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFFF8F3FA),
+      border: Color(0xFFD7C3E3),
+      accent: Color(0xFF7A4FA3),
+      avatarBackground: Color(0xFFE9DAF1),
+      avatarForeground: Color(0xFF5E3684),
+    ),
+  ];
+
+  static const List<_InboxCardPalette> _darkInboxPalettes = [
+    _InboxCardPalette(
+      background: Color(0xFF1B2B1E),
+      border: Color(0xFF355D3B),
+      accent: Color(0xFF8FD694),
+      avatarBackground: Color(0xFF29452E),
+      avatarForeground: Color(0xFFD7F3D9),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFF182633),
+      border: Color(0xFF31506B),
+      accent: Color(0xFF8EC5FF),
+      avatarBackground: Color(0xFF243A4E),
+      avatarForeground: Color(0xFFD9ECFF),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFF2B2418),
+      border: Color(0xFF5E4D2E),
+      accent: Color(0xFFF0C674),
+      avatarBackground: Color(0xFF433722),
+      avatarForeground: Color(0xFFFFEDBF),
+    ),
+    _InboxCardPalette(
+      background: Color(0xFF261D2D),
+      border: Color(0xFF544064),
+      accent: Color(0xFFD8B4F8),
+      avatarBackground: Color(0xFF3B2C47),
+      avatarForeground: Color(0xFFF2DFFF),
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
     unawaited(_loadConversations());
+  }
+
+  _InboxCardPalette _paletteForConversation(
+    BuildContext context,
+    ConversationSummary conversation,
+  ) {
+    final bool isLightTheme = Theme.of(context).brightness == Brightness.light;
+    final List<_InboxCardPalette> palettes = isLightTheme
+        ? _lightInboxPalettes
+        : _darkInboxPalettes;
+    final int index = conversation.id.hashCode.abs() % palettes.length;
+    return palettes[index];
   }
 
   Future<void> _loadConversations({bool showLoader = true}) async {
@@ -681,20 +771,25 @@ class _MessagesTabState extends State<MessagesTab> {
     final String previewText = conversation.lastMessagePreview.isNotEmpty
         ? conversation.lastMessagePreview
         : 'No messages yet.';
+    final _InboxCardPalette palette = _paletteForConversation(
+      context,
+      conversation,
+    );
 
     return Card(
+      color: palette.background,
       elevation: 0,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+          color: palette.border,
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          backgroundColor: palette.avatarBackground,
+          foregroundColor: palette.avatarForeground,
           child: Text(_messageInitial(conversation.title)),
         ),
         title: Text(
@@ -744,7 +839,7 @@ class _MessagesTabState extends State<MessagesTab> {
               style: TextStyle(
                 fontSize: 12,
                 color: conversation.isUnread
-                    ? Theme.of(context).colorScheme.primary
+                    ? palette.accent
                     : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: conversation.isUnread
                     ? FontWeight.bold
@@ -757,7 +852,7 @@ class _MessagesTabState extends State<MessagesTab> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: palette.accent,
                   shape: BoxShape.circle,
                 ),
               ),
