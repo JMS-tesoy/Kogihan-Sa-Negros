@@ -362,46 +362,62 @@ class _HomePageState extends State<HomePage> {
   List<Property> get _filteredProperties {
     final String normalizedQuery = _normalizeSearchText(_searchQuery);
     final String numericQuery = _digitsOnly(_searchQuery);
+    final bool hasSearchQuery =
+        normalizedQuery.isNotEmpty || numericQuery.isNotEmpty;
+    final bool hasLocationFilter = _selectedLocation != null;
+    final bool hasLotSizeFilter = _selectedLotSize != null;
+    final bool hasBudgetFilter = _selectedBudget != null;
+
+    if (!hasSearchQuery) {
+      return List<Property>.from(_availableProperties);
+    }
 
     return _availableProperties.where((property) {
+      if (hasLocationFilter && property.location != _selectedLocation) {
+        return false;
+      }
+
+      if (hasLotSizeFilter) {
+        final bool matchesLotSize = switch (_selectedLotSize) {
+          'Below 500 sqm' => property.sizeValue < 500,
+          '500 - 1000 sqm' =>
+            property.sizeValue >= 500 && property.sizeValue <= 1000,
+          'Above 1000 sqm' => property.sizeValue > 1000,
+          _ => true,
+        };
+
+        if (!matchesLotSize) return false;
+      }
+
+      if (hasBudgetFilter) {
+        final bool matchesBudget = switch (_selectedBudget) {
+          'Below ₱1M' => property.priceValue < 1000000,
+          '₱1M - ₱3M' =>
+            property.priceValue >= 1000000 && property.priceValue <= 3000000,
+          'Above ₱3M' => property.priceValue > 3000000,
+          _ => true,
+        };
+
+        if (!matchesBudget) return false;
+      }
+
+      if (!hasSearchQuery) return true;
+
       final String normalizedTitle = _normalizeSearchText(property.title);
       final String normalizedLocation = _normalizeSearchText(property.location);
       final String normalizedPrice = _normalizeSearchText(property.price);
-      final String numericPrice = _digitsOnly(property.price);
 
-      final bool matchesSearch =
-          normalizedQuery.isEmpty ||
-          normalizedTitle.contains(normalizedQuery) ||
+      if (normalizedTitle.contains(normalizedQuery) ||
           normalizedLocation.contains(normalizedQuery) ||
-          normalizedPrice.contains(normalizedQuery) ||
-          (numericQuery.isNotEmpty && numericPrice.contains(numericQuery));
+          normalizedPrice.contains(normalizedQuery)) {
+        return true;
+      }
 
-      final bool matchesLocation =
-          _selectedLocation == null || property.location == _selectedLocation;
+      if (numericQuery.isEmpty) return false;
 
-      final bool matchesLotSize = switch (_selectedLotSize) {
-        null => true,
-        'Below 500 sqm' => property.sizeValue < 500,
-        '500 - 1000 sqm' =>
-          property.sizeValue >= 500 && property.sizeValue <= 1000,
-        'Above 1000 sqm' => property.sizeValue > 1000,
-        _ => true,
-      };
-
-      final bool matchesBudget = switch (_selectedBudget) {
-        null => true,
-        'Below ₱1M' => property.priceValue < 1000000,
-        '₱1M - ₱3M' =>
-          property.priceValue >= 1000000 && property.priceValue <= 3000000,
-        'Above ₱3M' => property.priceValue > 3000000,
-        _ => true,
-      };
-
-      return matchesSearch &&
-          matchesLocation &&
-          matchesLotSize &&
-          matchesBudget;
-    }).toList();
+      final String numericPrice = _digitsOnly(property.price);
+      return numericPrice.contains(numericQuery);
+    }).toList(growable: false);
   }
 
   void _resetFilters() {
@@ -618,7 +634,12 @@ class SavedTab extends StatelessWidget {
             const SizedBox(height: 20),
             Expanded(
               child: savedProperties.isEmpty
-                  ? const EmptyState()
+                  ? const EmptyState(
+                      icon: Icons.favorite_border_rounded,
+                      message: 'No saved properties yet.',
+                      subtitle:
+                          'Tap the heart on any listing to keep it here for quick access.',
+                    )
                   : ListView.separated(
                       itemCount: savedProperties.length,
                       separatorBuilder: (context, index) =>
@@ -2111,6 +2132,8 @@ class _LoginPageState extends State<LoginPage> {
   static const String _devAgentPassword = 'JMS_@26';
   static const String _devUserShortcutUsername = '2q2q';
   static const String _devUserShortcutPassword = '2q2q';
+  static const String _devUserEmail = 'dev.user.2q2q@gmail.com';
+  static const String _devUserPassword = '2q2q2q';
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -2174,13 +2197,36 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _routeToUserHome() async {
-    await loadProperties();
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const HomePage()),
+  Future<void> _signInWithDevUserShortcut() async {
+    try {
+      final AuthResponse response = await Supabase.instance.client.auth
+          .signInWithPassword(
+            email: _devUserEmail,
+            password: _devUserPassword,
+          );
+      await _routeByRole(response.user);
+      return;
+    } on AuthException catch (error) {
+      final String message = error.message.toLowerCase();
+      final bool shouldCreateAccount =
+          message.contains('invalid login credentials') ||
+          message.contains('user not found');
+
+      if (!shouldCreateAccount) rethrow;
+    }
+
+    await Supabase.instance.client.auth.signUp(
+      email: _devUserEmail,
+      password: _devUserPassword,
+      data: const {'role': 'user'},
     );
+
+    final AuthResponse response = await Supabase.instance.client.auth
+        .signInWithPassword(
+          email: _devUserEmail,
+          password: _devUserPassword,
+        );
+    await _routeByRole(response.user);
   }
 
   Future<void> _signIn() async {
@@ -2195,7 +2241,29 @@ class _LoginPageState extends State<LoginPage> {
         enteredPassword == _devUserShortcutPassword;
 
     if (isDevUserShortcut) {
-      await _routeToUserHome();
+      setState(() {
+        _isLoading = true;
+        _errorText = null;
+      });
+
+      try {
+        await _signInWithDevUserShortcut();
+      } on AuthException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _errorText = e.message;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _errorText = 'Dev user login failed. Please try again.';
+        });
+      } finally {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+      }
       return;
     }
 
@@ -2222,8 +2290,11 @@ class _LoginPageState extends State<LoginPage> {
       await _routeByRole(response.user);
     } on AuthException catch (e) {
       if (!mounted) return;
+      final String normalizedMessage = e.message.toLowerCase();
       setState(() {
-        _errorText = e.message;
+        _errorText = normalizedMessage.contains('email rate limit exceeded')
+            ? 'Too many signup attempts for now. The account may already exist, so try Login first. If it fails, wait a bit before signing up again.'
+            : e.message;
       });
     } catch (_) {
       if (!mounted) return;
@@ -4083,7 +4154,16 @@ class _PinCodePageState extends State<PinCodePage> {
 }
 
 class EmptyState extends StatelessWidget {
-  const EmptyState({super.key});
+  final IconData icon;
+  final String message;
+  final String? subtitle;
+
+  const EmptyState({
+    super.key,
+    this.icon = Icons.search_off,
+    this.message = 'No properties matched your filters.',
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -4102,15 +4182,27 @@ class EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.search_off,
+            icon,
             size: 48,
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
-          const Text(
-            'No properties matched your filters.',
+          Text(
+            message,
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              subtitle!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -237,9 +237,13 @@ Future<void> loadProperties() async {
         .select()
         .order('created_at', ascending: false);
 
-    appPropertiesNotifier.value = response
+    final List<Property> loadedProperties = response
         .map((item) => Property.fromMap(Map<String, dynamic>.from(item as Map)))
         .toList();
+
+    appPropertiesNotifier.value = loadedProperties.isEmpty
+        ? List<Property>.from(_fallbackProperties)
+        : loadedProperties;
   } catch (_) {
     appPropertiesNotifier.value = List<Property>.from(_fallbackProperties);
   }
