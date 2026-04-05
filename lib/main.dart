@@ -56,6 +56,56 @@ String _formatMessageTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
+Widget _buildPropertyImage({
+  required Property property,
+  required double height,
+  required Widget fallbackChild,
+  BorderRadius? borderRadius,
+}) {
+  final Widget fallback = Container(
+    height: height,
+    width: double.infinity,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          property.imageColor,
+          property.imageColor.withOpacity(0.78),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    child: fallbackChild,
+  );
+
+  final String? imageUrl = property.imageUrl;
+  if (imageUrl == null || imageUrl.isEmpty) {
+    return borderRadius == null
+        ? fallback
+        : ClipRRect(borderRadius: borderRadius, child: fallback);
+  }
+
+  final Widget image = imageUrl.startsWith('http')
+      ? Image.network(
+          imageUrl,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback,
+        )
+      : Image.asset(
+          imageUrl,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback,
+        );
+
+  return borderRadius == null
+      ? image
+      : ClipRRect(borderRadius: borderRadius, child: image);
+}
+
 ThemeData _buildLightTheme() {
   const Color seedColor = Color(0xFF2563EB);
   final ColorScheme scheme = ColorScheme.fromSeed(
@@ -3143,20 +3193,10 @@ class PropertyCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(22),
                 ),
-                child: Container(
+                child: _buildPropertyImage(
+                  property: property,
                   height: 210,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        property.imageColor,
-                        property.imageColor.withOpacity(0.75),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: const Center(
+                  fallbackChild: const Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -3340,20 +3380,10 @@ class PropertyDetailsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
+            _buildPropertyImage(
+              property: property,
               height: 300,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    property.imageColor,
-                    property.imageColor.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: const Center(
+              fallbackChild: const Center(
                 child: Icon(
                   Icons.landscape_rounded,
                   size: 100,

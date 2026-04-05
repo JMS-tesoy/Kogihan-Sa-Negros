@@ -11,6 +11,7 @@ class Property {
   final int sizeValue;
   final String tag;
   final Color imageColor;
+  final String? imageUrl;
 
   const Property({
     required this.id,
@@ -22,6 +23,7 @@ class Property {
     required this.sizeValue,
     required this.tag,
     required this.imageColor,
+    this.imageUrl,
   });
 
   Property copyWith({
@@ -34,6 +36,7 @@ class Property {
     int? sizeValue,
     String? tag,
     Color? imageColor,
+    String? imageUrl,
   }) {
     return Property(
       id: id ?? this.id,
@@ -45,6 +48,7 @@ class Property {
       sizeValue: sizeValue ?? this.sizeValue,
       tag: tag ?? this.tag,
       imageColor: imageColor ?? this.imageColor,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
@@ -66,6 +70,7 @@ class Property {
       sizeValue: _toInt(map['size_value']),
       tag: (map['tag'] ?? '') as String,
       imageColor: Color(_toInt(map['image_color'])),
+      imageUrl: _toNullableString(map['image_url']),
     );
   }
 
@@ -79,6 +84,7 @@ class Property {
       'size_value': sizeValue,
       'tag': tag,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
+      'image_url': _toNullableString(imageUrl),
     };
   }
 
@@ -92,7 +98,13 @@ class Property {
       'size_value': sizeValue,
       'tag': tag,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
+      'image_url': _toNullableString(imageUrl),
     };
+  }
+
+  static String? _toNullableString(dynamic value) {
+    final String normalized = (value?.toString() ?? '').trim();
+    return normalized.isEmpty ? null : normalized;
   }
 
   static int _toInt(dynamic value) {
@@ -117,6 +129,8 @@ const List<Property> _fallbackProperties = [
     sizeValue: 500,
     tag: 'Featured',
     imageColor: Color(0xFF9CCC65),
+    imageUrl:
+        'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-2',
@@ -128,6 +142,8 @@ const List<Property> _fallbackProperties = [
     sizeValue: 1200,
     tag: 'Hot Deal',
     imageColor: Color(0xFFA1887F),
+    imageUrl:
+        'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-3',
@@ -139,6 +155,8 @@ const List<Property> _fallbackProperties = [
     sizeValue: 2000,
     tag: 'New',
     imageColor: Color(0xFF64B5F6),
+    imageUrl:
+        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-4',
@@ -150,6 +168,8 @@ const List<Property> _fallbackProperties = [
     sizeValue: 1500,
     tag: 'Premium',
     imageColor: Color(0xFFBA68C8),
+    imageUrl:
+        'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=80',
   ),
   Property(
     id: 'property-5',
@@ -161,6 +181,8 @@ const List<Property> _fallbackProperties = [
     sizeValue: 300,
     tag: 'Budget',
     imageColor: Color(0xFFFFB74D),
+    imageUrl:
+        'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
   ),
 ];
 

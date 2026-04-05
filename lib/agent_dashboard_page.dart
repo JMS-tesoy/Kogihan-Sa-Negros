@@ -327,8 +327,101 @@ class _AdminHomePageState extends State<AdminHomePage> {
     });
   }
 
+  Widget _buildDashboardActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required Color accentColor,
+    required String title,
+    required String subtitle,
+    required String badgeText,
+    required VoidCallback onTap,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLightTheme = theme.brightness == Brightness.light;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: isLightTheme ? 0.12 : 0.2),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(icon, color: accentColor, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        badgeText,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Agent Dashboard'),
@@ -343,41 +436,50 @@ class _AdminHomePageState extends State<AdminHomePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: ListTile(
-              leading: Icon(
-                Icons.add_home_work,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text('Add New Property'),
-              subtitle: const Text('Create a new listing'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _openAddPropertyPage,
+          Text(
+            'Workspace',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.edit_note, color: Colors.orange),
-              title: const Text('Manage Properties'),
-              subtitle: Text('${_properties.length} listing(s) available'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _openManagePropertiesPage,
+          const SizedBox(height: 6),
+          Text(
+            'Handle listings and buyer conversations from one place.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.mail, color: Colors.blue),
-              title: const Text('Agent Inbox'),
-              subtitle: Text(
-                _isInboxLoading
-                    ? 'Loading inquiries...'
-                    : '$_unreadInquiryCount unread inquiry(s)',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _openInboxPage,
-            ),
+          const SizedBox(height: 16),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.add_home_work_rounded,
+            accentColor: theme.colorScheme.primary,
+            title: 'Add New Property',
+            subtitle: 'Create and publish a new listing.',
+            badgeText: 'Quick action',
+            onTap: _openAddPropertyPage,
+          ),
+          const SizedBox(height: 12),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.edit_note_rounded,
+            accentColor: Colors.orange,
+            title: 'Manage Properties',
+            subtitle: 'Review and update your active listings.',
+            badgeText: '${_properties.length} listing(s)',
+            onTap: _openManagePropertiesPage,
+          ),
+          const SizedBox(height: 12),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.mail_rounded,
+            accentColor: Colors.blue,
+            title: 'Agent Inbox',
+            subtitle: 'Open buyer messages and respond quickly.',
+            badgeText: _isInboxLoading
+                ? 'Loading inquiries...'
+                : '$_unreadInquiryCount unread inquiry(s)',
+            onTap: _openInboxPage,
           ),
         ],
       ),
@@ -400,6 +502,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   late final TextEditingController _priceController;
   late final TextEditingController _sizeController;
   late final TextEditingController _statusController;
+  late final TextEditingController _imageUrlController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   bool get _isEditing => widget.initialProperty != null;
@@ -422,6 +525,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _statusController = TextEditingController(
       text: widget.initialProperty?.tag ?? 'Active',
     );
+    _imageUrlController = TextEditingController(
+      text: widget.initialProperty?.imageUrl ?? '',
+    );
   }
 
   @override
@@ -431,6 +537,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _priceController.dispose();
     _sizeController.dispose();
     _statusController.dispose();
+    _imageUrlController.dispose();
     super.dispose();
   }
 
@@ -452,6 +559,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       sizeValue: parsedSizeValue > 0 ? parsedSizeValue : 0,
       tag: _statusController.text.trim(),
       imageColor: widget.initialProperty?.imageColor ?? _randomColor(),
+      imageUrl: _imageUrlController.text.trim().isEmpty
+          ? null
+          : _imageUrlController.text.trim(),
     );
 
     Navigator.pop(context, property);
@@ -552,6 +662,15 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 }
                 return null;
               },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _imageUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Image URL (optional)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
             ),
             const SizedBox(height: 20),
             SizedBox(
