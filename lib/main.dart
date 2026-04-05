@@ -553,6 +553,36 @@ class _InboxCardPalette {
   });
 }
 
+class _ChatColorPalette {
+  final Color scaffoldBackground;
+  final Color appBarBackground;
+  final Color appBarForeground;
+  final Color avatarBackground;
+  final Color avatarForeground;
+  final Color outgoingBubble;
+  final Color outgoingText;
+  final Color incomingBubble;
+  final Color incomingText;
+  final Color composerFill;
+  final Color sendButtonBackground;
+  final Color sendButtonForeground;
+
+  const _ChatColorPalette({
+    required this.scaffoldBackground,
+    required this.appBarBackground,
+    required this.appBarForeground,
+    required this.avatarBackground,
+    required this.avatarForeground,
+    required this.outgoingBubble,
+    required this.outgoingText,
+    required this.incomingBubble,
+    required this.incomingText,
+    required this.composerFill,
+    required this.sendButtonBackground,
+    required this.sendButtonForeground,
+  });
+}
+
 class _MessagesTabState extends State<MessagesTab> {
   bool _isLoading = true;
   String? _errorText;
@@ -638,6 +668,17 @@ class _MessagesTabState extends State<MessagesTab> {
     return palettes[index];
   }
 
+  Color? _propertyColorForConversation(ConversationSummary conversation) {
+    final String? propertyId = conversation.propertyId;
+    if (propertyId == null || propertyId.isEmpty) return null;
+
+    for (final Property property in appPropertiesNotifier.value) {
+      if (property.id == propertyId) return property.imageColor;
+    }
+
+    return null;
+  }
+
   Future<void> _loadConversations({bool showLoader = true}) async {
     if (showLoader && mounted) {
       setState(() {
@@ -672,6 +713,7 @@ class _MessagesTabState extends State<MessagesTab> {
         builder: (context) => ChatPage(
           conversationId: conversation.id,
           senderName: conversation.otherParticipantName,
+          propertyColor: _propertyColorForConversation(conversation),
         ),
       ),
     );
@@ -1155,11 +1197,13 @@ class AccountPage extends StatelessWidget {
 class ChatPage extends StatefulWidget {
   final String conversationId;
   final String senderName;
+  final Color? propertyColor;
 
   const ChatPage({
     super.key,
     required this.conversationId,
     required this.senderName,
+    this.propertyColor,
   });
 
   @override
@@ -1177,6 +1221,40 @@ class _ChatPageState extends State<ChatPage> {
 
   String get _currentUserId =>
       Supabase.instance.client.auth.currentUser?.id ?? '';
+
+  _ChatColorPalette _chatPalette(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color seedColor = widget.propertyColor ?? theme.colorScheme.primary;
+    final ColorScheme chatScheme = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: theme.brightness,
+    );
+    final bool isLightTheme = theme.brightness == Brightness.light;
+
+    return _ChatColorPalette(
+      scaffoldBackground: Color.alphaBlend(
+        chatScheme.primary.withValues(alpha: isLightTheme ? 0.04 : 0.08),
+        theme.scaffoldBackgroundColor,
+      ),
+      appBarBackground: Color.alphaBlend(
+        chatScheme.primary.withValues(alpha: isLightTheme ? 0.12 : 0.18),
+        theme.colorScheme.surface,
+      ),
+      appBarForeground: theme.colorScheme.onSurface,
+      avatarBackground: chatScheme.primary,
+      avatarForeground: chatScheme.onPrimary,
+      outgoingBubble: chatScheme.primaryContainer,
+      outgoingText: chatScheme.onPrimaryContainer,
+      incomingBubble: chatScheme.secondaryContainer,
+      incomingText: chatScheme.onSecondaryContainer,
+      composerFill: Color.alphaBlend(
+        chatScheme.primary.withValues(alpha: isLightTheme ? 0.08 : 0.14),
+        theme.cardColor,
+      ),
+      sendButtonBackground: chatScheme.primary,
+      sendButtonForeground: chatScheme.onPrimary,
+    );
+  }
 
   @override
   void initState() {
@@ -1431,14 +1509,19 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final _ChatColorPalette palette = _chatPalette(context);
+
     return Scaffold(
+      backgroundColor: palette.scaffoldBackground,
       appBar: AppBar(
+        backgroundColor: palette.appBarBackground,
+        foregroundColor: palette.appBarForeground,
         title: Row(
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+              backgroundColor: palette.avatarBackground,
+              foregroundColor: palette.avatarForeground,
               child: Text(
                 widget.senderName[0],
                 style: const TextStyle(fontSize: 14),
@@ -1477,22 +1560,12 @@ class _ChatPageState extends State<ChatPage> {
                   itemBuilder: (context, index) {
                     final ConversationMessage msg = _messages[index];
                     final bool isMe = msg.isFrom(_currentUserId);
-                    final bool isLightTheme =
-                        Theme.of(context).brightness == Brightness.light;
                     final Color bubbleColor = isMe
-                        ? (isLightTheme
-                              ? const Color(0xFFDDF2E4)
-                              : Theme.of(context).colorScheme.primaryContainer)
-                        : (isLightTheme
-                              ? const Color(0xFFE5EFFC)
-                              : Theme.of(context).colorScheme.secondaryContainer);
+                        ? palette.outgoingBubble
+                        : palette.incomingBubble;
                     final Color textColor = isMe
-                        ? (isLightTheme
-                              ? const Color(0xFF123524)
-                              : Theme.of(context).colorScheme.onPrimaryContainer)
-                        : (isLightTheme
-                              ? const Color(0xFF17324D)
-                              : Theme.of(context).colorScheme.onSecondaryContainer);
+                        ? palette.outgoingText
+                        : palette.incomingText;
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
@@ -1585,7 +1658,7 @@ class _ChatPageState extends State<ChatPage> {
                       decoration: InputDecoration(
                         hintText: 'Type a message...',
                         filled: true,
-                        fillColor: Theme.of(context).cardColor,
+                        fillColor: palette.composerFill,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 18,
                           vertical: 14,
@@ -1601,7 +1674,7 @@ class _ChatPageState extends State<ChatPage> {
                   const SizedBox(width: 8),
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    backgroundColor: palette.sendButtonBackground,
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       switchInCurve: Curves.easeOutCubic,
@@ -1614,7 +1687,7 @@ class _ChatPageState extends State<ChatPage> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).colorScheme.onPrimary,
+                                  palette.sendButtonForeground,
                                 ),
                               ),
                             )
@@ -1622,7 +1695,7 @@ class _ChatPageState extends State<ChatPage> {
                               key: const ValueKey('send'),
                               icon: Icon(
                                 Icons.send_rounded,
-                                color: Theme.of(context).colorScheme.onPrimary,
+                                color: palette.sendButtonForeground,
                               ),
                               onPressed: _sendMessage,
                             ),
