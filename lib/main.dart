@@ -430,21 +430,23 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _toggleSavedProperty(Property property) {
+    setState(() {
+      if (_savedProperties.contains(property)) {
+        _savedProperties.remove(property);
+      } else {
+        _savedProperties.add(property);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       HomeTab(
         properties: _filteredProperties,
         savedProperties: _savedProperties,
-        onToggleSave: (property) {
-          setState(() {
-            if (_savedProperties.contains(property)) {
-              _savedProperties.remove(property);
-            } else {
-              _savedProperties.add(property);
-            }
-          });
-        },
+        onToggleSave: _toggleSavedProperty,
         searchController: _searchController,
         onSearchChanged: (value) {
           setState(() {
@@ -472,7 +474,10 @@ class _HomePageState extends State<HomePage> {
         onResetFilters: _resetFilters,
       ),
       const MapTab(),
-      SavedTab(savedProperties: _savedProperties.toList()),
+      SavedTab(
+        savedProperties: _savedProperties.toList(),
+        onToggleSave: _toggleSavedProperty,
+      ),
       const MessagesTab(),
       ProfileTab(
         profileImagePath: _profileImagePath,
@@ -614,8 +619,13 @@ class MapTab extends StatelessWidget {
 
 class SavedTab extends StatelessWidget {
   final List<Property> savedProperties;
+  final ValueChanged<Property> onToggleSave;
 
-  const SavedTab({super.key, required this.savedProperties});
+  const SavedTab({
+    super.key,
+    required this.savedProperties,
+    required this.onToggleSave,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -699,8 +709,11 @@ class SavedTab extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      PropertyDetailsPage(property: property),
+                                  builder: (context) => PropertyDetailsPage(
+                                    property: property,
+                                    isSaved: true,
+                                    onToggleSave: () => onToggleSave(property),
+                                  ),
                                 ),
                               );
                             },
@@ -3513,8 +3526,11 @@ class PropertyCard extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              PropertyDetailsPage(property: property),
+                          builder: (context) => PropertyDetailsPage(
+                            property: property,
+                            isSaved: isSaved,
+                            onToggleSave: onToggleSave,
+                          ),
                         ),
                       );
                     },
@@ -3538,10 +3554,37 @@ class PropertyCard extends StatelessWidget {
   }
 }
 
-class PropertyDetailsPage extends StatelessWidget {
+class PropertyDetailsPage extends StatefulWidget {
   final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
 
-  const PropertyDetailsPage({super.key, required this.property});
+  const PropertyDetailsPage({
+    super.key,
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+
+  @override
+  State<PropertyDetailsPage> createState() => _PropertyDetailsPageState();
+}
+
+class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
+  late bool _isSaved;
+
+  @override
+  void initState() {
+    super.initState();
+    _isSaved = widget.isSaved;
+  }
+
+  void _handleToggleSave() {
+    widget.onToggleSave();
+    setState(() {
+      _isSaved = !_isSaved;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3558,7 +3601,7 @@ class PropertyDetailsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPropertyImage(
-              property: property,
+              property: widget.property,
               height: 300,
               fallbackChild: const Center(
                 child: Icon(
@@ -3586,7 +3629,7 @@ class PropertyDetailsPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: Text(
-                          property.tag,
+                          widget.property.tag,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -3594,11 +3637,15 @@ class PropertyDetailsPage extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: () {},
+                        onPressed: _handleToggleSave,
                         icon: Icon(
-                          Icons.favorite_border_rounded,
+                          _isSaved
+                              ? Icons.favorite
+                              : Icons.favorite_border_rounded,
                           size: 28,
-                          color: Theme.of(context).iconTheme.color,
+                          color: _isSaved
+                              ? Colors.red
+                              : Theme.of(context).iconTheme.color,
                         ),
                       ),
                     ],
@@ -3613,7 +3660,7 @@ class PropertyDetailsPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        property.referenceCode,
+                        widget.property.referenceCode,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -3624,7 +3671,7 @@ class PropertyDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    property.title,
+                    widget.property.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -3638,7 +3685,7 @@ class PropertyDetailsPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        property.location,
+                        widget.property.location,
                         style: TextStyle(
                           fontSize: 16,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3670,7 +3717,7 @@ class PropertyDetailsPage extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              property.titleStatus,
+                              widget.property.titleStatus,
                               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3698,7 +3745,7 @@ class PropertyDetailsPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            property.price,
+                            widget.property.price,
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -3720,7 +3767,7 @@ class PropertyDetailsPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            property.size,
+                            widget.property.size,
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
@@ -3737,9 +3784,9 @@ class PropertyDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    property.description.trim().isEmpty
+                    widget.property.description.trim().isEmpty
                         ? 'No description available for this property yet.'
-                        : property.description,
+                        : widget.property.description,
                     style: TextStyle(
                       fontSize: 16,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -3760,7 +3807,8 @@ class PropertyDetailsPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ContactAgentPage(property: property),
+                  builder: (context) =>
+                      ContactAgentPage(property: widget.property),
                 ),
               );
             },
