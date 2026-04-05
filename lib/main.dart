@@ -2105,6 +2105,13 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const String _devAgentShortcutUsername = '1q1q';
+  static const String _devAgentShortcutPassword = '1q1q';
+  static const String _devAgentEmail = 'johsah447@gmail.com';
+  static const String _devAgentPassword = 'JMS_@26';
+  static const String _devUserShortcutUsername = '2q2q';
+  static const String _devUserShortcutPassword = '2q2q';
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -2167,9 +2174,33 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _routeToUserHome() async {
+    await loadProperties();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomePage()),
+    );
+  }
+
   Future<void> _signIn() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final enteredEmail = _emailController.text.trim();
+    final enteredPassword = _passwordController.text;
+
+    final bool isDevAgentShortcut =
+        enteredEmail == _devAgentShortcutUsername &&
+        enteredPassword == _devAgentShortcutPassword;
+    final bool isDevUserShortcut =
+        enteredEmail == _devUserShortcutUsername &&
+        enteredPassword == _devUserShortcutPassword;
+
+    if (isDevUserShortcut) {
+      await _routeToUserHome();
+      return;
+    }
+
+    final email = isDevAgentShortcut ? _devAgentEmail : enteredEmail;
+    final password = isDevAgentShortcut ? _devAgentPassword : enteredPassword;
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {

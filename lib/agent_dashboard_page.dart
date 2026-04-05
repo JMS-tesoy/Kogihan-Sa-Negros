@@ -663,10 +663,10 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     final ThemeData theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,10 +684,38 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           ...children,
         ],
       ),
+    );
+  }
+
+  Widget _buildCompactFieldRow({
+    required Widget left,
+    required Widget right,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              left,
+              const SizedBox(height: 12),
+              right,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 12),
+            Expanded(child: right),
+          ],
+        );
+      },
     );
   }
 
@@ -760,15 +788,15 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     return Container(
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             child: SizedBox(
-              height: 180,
+              height: 132,
               width: double.infinity,
               child: imageUrl.isEmpty
                   ? Container(
@@ -821,7 +849,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -867,14 +895,14 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Text(
                   _previewTitle,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     Icon(
@@ -893,7 +921,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
@@ -914,14 +942,14 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Text(
                   _previewDescription,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     height: 1.5,
                   ),
-                  maxLines: 4,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -1124,10 +1152,10 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -1137,21 +1165,21 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(22),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _isEditing ? 'Update Listing' : 'Create New Listing',
-                    style: theme.textTheme.headlineSmall?.copyWith(
+                    style: theme.textTheme.titleLarge?.copyWith(
                       color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
-                    'Fill in the property details below and review the live preview before saving.',
+                    'Fill the form, preview it, then save.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
                     ),
@@ -1159,39 +1187,39 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
             _buildPreviewCard(context),
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
             _buildSectionCard(
               context: context,
               title: 'Listing Identity',
               subtitle: 'Add the core listing details the agent should track and publish.',
               children: [
-                _buildFormField(
-                  controller: _referenceCodeController,
-                  label: 'Listing code',
-                  hintText: 'Example: LF-000120008',
-                  icon: Icons.pin_outlined,
-                  helperText: 'Use a unique internal reference code for this land listing.',
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a listing code.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildFormField(
-                  controller: _titleController,
-                  label: 'Clean title',
-                  hintText: 'Example: Prime Residential Lot',
-                  icon: Icons.title_rounded,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a clean title.';
-                    }
-                    return null;
-                  },
+                _buildCompactFieldRow(
+                  left: _buildFormField(
+                    controller: _referenceCodeController,
+                    label: 'Listing code',
+                    hintText: 'LF-000120008',
+                    icon: Icons.pin_outlined,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a listing code.';
+                      }
+                      return null;
+                    },
+                  ),
+                  right: _buildFormField(
+                    controller: _titleController,
+                    label: 'Clean title',
+                    hintText: 'Prime Residential Lot',
+                    icon: Icons.title_rounded,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a clean title.';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildFormField(
@@ -1207,63 +1235,63 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   },
                 ),
                 const SizedBox(height: 12),
-                _buildFormField(
-                  controller: _priceController,
-                  label: 'Price',
-                  hintText: 'Example: ₱1,200,000',
-                  icon: Icons.payments_outlined,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a price.';
-                    }
-                    return null;
-                  },
+                _buildCompactFieldRow(
+                  left: _buildFormField(
+                    controller: _priceController,
+                    label: 'Price',
+                    hintText: '₱1,200,000',
+                    icon: Icons.payments_outlined,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a price.';
+                      }
+                      return null;
+                    },
+                  ),
+                  right: _buildFormField(
+                    controller: _sizeController,
+                    label: 'Lot size',
+                    hintText: '500 sqm',
+                    icon: Icons.straighten_rounded,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a lot size.';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
-                _buildFormField(
-                  controller: _sizeController,
-                  label: 'Lot size',
-                  hintText: 'Example: 500 sqm',
-                  icon: Icons.straighten_rounded,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a lot size.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildFormField(
-                  controller: _statusController,
-                  label: 'Card tag',
-                  hintText: 'Example: Featured',
-                  icon: Icons.sell_outlined,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a card tag.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildSelectionField(
-                  context: context,
-                  label: 'Title status',
-                  icon: Icons.verified_outlined,
-                  value: _selectedTitleStatus,
-                  items: _titleStatusOptions,
-                  helperText:
-                      'Agents choose the legal title status shown on user-facing cards.',
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _selectedTitleStatus = value;
-                    });
-                  },
+                _buildCompactFieldRow(
+                  left: _buildFormField(
+                    controller: _statusController,
+                    label: 'Card tag',
+                    hintText: 'Featured',
+                    icon: Icons.sell_outlined,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a card tag.';
+                      }
+                      return null;
+                    },
+                  ),
+                  right: _buildSelectionField(
+                    context: context,
+                    label: 'Title status',
+                    icon: Icons.verified_outlined,
+                    value: _selectedTitleStatus,
+                    items: _titleStatusOptions,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectedTitleStatus = value;
+                      });
+                    },
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildSectionCard(
               context: context,
               title: 'Listing Content',
@@ -1275,7 +1303,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   hintText:
                       'Describe access, terrain, nearby landmarks, ideal use, and key selling points.',
                   icon: Icons.description_outlined,
-                  maxLines: 5,
+                  maxLines: 4,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a property description.';
@@ -1285,7 +1313,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildSectionCard(
               context: context,
               title: 'Media',
@@ -1322,8 +1350,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   hintText: 'https://example.com/property.jpg',
                   icon: Icons.image_outlined,
                   keyboardType: TextInputType.url,
-                  helperText:
-                      'Upload from device or paste a direct image link to show a live preview.',
                 ),
                 if (_imageUrlController.text.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -1342,7 +1368,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 ],
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1381,6 +1407,171 @@ class ManagePropertiesPage extends StatefulWidget {
 
 class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
   late List<Property> _properties;
+
+  Widget _buildManagePropertyCard(BuildContext context, Property property) {
+    final ThemeData theme = Theme.of(context);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 88,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: property.imageUrl != null && property.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          property.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              color: theme.colorScheme.primaryContainer,
+                              child: Icon(
+                                Icons.landscape_rounded,
+                                color: theme.colorScheme.onPrimaryContainer,
+                                size: 34,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: theme.colorScheme.primaryContainer,
+                          child: Icon(
+                            Icons.landscape_rounded,
+                            color: theme.colorScheme.onPrimaryContainer,
+                            size: 34,
+                          ),
+                        ),
+                ),
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      property.tag,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          property.title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    property.location,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${property.price} • ${property.size}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          property.titleStatus,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _editProperty(property),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            minimumSize: const Size.fromHeight(38),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: const Text('Edit'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: () => _deleteProperty(property),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            minimumSize: const Size.fromHeight(38),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: const Text('Delete'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -1431,44 +1622,18 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
       appBar: AppBar(title: const Text('Manage Properties')),
       body: _properties.isEmpty
           ? const Center(child: Text('No properties available.'))
-          : ListView.separated(
+          : GridView.builder(
               padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 360,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: 258,
+              ),
               itemCount: _properties.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final Property property = _properties[index];
-                return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: Text(property.title),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Grid: ${property.location}\n${property.price} • ${property.size}\nTag: ${property.tag} • Title: ${property.titleStatus}',
-                      ),
-                    ),
-                    isThreeLine: true,
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _editProperty(property);
-                        } else if (value == 'delete') {
-                          _deleteProperty(property);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem<String>(
-                          value: 'edit',
-                          child: Text('Edit'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Text('Delete'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                return _buildManagePropertyCard(context, property);
               },
             ),
     );
