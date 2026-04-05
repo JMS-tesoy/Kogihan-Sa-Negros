@@ -627,9 +627,23 @@ class SavedTab extends StatelessWidget {
                         final property = savedProperties[index];
                         return Card(
                           child: ListTile(
-                            leading: const Icon(
-                              Icons.favorite,
-                              color: Colors.red,
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: SizedBox(
+                                width: 56,
+                                height: 56,
+                                child: _buildPropertyImage(
+                                  property: property,
+                                  height: 56,
+                                  fallbackChild: const Center(
+                                    child: Icon(
+                                      Icons.landscape_rounded,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                             title: Text(property.title),
                             subtitle: Text(property.location),
