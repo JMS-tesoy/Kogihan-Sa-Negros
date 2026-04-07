@@ -1059,17 +1059,6 @@ class _MessagesTabState extends State<MessagesTab> {
     return palettes[index];
   }
 
-  Color? _propertyColorForConversation(ConversationSummary conversation) {
-    final String? propertyId = conversation.propertyId;
-    if (propertyId == null || propertyId.isEmpty) return null;
-
-    for (final Property property in appPropertiesNotifier.value) {
-      if (property.id == propertyId) return property.imageColor;
-    }
-
-    return null;
-  }
-
   Future<void> _loadConversations({bool showLoader = true}) async {
     if (showLoader && mounted) {
       setState(() {
@@ -1114,7 +1103,6 @@ class _MessagesTabState extends State<MessagesTab> {
         ChatPage(
           conversationId: conversation.id,
           senderName: conversation.otherParticipantName,
-          propertyColor: _propertyColorForConversation(conversation),
           initialMessages: MessagingService.getCachedConversationMessages(
             conversation.id,
             limit: MessagingService.initialMessagePageSize,
@@ -1124,6 +1112,56 @@ class _MessagesTabState extends State<MessagesTab> {
     );
 
     await _loadConversations(showLoader: false);
+  }
+
+  Future<bool> _confirmDeleteConversation(
+    ConversationSummary conversation,
+  ) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete conversation'),
+          content: Text(
+            'Delete your conversation for "${conversation.title}"? This will also remove its messages.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return mounted && shouldDelete == true;
+  }
+
+  Future<void> _deleteConversation(ConversationSummary conversation) async {
+    try {
+      await MessagingService.deleteConversation(conversation.id);
+      if (!mounted) return;
+
+      setState(() {
+        _conversations = _conversations
+            .where((item) => item.id != conversation.id)
+            .toList();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete conversation: $error')),
+      );
+    }
   }
 
   @override
@@ -1224,14 +1262,34 @@ class _MessagesTabState extends State<MessagesTab> {
       conversation,
     );
 
-    return Card(
-      color: palette.background,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: palette.border),
-        borderRadius: BorderRadius.circular(16),
+    return Dismissible(
+      key: ValueKey(conversation.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDeleteConversation(conversation),
+      onDismissed: (_) {
+        _deleteConversation(conversation);
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(
+          Icons.delete_outline,
+          color: Theme.of(context).colorScheme.onErrorContainer,
+        ),
       ),
-      child: ListTile(
+      child: Card(
+        color: palette.background,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: palette.border),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: palette.avatarBackground,
@@ -1305,7 +1363,8 @@ class _MessagesTabState extends State<MessagesTab> {
             ],
           ],
         ),
-        onTap: () => _openConversation(conversation),
+          onTap: () => _openConversation(conversation),
+        ),
       ),
     );
   }
@@ -1601,14 +1660,12 @@ class AccountPage extends StatelessWidget {
 class ChatPage extends StatefulWidget {
   final String conversationId;
   final String senderName;
-  final Color? propertyColor;
   final List<ConversationMessage> initialMessages;
 
   const ChatPage({
     super.key,
     required this.conversationId,
     required this.senderName,
-    this.propertyColor,
     this.initialMessages = const [],
   });
 
@@ -1632,35 +1689,23 @@ class _ChatPageState extends State<ChatPage> {
 
   _ChatColorPalette _chatPalette(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color seedColor = widget.propertyColor ?? theme.colorScheme.primary;
-    final ColorScheme chatScheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: theme.brightness,
-    );
-    final bool isLightTheme = theme.brightness == Brightness.light;
+    final ColorScheme colorScheme = theme.colorScheme;
 
     return _ChatColorPalette(
-      scaffoldBackground: Color.alphaBlend(
-        chatScheme.primary.withValues(alpha: isLightTheme ? 0.04 : 0.08),
-        theme.scaffoldBackgroundColor,
-      ),
-      appBarBackground: Color.alphaBlend(
-        chatScheme.primary.withValues(alpha: isLightTheme ? 0.12 : 0.18),
-        theme.colorScheme.surface,
-      ),
-      appBarForeground: theme.colorScheme.onSurface,
-      avatarBackground: chatScheme.primary,
-      avatarForeground: chatScheme.onPrimary,
-      outgoingBubble: chatScheme.primaryContainer,
-      outgoingText: chatScheme.onPrimaryContainer,
-      incomingBubble: chatScheme.secondaryContainer,
-      incomingText: chatScheme.onSecondaryContainer,
-      composerFill: Color.alphaBlend(
-        chatScheme.primary.withValues(alpha: isLightTheme ? 0.08 : 0.14),
-        theme.cardColor,
-      ),
-      sendButtonBackground: chatScheme.primary,
-      sendButtonForeground: chatScheme.onPrimary,
+      scaffoldBackground: theme.scaffoldBackgroundColor,
+      appBarBackground:
+          theme.appBarTheme.backgroundColor ?? colorScheme.surface,
+      appBarForeground:
+          theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
+      avatarBackground: colorScheme.primaryContainer,
+      avatarForeground: colorScheme.onPrimaryContainer,
+      outgoingBubble: colorScheme.primaryContainer,
+      outgoingText: colorScheme.onPrimaryContainer,
+      incomingBubble: colorScheme.surfaceContainerHighest,
+      incomingText: colorScheme.onSurface,
+      composerFill: theme.cardColor,
+      sendButtonBackground: colorScheme.primary,
+      sendButtonForeground: colorScheme.onPrimary,
     );
   }
 

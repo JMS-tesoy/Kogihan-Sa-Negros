@@ -443,6 +443,14 @@ class MessagingService {
     });
   }
 
+  static Future<void> deleteConversation(String conversationId) async {
+    await _client.from('conversations').delete().eq('id', conversationId);
+    _conversationMessagesCache.remove(conversationId);
+    _conversationSummariesCache = _conversationSummariesCache
+        .where((summary) => summary.id != conversationId)
+        .toList();
+  }
+
   static Future<String> startConversationForProperty({
     required Property property,
     required String body,
