@@ -12,7 +12,7 @@ import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
 import 'shared_properties.dart';
 
-final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.dark);
+final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
@@ -133,6 +133,22 @@ void _warmPropertyImage(
   );
   if (imageProvider == null) return;
   unawaited(precacheImage(imageProvider, context));
+}
+
+Future<void> _precachePropertyImage(
+  BuildContext context,
+  Property property, {
+  double height = 210,
+  bool useThumbnail = false,
+}) async {
+  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
+    context,
+    property,
+    height: height,
+    useThumbnail: useThumbnail,
+  );
+  if (imageProvider == null) return;
+  await precacheImage(imageProvider, context);
 }
 
 Route<T> _instantRoute<T>(Widget child) {
@@ -348,6 +364,7 @@ class _HomePageState extends State<HomePage> {
   String? _selectedLocation;
   String? _selectedLotSize;
   String? _selectedBudget;
+  final Set<String> _savedPropertyIds = <String>{};
   final Set<Property> _savedProperties = {};
   final Set<String> _warmedPropertyImageIds = <String>{};
   List<Property> _availableProperties = List<Property>.from(
@@ -379,11 +396,7 @@ class _HomePageState extends State<HomePage> {
       _savedProperties
         ..clear()
         ..addAll(
-          _availableProperties.where(
-            (property) => _savedProperties.any(
-              (savedProperty) => savedProperty.id == property.id,
-            ),
-          ),
+          _availableProperties.where((property) => _savedPropertyIds.contains(property.id)),
         );
     });
     _warmInitialPropertyCardImages(_availableProperties);
@@ -420,10 +433,15 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || savedIds.isEmpty) return;
 
     setState(() {
+      _savedPropertyIds
+        ..clear()
+        ..addAll(savedIds);
       _savedProperties
         ..clear()
         ..addAll(
-          _availableProperties.where((property) => savedIds.contains(property.id)),
+          _availableProperties.where(
+            (property) => _savedPropertyIds.contains(property.id),
+          ),
         );
     });
   }
@@ -433,7 +451,7 @@ class _HomePageState extends State<HomePage> {
         await SharedPreferences.getInstance();
     await preferences.setStringList(
       _savedPropertyIdsPrefsKey,
-      _savedProperties.map((property) => property.id).toList(),
+      _savedPropertyIds.toList(),
     );
   }
 
@@ -585,8 +603,10 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       if (_savedProperties.contains(property)) {
         _savedProperties.remove(property);
+        _savedPropertyIds.remove(property.id);
       } else {
         _savedProperties.add(property);
+        _savedPropertyIds.add(property.id);
       }
     });
     unawaited(_persistSavedProperties());
@@ -2544,7 +2564,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _routeByRole(User? user) async {
-    appThemeNotifier.value = ThemeMode.dark;
+    appThemeNotifier.value = ThemeMode.light;
 
     final role =
         ((user?.appMetadata['role'] ?? user?.userMetadata?['role']) as String?)
@@ -2572,6 +2592,19 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     } else {
+      final List<Property> initialProperties = appPropertiesNotifier.value
+          .take(3)
+          .toList(growable: false);
+      await Future.wait(
+        initialProperties.map(
+          (property) => _precachePropertyImage(
+            context,
+            property,
+            useThumbnail: true,
+          ),
+        ),
+      );
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
