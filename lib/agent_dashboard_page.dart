@@ -42,6 +42,21 @@ String _formatInboxTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
+List<AgentInquiry> _cachedAgentInquiries() {
+  final List<ConversationSummary> cachedSummaries =
+      MessagingService.getCachedConversationSummaries();
+  if (cachedSummaries.isEmpty) return const [];
+  return AgentInquiry.groupedFromConversationSummaries(cachedSummaries);
+}
+
+Route<T> _instantRoute<T>(Widget child) {
+  return PageRouteBuilder<T>(
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (context, animation, secondaryAnimation) => child,
+  );
+}
+
 class AgentInquiry {
   final String id;
   final String buyerId;
@@ -87,7 +102,8 @@ class AgentInquiry {
       timeLabel: timeLabel ?? this.timeLabel,
       isUnread: isUnread ?? this.isUnread,
       conversationTitle: conversationTitle ?? this.conversationTitle,
-      primaryConversationId: primaryConversationId ?? this.primaryConversationId,
+      primaryConversationId:
+          primaryConversationId ?? this.primaryConversationId,
       conversationIds: conversationIds ?? this.conversationIds,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
     );
@@ -145,7 +161,9 @@ class AgentInquiry {
             : 'No messages yet.',
         timeLabel: _formatInboxTime(latest.lastMessageAt),
         isUnread: items.any((summary) => summary.isUnread),
-        conversationTitle: titles.length <= 1 ? latest.title : 'Multiple inquiries',
+        conversationTitle: titles.length <= 1
+            ? latest.title
+            : 'Multiple inquiries',
         primaryConversationId: latest.id,
         conversationIds: items.map((summary) => summary.id).toList(),
         lastMessageAt: latest.lastMessageAt,
@@ -188,7 +206,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_refreshDashboard);
-    unawaited(_loadInquiries());
+    final List<AgentInquiry> cachedInquiries = _cachedAgentInquiries();
+    if (cachedInquiries.isNotEmpty) {
+      _inquiries = cachedInquiries;
+      _isInboxLoading = false;
+    }
+    unawaited(_loadInquiries(showLoader: cachedInquiries.isEmpty));
     _subscribeToInboxUpdates();
   }
 
@@ -296,8 +319,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Future<void> _openInboxPage() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => AgentInboxPage(
+      _instantRoute(
+        AgentInboxPage(
           inquiries: _inquiries,
           onMarkAsRead: _markInquiryAsRead,
         ),
@@ -355,7 +378,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: isLightTheme ? 0.12 : 0.2),
+                  color: accentColor.withValues(
+                    alpha: isLightTheme ? 0.12 : 0.2,
+                  ),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(icon, color: accentColor, size: 28),
@@ -691,20 +716,11 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
-  Widget _buildCompactFieldRow({
-    required Widget left,
-    required Widget right,
-  }) {
+  Widget _buildCompactFieldRow({required Widget left, required Widget right}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 420) {
-          return Column(
-            children: [
-              left,
-              const SizedBox(height: 12),
-              right,
-            ],
-          );
+          return Column(children: [left, const SizedBox(height: 12), right]);
         }
 
         return Row(
@@ -1010,15 +1026,17 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       final String filePath =
           '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
 
-      await Supabase.instance.client.storage.from('property-images').uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: FileOptions(
-          cacheControl: '3600',
-          upsert: true,
-          contentType: _contentTypeForFileName(originalName),
-        ),
-      );
+      await Supabase.instance.client.storage
+          .from('property-images')
+          .uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+              contentType: _contentTypeForFileName(originalName),
+            ),
+          );
 
       final String publicUrl = Supabase.instance.client.storage
           .from('property-images')
@@ -1034,9 +1052,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       );
     } on StorageException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Upload failed: ${error.message}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: ${error.message}')),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1193,7 +1211,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             _buildSectionCard(
               context: context,
               title: 'Listing Identity',
-              subtitle: 'Add the core listing details the agent should track and publish.',
+              subtitle:
+                  'Add the core listing details the agent should track and publish.',
               children: [
                 _buildCompactFieldRow(
                   left: _buildFormField(
@@ -1295,7 +1314,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             _buildSectionCard(
               context: context,
               title: 'Listing Content',
-              subtitle: 'Describe the land clearly so buyers understand the offer before they inquire.',
+              subtitle:
+                  'Describe the land clearly so buyers understand the offer before they inquire.',
               children: [
                 _buildFormField(
                   controller: _descriptionController,
@@ -1317,12 +1337,15 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             _buildSectionCard(
               context: context,
               title: 'Media',
-              subtitle: 'Attach an image URL to make the listing preview more complete.',
+              subtitle:
+                  'Attach an image URL to make the listing preview more complete.',
               children: [
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _isUploadingImage ? null : _pickAndUploadPropertyImage,
+                    onPressed: _isUploadingImage
+                        ? null
+                        : _pickAndUploadPropertyImage,
                     icon: _isUploadingImage
                         ? const SizedBox(
                             width: 18,
@@ -1422,7 +1445,8 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: property.imageUrl != null && property.imageUrl!.isNotEmpty
+                  child:
+                      property.imageUrl != null && property.imageUrl!.isNotEmpty
                       ? Image.network(
                           property.imageUrl!,
                           fit: BoxFit.cover,
@@ -1661,7 +1685,9 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
   @override
   void initState() {
     super.initState();
-    _inquiries = List<AgentInquiry>.from(widget.inquiries);
+    _inquiries = widget.inquiries.isNotEmpty
+        ? List<AgentInquiry>.from(widget.inquiries)
+        : _cachedAgentInquiries();
     _subscribeToInboxUpdates();
     unawaited(_refreshInquiries());
   }
@@ -1727,9 +1753,7 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
 
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => InquiryDetailsPage(inquiry: inquiry),
-      ),
+      _instantRoute(InquiryDetailsPage(inquiry: inquiry)),
     );
 
     await _refreshInquiries();
@@ -1811,6 +1835,8 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
   late final ScrollController _messagesScrollController;
   bool _isSending = false;
   bool _isLoadingMessages = true;
+  bool _isLoadingMoreMessages = false;
+  bool _hasMoreMessages = true;
   List<ConversationMessage> _messages = const [];
   RealtimeChannel? _messagesChannel;
 
@@ -1822,8 +1848,21 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     super.initState();
     _replyController = TextEditingController();
     _messagesScrollController = ScrollController();
+    _messages = MessagingService.getCachedConversationMessagesForConversations(
+      widget.inquiry.conversationIds,
+      limit: MessagingService.initialMessagePageSize,
+    );
+    _isLoadingMessages = _messages.isEmpty;
+    _hasMoreMessages =
+        _messages.length >= MessagingService.initialMessagePageSize;
+    _messagesScrollController.addListener(_handleMessagesScroll);
     _subscribeToMessageUpdates();
-    unawaited(_loadMessages(scrollToBottom: true));
+    if (_messages.isNotEmpty) {
+      _jumpToBottom();
+    }
+    unawaited(
+      _loadMessages(scrollToBottom: true, showLoader: _messages.isEmpty),
+    );
   }
 
   @override
@@ -1837,39 +1876,152 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
   }
 
   void _subscribeToMessageUpdates() {
-    _messagesChannel = Supabase.instance.client
-        .channel('agent-thread-${widget.inquiry.buyerId}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          callback: (_) {
-            if (!mounted) return;
-            unawaited(_loadMessages(scrollToBottom: true));
-          },
-        )
-        .subscribe();
+    RealtimeChannel channel = Supabase.instance.client.channel(
+      'agent-thread-${widget.inquiry.buyerId}',
+    );
+
+    for (final String conversationId in widget.inquiry.conversationIds) {
+      channel = channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'messages',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'conversation_id',
+          value: conversationId,
+        ),
+        callback: (_) {
+          if (!mounted) return;
+          unawaited(_loadMessages(scrollToBottom: true, showLoader: false));
+        },
+      );
+    }
+
+    _messagesChannel = channel.subscribe();
   }
 
-  Future<void> _loadMessages({bool scrollToBottom = false}) async {
+  void _handleMessagesScroll() {
+    if (!_messagesScrollController.hasClients ||
+        _isLoadingMoreMessages ||
+        !_hasMoreMessages ||
+        _messages.isEmpty) {
+      return;
+    }
+
+    if (_messagesScrollController.position.pixels <= 120) {
+      unawaited(_loadOlderMessages());
+    }
+  }
+
+  List<ConversationMessage> _mergeMessages(
+    Iterable<ConversationMessage> existing,
+    Iterable<ConversationMessage> incoming,
+  ) {
+    final Map<String, ConversationMessage> byId =
+        <String, ConversationMessage>{};
+    for (final ConversationMessage message in existing) {
+      byId[message.id] = message;
+    }
+    for (final ConversationMessage message in incoming) {
+      byId[message.id] = message;
+    }
+
+    final List<ConversationMessage> merged = byId.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return merged;
+  }
+
+  Future<void> _loadMessages({
+    bool scrollToBottom = false,
+    bool showLoader = true,
+  }) async {
+    if (showLoader && mounted) {
+      setState(() {
+        _isLoadingMessages = true;
+      });
+    }
+
     try {
       final List<ConversationMessage> messages =
           await MessagingService.fetchConversationMessagesForConversations(
             widget.inquiry.conversationIds,
+            limit: MessagingService.initialMessagePageSize,
           );
       final int previousCount = _messages.length;
+      final List<ConversationMessage> mergedMessages = _mergeMessages(
+        _messages,
+        messages,
+      );
       if (!mounted) return;
       setState(() {
-        _messages = messages;
+        _messages = mergedMessages;
         _isLoadingMessages = false;
+        _hasMoreMessages =
+            messages.length >= MessagingService.initialMessagePageSize;
       });
-      if (scrollToBottom || messages.length > previousCount) {
-        _scrollToBottom();
+      if (scrollToBottom || mergedMessages.length > previousCount) {
+        if (previousCount == 0) {
+          _jumpToBottom();
+        } else {
+          _scrollToBottom();
+        }
       }
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLoadingMessages = false;
+      });
+    }
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_isLoadingMoreMessages || !_hasMoreMessages || _messages.isEmpty) {
+      return;
+    }
+
+    final DateTime before = _messages.first.createdAt;
+    final double previousOffset = _messagesScrollController.hasClients
+        ? _messagesScrollController.offset
+        : 0;
+    final double previousMaxExtent = _messagesScrollController.hasClients
+        ? _messagesScrollController.position.maxScrollExtent
+        : 0;
+
+    setState(() {
+      _isLoadingMoreMessages = true;
+    });
+
+    try {
+      final List<ConversationMessage> olderMessages =
+          await MessagingService.fetchConversationMessagesForConversations(
+            widget.inquiry.conversationIds,
+            limit: MessagingService.initialMessagePageSize,
+            before: before,
+          );
+      final List<ConversationMessage> mergedMessages = _mergeMessages(
+        _messages,
+        olderMessages,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _messages = mergedMessages;
+        _isLoadingMoreMessages = false;
+        _hasMoreMessages =
+            olderMessages.length >= MessagingService.initialMessagePageSize;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_messagesScrollController.hasClients) return;
+        final double delta =
+            _messagesScrollController.position.maxScrollExtent -
+            previousMaxExtent;
+        _messagesScrollController.jumpTo(previousOffset + delta);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMoreMessages = false;
       });
     }
   }
@@ -1881,6 +2033,15 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
         _messagesScrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+      _messagesScrollController.jumpTo(
+        _messagesScrollController.position.maxScrollExtent,
       );
     });
   }
@@ -1906,13 +2067,19 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     _scrollToBottom();
 
     try {
-      await MessagingService.sendMessage(
-        conversationId: widget.inquiry.primaryConversationId,
-        body: replyText,
-      );
+      final ConversationMessage sentMessage =
+          await MessagingService.sendMessage(
+            conversationId: widget.inquiry.primaryConversationId,
+            body: replyText,
+          );
 
       if (!mounted) return;
-      await _loadMessages(scrollToBottom: true);
+      final List<ConversationMessage> currentMessages = _messages
+          .where((message) => message.id != optimisticMessage.id)
+          .toList();
+      setState(() {
+        _messages = _mergeMessages(currentMessages, [sentMessage]);
+      });
     } catch (e) {
       if (!mounted) return;
       _replyController.text = replyText;
@@ -2083,7 +2250,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                   const SizedBox(height: 12),
                   Expanded(
                     child: _isLoadingMessages
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const _InquiryThreadLoadingPlaceholder()
                         : _messages.isEmpty
                         ? ListView(
                             children: const [
@@ -2093,12 +2260,29 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                           )
                         : ListView.separated(
                             controller: _messagesScrollController,
-                            itemCount: _messages.length,
+                            itemCount:
+                                _messages.length +
+                                (_isLoadingMoreMessages ? 1 : 0),
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
+                              if (_isLoadingMoreMessages && index == 0) {
+                                return const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              final int messageIndex = _isLoadingMoreMessages
+                                  ? index - 1
+                                  : index;
                               final ConversationMessage message =
-                                  _messages[index];
+                                  _messages[messageIndex];
                               final ThemeData theme = Theme.of(context);
                               final bool isAgentMessage = message.isFrom(
                                 _currentUserId,
@@ -2122,60 +2306,43 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                       isAgentMessage && !message.isPending
                                       ? () => _showMessageActions(message)
                                       : null,
-                                  child: TweenAnimationBuilder<double>(
-                                    key: ValueKey(message.id),
-                                    tween: Tween(begin: 0, end: 1),
-                                    duration: const Duration(milliseconds: 220),
-                                    curve: Curves.easeOutCubic,
-                                    builder: (context, value, child) {
-                                      return Opacity(
-                                        opacity: value,
-                                        child: Transform.translate(
-                                          offset: Offset(
-                                            isAgentMessage
-                                                ? (1 - value) * 18
-                                                : -(1 - value) * 18,
-                                            (1 - value) * 10,
-                                          ),
-                                          child: child,
-                                        ),
-                                      );
-                                    },
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 320,
-                                      ),
-                                      child: Card(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 320,
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
                                         color: bubbleColor,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                message.body,
-                                                style: TextStyle(
-                                                  color: textColor,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                isAgentMessage
-                                                    ? (message.isPending
-                                                          ? 'Sending...'
-                                                          : 'Sent')
-                                                    : _formatInboxTime(
-                                                        message.createdAt,
-                                                      ),
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(color: metaColor),
-                                              ),
-                                            ],
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            message.body,
+                                            style: TextStyle(
+                                              color: textColor,
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            isAgentMessage
+                                                ? (message.isPending
+                                                      ? 'Sending...'
+                                                      : 'Sent')
+                                                : _formatInboxTime(
+                                                    message.createdAt,
+                                                  ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: metaColor,
+                                                ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -2250,6 +2417,37 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InquiryThreadLoadingPlaceholder extends StatelessWidget {
+  const _InquiryThreadLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final Color baseColor = Theme.of(
+      context,
+    ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.7);
+
+    return ListView(
+      children: List<Widget>.generate(6, (index) {
+        final bool isAgentBubble = index.isOdd;
+        return Align(
+          alignment: isAgentBubble
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: Container(
+            width: isAgentBubble ? 260 : 200,
+            height: 72,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: baseColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

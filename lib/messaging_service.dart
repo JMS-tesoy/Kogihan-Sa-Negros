@@ -68,6 +68,34 @@ class ConversationSummary {
     required this.propertyTitle,
   });
 
+  ConversationSummary copyWith({
+    String? id,
+    String? buyerId,
+    String? agentId,
+    String? propertyId,
+    String? subject,
+    String? lastMessagePreview,
+    DateTime? lastMessageAt,
+    String? otherParticipantId,
+    String? otherParticipantName,
+    bool? isUnread,
+    String? propertyTitle,
+  }) {
+    return ConversationSummary(
+      id: id ?? this.id,
+      buyerId: buyerId ?? this.buyerId,
+      agentId: agentId ?? this.agentId,
+      propertyId: propertyId ?? this.propertyId,
+      subject: subject ?? this.subject,
+      lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      otherParticipantId: otherParticipantId ?? this.otherParticipantId,
+      otherParticipantName: otherParticipantName ?? this.otherParticipantName,
+      isUnread: isUnread ?? this.isUnread,
+      propertyTitle: propertyTitle ?? this.propertyTitle,
+    );
+  }
+
   String get title {
     if (subject.trim().isNotEmpty) return subject.trim();
     if ((propertyTitle ?? '').trim().isNotEmpty) return propertyTitle!.trim();
@@ -162,6 +190,10 @@ class MessagingService {
   MessagingService._();
 
   static final SupabaseClient _client = Supabase.instance.client;
+  static const int initialMessagePageSize = 24;
+  static List<ConversationSummary> _conversationSummariesCache = const [];
+  static final Map<String, List<ConversationMessage>> _conversationMessagesCache =
+      <String, List<ConversationMessage>>{};
 
   static User get _currentUser {
     final User? user = _client.auth.currentUser;
@@ -184,6 +216,36 @@ class MessagingService {
     return MessagingProfile.fromMap(response);
   }
 
+  static List<ConversationSummary> getCachedConversationSummaries() {
+    return List<ConversationSummary>.from(_conversationSummariesCache);
+  }
+
+  static List<ConversationMessage> getCachedConversationMessages(
+    String conversationId, {
+    int? limit,
+  }) {
+    final List<ConversationMessage> cached = List<ConversationMessage>.from(
+      _conversationMessagesCache[conversationId] ?? const <ConversationMessage>[],
+    );
+    if (limit == null || cached.length <= limit) return cached;
+    return cached.sublist(cached.length - limit);
+  }
+
+  static List<ConversationMessage> getCachedConversationMessagesForConversations(
+    List<String> conversationIds, {
+    int? limit,
+  }) {
+    final List<ConversationMessage> cached = _mergeMessages(
+      conversationIds.expand(
+        (conversationId) =>
+            _conversationMessagesCache[conversationId] ??
+            const <ConversationMessage>[],
+      ),
+    );
+    if (limit == null || cached.length <= limit) return cached;
+    return cached.sublist(cached.length - limit);
+  }
+
   static Future<List<ConversationSummary>>
   fetchMyConversationSummaries() async {
     final User user = _currentUser;
@@ -201,7 +263,7 @@ class MessagingService {
         .order('created_at', ascending: false, referencedTable: 'messages')
         .limit(1, referencedTable: 'messages');
 
-    return response
+    final List<ConversationSummary> summaries = response
         .map(
           (item) => ConversationSummary.fromMap(
             Map<String, dynamic>.from(item as Map),
@@ -209,6 +271,8 @@ class MessagingService {
           ),
         )
         .toList();
+    _conversationSummariesCache = summaries;
+    return summaries;
   }
 
   static Future<int> fetchMyUnreadConversationCount() async {
@@ -218,38 +282,72 @@ class MessagingService {
   }
 
   static Future<List<ConversationMessage>> fetchConversationMessages(
-    String conversationId,
-  ) async {
-    final List<dynamic> response = await _client
+    String conversationId, {
+    int limit = initialMessagePageSize,
+    DateTime? before,
+  }) async {
+    dynamic request = _client
         .from('messages')
         .select()
-        .eq('conversation_id', conversationId)
-        .order('created_at', ascending: true);
+        .eq('conversation_id', conversationId);
+    if (before != null) {
+      request = request.lt('created_at', before.toUtc().toIso8601String());
+    }
 
-    return response
+    final List<dynamic> response = await request
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    final List<ConversationMessage> messages = response
         .map(
           (item) => ConversationMessage.fromMap(
             Map<String, dynamic>.from(item as Map),
           ),
         )
+        .toList()
+        .reversed
         .toList();
+    _storeConversationMessages(conversationId, messages);
+    return messages;
   }
 
   static Future<List<ConversationMessage>> fetchConversationMessagesForConversations(
-    List<String> conversationIds,
-  ) async {
+    List<String> conversationIds, {
+    int limit = initialMessagePageSize,
+    DateTime? before,
+  }) async {
     if (conversationIds.isEmpty) return const [];
 
-    final List<Future<List<ConversationMessage>>> requests = conversationIds
-        .map(fetchConversationMessages)
+    dynamic request = _client
+        .from('messages')
+        .select()
+        .inFilter('conversation_id', conversationIds);
+    if (before != null) {
+      request = request.lt('created_at', before.toUtc().toIso8601String());
+    }
+
+    final List<dynamic> response = await request
+        .order('created_at', ascending: false)
+        .limit(limit);
+    final List<ConversationMessage> messages = response
+        .map(
+          (item) => ConversationMessage.fromMap(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
+        .toList()
+        .reversed
         .toList();
 
-    final List<List<ConversationMessage>> results = await Future.wait(requests);
-    final List<ConversationMessage> messages = results
-        .expand((items) => items)
-        .toList();
+    for (final String conversationId in conversationIds) {
+      final List<ConversationMessage> conversationMessages = messages
+          .where((message) => message.conversationId == conversationId)
+          .toList();
+      if (conversationMessages.isNotEmpty) {
+        _storeConversationMessages(conversationId, conversationMessages);
+      }
+    }
 
-    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return messages;
   }
 
@@ -261,6 +359,13 @@ class MessagingService {
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .isFilter('read_at', null);
+    _conversationSummariesCache = _conversationSummariesCache
+        .map(
+          (summary) => summary.id == conversationId
+              ? summary.copyWith(isUnread: false)
+              : summary,
+        )
+        .toList();
   }
 
   static Future<void> markConversationsAsRead(List<String> conversationIds) async {
@@ -271,16 +376,38 @@ class MessagingService {
     );
   }
 
-  static Future<void> sendMessage({
+  static Future<ConversationMessage> sendMessage({
     required String conversationId,
     required String body,
   }) async {
     final User user = _currentUser;
-    await _client.from('messages').insert({
+    final Map<String, dynamic> response = await _client.from('messages').insert({
       'conversation_id': conversationId,
       'sender_id': user.id,
       'body': body.trim(),
-    });
+    }).select().single();
+    final ConversationMessage message = ConversationMessage.fromMap(response);
+    _storeConversationMessages(conversationId, [message]);
+    _conversationSummariesCache = _conversationSummariesCache
+        .map(
+          (summary) => summary.id == conversationId
+              ? summary.copyWith(
+                  lastMessagePreview: message.body,
+                  lastMessageAt: message.createdAt,
+                  isUnread: false,
+                )
+              : summary,
+        )
+        .toList()
+      ..sort((a, b) {
+        final DateTime? first = a.lastMessageAt;
+        final DateTime? second = b.lastMessageAt;
+        if (first == null && second == null) return 0;
+        if (first == null) return 1;
+        if (second == null) return -1;
+        return second.compareTo(first);
+      });
+    return message;
   }
 
   static Future<void> updateMessage({
@@ -291,10 +418,29 @@ class MessagingService {
         .from('messages')
         .update({'body': body.trim()})
         .eq('id', messageId);
+    _conversationMessagesCache.updateAll((_, messages) {
+      return messages
+          .map(
+            (message) => message.id == messageId
+                ? ConversationMessage(
+                    id: message.id,
+                    conversationId: message.conversationId,
+                    senderId: message.senderId,
+                    body: body.trim(),
+                    createdAt: message.createdAt,
+                    readAt: message.readAt,
+                  )
+                : message,
+          )
+          .toList();
+    });
   }
 
   static Future<void> deleteMessage(String messageId) async {
     await _client.from('messages').delete().eq('id', messageId);
+    _conversationMessagesCache.updateAll((_, messages) {
+      return messages.where((message) => message.id != messageId).toList();
+    });
   }
 
   static Future<String> startConversationForProperty({
@@ -387,6 +533,30 @@ class MessagingService {
       default:
         return 'user';
     }
+  }
+
+  static List<ConversationMessage> _mergeMessages(
+    Iterable<ConversationMessage> messages,
+  ) {
+    final Map<String, ConversationMessage> byId =
+        <String, ConversationMessage>{};
+    for (final ConversationMessage message in messages) {
+      byId[message.id] = message;
+    }
+
+    final List<ConversationMessage> merged = byId.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return merged;
+  }
+
+  static void _storeConversationMessages(
+    String conversationId,
+    List<ConversationMessage> messages,
+  ) {
+    _conversationMessagesCache[conversationId] = _mergeMessages([
+      ...?_conversationMessagesCache[conversationId],
+      ...messages,
+    ]);
   }
 }
 

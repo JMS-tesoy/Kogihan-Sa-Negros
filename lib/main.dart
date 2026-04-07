@@ -2,19 +2,20 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:developer' as developer;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
 import 'shared_properties.dart';
 
-final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
-  ThemeMode.light,
-);
+final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.dark);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
+const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
 
 String _messageInitial(String value) {
   final String trimmed = value.trim();
@@ -56,21 +57,106 @@ String _formatMessageTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
+String _optimizedPropertyImageUrl(
+  String imageUrl, {
+  required int targetWidth,
+}) {
+  final Uri? uri = Uri.tryParse(imageUrl);
+  if (uri == null) return imageUrl;
+
+  final String host = uri.host.toLowerCase();
+  if (!host.contains('unsplash.com')) return imageUrl;
+
+  final Map<String, String> queryParameters = Map<String, String>.from(
+    uri.queryParameters,
+  );
+  queryParameters['auto'] = 'format';
+  queryParameters['fit'] = 'crop';
+  queryParameters['w'] = targetWidth.toString();
+  queryParameters['q'] = '70';
+
+  return uri.replace(queryParameters: queryParameters).toString();
+}
+
+ImageProvider<Object>? _propertyImageProvider(
+  Property property, {
+  int? targetWidth,
+  bool useThumbnail = false,
+}) {
+  final String? imageUrl = property.imageUrl;
+  if (imageUrl == null || imageUrl.isEmpty) return null;
+  if (imageUrl.startsWith('http')) {
+    final String resolvedImageUrl =
+        useThumbnail && targetWidth != null
+        ? _optimizedPropertyImageUrl(imageUrl, targetWidth: targetWidth)
+        : imageUrl;
+    return CachedNetworkImageProvider(resolvedImageUrl);
+  }
+  return AssetImage(imageUrl);
+}
+
+ImageProvider<Object>? _propertyDisplayImageProvider(
+  BuildContext context,
+  Property property, {
+  required double height,
+  bool useThumbnail = false,
+}) {
+  final double devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  final int targetWidth = (MediaQuery.sizeOf(context).width * 1.5)
+      .round()
+      .clamp(480, 900);
+  final ImageProvider<Object>? imageProvider = _propertyImageProvider(
+    property,
+    targetWidth: targetWidth,
+    useThumbnail: useThumbnail,
+  );
+  if (imageProvider == null) return null;
+
+  return ResizeImage.resizeIfNeeded(
+    (MediaQuery.sizeOf(context).width * devicePixelRatio).round(),
+    (height * devicePixelRatio).round(),
+    imageProvider,
+  );
+}
+
+void _warmPropertyImage(
+  BuildContext context,
+  Property property, {
+  double height = 210,
+  bool useThumbnail = false,
+}) {
+  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
+    context,
+    property,
+    height: height,
+    useThumbnail: useThumbnail,
+  );
+  if (imageProvider == null) return;
+  unawaited(precacheImage(imageProvider, context));
+}
+
+Route<T> _instantRoute<T>(Widget child) {
+  return PageRouteBuilder<T>(
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (context, animation, secondaryAnimation) => child,
+  );
+}
+
 Widget _buildPropertyImage({
+  required BuildContext context,
   required Property property,
   required double height,
   required Widget fallbackChild,
   BorderRadius? borderRadius,
+  bool useThumbnail = false,
 }) {
   final Widget fallback = Container(
     height: height,
     width: double.infinity,
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [
-          property.imageColor,
-          property.imageColor.withOpacity(0.78),
-        ],
+        colors: [property.imageColor, property.imageColor.withValues(alpha: 0.78)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -78,28 +164,39 @@ Widget _buildPropertyImage({
     child: fallbackChild,
   );
 
-  final String? imageUrl = property.imageUrl;
-  if (imageUrl == null || imageUrl.isEmpty) {
+  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
+    context,
+    property,
+    height: height,
+    useThumbnail: useThumbnail,
+  );
+  if (imageProvider == null) {
     return borderRadius == null
         ? fallback
         : ClipRRect(borderRadius: borderRadius, child: fallback);
   }
 
-  final Widget image = imageUrl.startsWith('http')
-      ? Image.network(
-          imageUrl,
-          height: height,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback,
-        )
-      : Image.asset(
-          imageUrl,
-          height: height,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback,
-        );
+  final Widget image = Image(
+    image: imageProvider,
+    height: height,
+    width: double.infinity,
+    fit: BoxFit.cover,
+    filterQuality: FilterQuality.low,
+    gaplessPlayback: true,
+    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+      if (wasSynchronouslyLoaded || frame != null) {
+        return child;
+      }
+      return fallback;
+    },
+    loadingBuilder: property.imageUrl?.startsWith('http') == true
+        ? (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return fallback;
+          }
+        : null,
+    errorBuilder: (context, error, stackTrace) => fallback,
+  );
 
   return borderRadius == null
       ? image
@@ -108,26 +205,27 @@ Widget _buildPropertyImage({
 
 ThemeData _buildLightTheme() {
   const Color seedColor = Color(0xFF2563EB);
-  final ColorScheme scheme = ColorScheme.fromSeed(
-    seedColor: seedColor,
-    brightness: Brightness.light,
-  ).copyWith(
-    primary: const Color(0xFF2563EB),
-    onPrimary: Colors.white,
-    primaryContainer: const Color(0xFFDBEAFE),
-    onPrimaryContainer: const Color(0xFF123B7A),
-    secondary: const Color(0xFF64748B),
-    onSecondary: Colors.white,
-    secondaryContainer: const Color(0xFFE8EEF6),
-    onSecondaryContainer: const Color(0xFF243449),
-    surface: const Color(0xFFFFFFFF),
-    onSurface: const Color(0xFF0F172A),
-    surfaceContainerHighest: const Color(0xFFEEF2F6),
-    onSurfaceVariant: const Color(0xFF475569),
-    outline: const Color(0xFFD7DFE8),
-    outlineVariant: const Color(0xFFE6ECF2),
-    shadow: const Color(0xFF0F172A),
-  );
+  final ColorScheme scheme =
+      ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: const Color(0xFF2563EB),
+        onPrimary: Colors.white,
+        primaryContainer: const Color(0xFFDBEAFE),
+        onPrimaryContainer: const Color(0xFF123B7A),
+        secondary: const Color(0xFF64748B),
+        onSecondary: Colors.white,
+        secondaryContainer: const Color(0xFFE8EEF6),
+        onSecondaryContainer: const Color(0xFF243449),
+        surface: const Color(0xFFFFFFFF),
+        onSurface: const Color(0xFF0F172A),
+        surfaceContainerHighest: const Color(0xFFEEF2F6),
+        onSurfaceVariant: const Color(0xFF475569),
+        outline: const Color(0xFFD7DFE8),
+        outlineVariant: const Color(0xFFE6ECF2),
+        shadow: const Color(0xFF0F172A),
+      );
 
   return ThemeData(
     useMaterial3: true,
@@ -161,9 +259,7 @@ ThemeData _buildLightTheme() {
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: scheme.primary,
-      ),
+      style: TextButton.styleFrom(foregroundColor: scheme.primary),
     ),
     iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
     textTheme: ThemeData.light().textTheme.apply(
@@ -182,7 +278,7 @@ void main() async {
       url: 'https://vludvvjkrrqzjahxjdjl.supabase.co',
       anonKey: 'sb_publishable_xrlYmyU6k2ItwhoSycq_iQ_4RxiPGdJ',
     );
-    await loadProperties();
+    unawaited(loadProperties());
     developer.log('✅ Supabase connected successfully!', name: 'Supabase');
   } catch (e, stackTrace) {
     developer.log(
@@ -253,6 +349,7 @@ class _HomePageState extends State<HomePage> {
   String? _selectedLotSize;
   String? _selectedBudget;
   final Set<Property> _savedProperties = {};
+  final Set<String> _warmedPropertyImageIds = <String>{};
   List<Property> _availableProperties = List<Property>.from(
     appPropertiesNotifier.value,
   );
@@ -264,7 +361,8 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_syncAvailableProperties);
-    unawaited(loadProperties());
+    _warmInitialPropertyCardImages(_availableProperties);
+    unawaited(_restoreSavedProperties());
   }
 
   @override
@@ -278,6 +376,28 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {
       _availableProperties = List<Property>.from(appPropertiesNotifier.value);
+      _savedProperties
+        ..clear()
+        ..addAll(
+          _availableProperties.where(
+            (property) => _savedProperties.any(
+              (savedProperty) => savedProperty.id == property.id,
+            ),
+          ),
+        );
+    });
+    _warmInitialPropertyCardImages(_availableProperties);
+  }
+
+  void _warmInitialPropertyCardImages(List<Property> properties) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      for (final Property property in properties.take(3)) {
+        if (_warmedPropertyImageIds.add(property.id)) {
+          _warmPropertyImage(context, property, useThumbnail: true);
+        }
+      }
     });
   }
 
@@ -287,6 +407,34 @@ class _HomePageState extends State<HomePage> {
 
   String _digitsOnly(String value) {
     return value.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  Future<void> _restoreSavedProperties() async {
+    final SharedPreferences preferences =
+        await SharedPreferences.getInstance();
+    final Set<String> savedIds = preferences
+        .getStringList(_savedPropertyIdsPrefsKey)
+        ?.toSet() ??
+        <String>{};
+
+    if (!mounted || savedIds.isEmpty) return;
+
+    setState(() {
+      _savedProperties
+        ..clear()
+        ..addAll(
+          _availableProperties.where((property) => savedIds.contains(property.id)),
+        );
+    });
+  }
+
+  Future<void> _persistSavedProperties() async {
+    final SharedPreferences preferences =
+        await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _savedPropertyIdsPrefsKey,
+      _savedProperties.map((property) => property.id).toList(),
+    );
   }
 
   Future<void> _pickAvatarFromGallery() async {
@@ -372,52 +520,55 @@ class _HomePageState extends State<HomePage> {
       return List<Property>.from(_availableProperties);
     }
 
-    return _availableProperties.where((property) {
-      if (hasLocationFilter && property.location != _selectedLocation) {
-        return false;
-      }
+    return _availableProperties
+        .where((property) {
+          if (hasLocationFilter && property.location != _selectedLocation) {
+            return false;
+          }
 
-      if (hasLotSizeFilter) {
-        final bool matchesLotSize = switch (_selectedLotSize) {
-          'Below 500 sqm' => property.sizeValue < 500,
-          '500 - 1000 sqm' =>
-            property.sizeValue >= 500 && property.sizeValue <= 1000,
-          'Above 1000 sqm' => property.sizeValue > 1000,
-          _ => true,
-        };
+          if (hasLotSizeFilter) {
+            final bool matchesLotSize = switch (_selectedLotSize) {
+              'Below 500 sqm' => property.sizeValue < 500,
+              '500 - 1000 sqm' =>
+                property.sizeValue >= 500 && property.sizeValue <= 1000,
+              'Above 1000 sqm' => property.sizeValue > 1000,
+              _ => true,
+            };
 
-        if (!matchesLotSize) return false;
-      }
+            if (!matchesLotSize) return false;
+          }
 
-      if (hasBudgetFilter) {
-        final bool matchesBudget = switch (_selectedBudget) {
-          'Below ₱1M' => property.priceValue < 1000000,
-          '₱1M - ₱3M' =>
-            property.priceValue >= 1000000 && property.priceValue <= 3000000,
-          'Above ₱3M' => property.priceValue > 3000000,
-          _ => true,
-        };
+          if (hasBudgetFilter) {
+            final bool matchesBudget = switch (_selectedBudget) {
+              'Below ₱1M' => property.priceValue < 1000000,
+              '₱1M - ₱3M' =>
+                property.priceValue >= 1000000 &&
+                    property.priceValue <= 3000000,
+              'Above ₱3M' => property.priceValue > 3000000,
+              _ => true,
+            };
 
-        if (!matchesBudget) return false;
-      }
+            if (!matchesBudget) return false;
+          }
 
-      if (!hasSearchQuery) return true;
+          final String normalizedTitle = _normalizeSearchText(property.title);
+          final String normalizedLocation = _normalizeSearchText(
+            property.location,
+          );
+          final String normalizedPrice = _normalizeSearchText(property.price);
 
-      final String normalizedTitle = _normalizeSearchText(property.title);
-      final String normalizedLocation = _normalizeSearchText(property.location);
-      final String normalizedPrice = _normalizeSearchText(property.price);
+          if (normalizedTitle.contains(normalizedQuery) ||
+              normalizedLocation.contains(normalizedQuery) ||
+              normalizedPrice.contains(normalizedQuery)) {
+            return true;
+          }
 
-      if (normalizedTitle.contains(normalizedQuery) ||
-          normalizedLocation.contains(normalizedQuery) ||
-          normalizedPrice.contains(normalizedQuery)) {
-        return true;
-      }
+          if (numericQuery.isEmpty) return false;
 
-      if (numericQuery.isEmpty) return false;
-
-      final String numericPrice = _digitsOnly(property.price);
-      return numericPrice.contains(numericQuery);
-    }).toList(growable: false);
+          final String numericPrice = _digitsOnly(property.price);
+          return numericPrice.contains(numericQuery);
+        })
+        .toList(growable: false);
   }
 
   void _resetFilters() {
@@ -438,6 +589,7 @@ class _HomePageState extends State<HomePage> {
         _savedProperties.add(property);
       }
     });
+    unawaited(_persistSavedProperties());
   }
 
   @override
@@ -559,40 +711,63 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        children: [
-          const TopHeader(),
-          const SizedBox(height: 12),
-          SearchSection(
-            searchController: searchController,
-            onSearchChanged: onSearchChanged,
-            selectedLocation: selectedLocation,
-            selectedLotSize: selectedLotSize,
-            selectedBudget: selectedBudget,
-            onLocationChanged: onLocationChanged,
-            onLotSizeChanged: onLotSizeChanged,
-            onBudgetChanged: onBudgetChanged,
-            onResetFilters: onResetFilters,
+      child: CustomScrollView(
+        cacheExtent: 400,
+        slivers: [
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            sliver: SliverToBoxAdapter(child: TopHeader()),
           ),
-          const SizedBox(height: 16),
-          SectionHeader(
-            title: 'Recommended Properties',
-            actionText: 'Reset',
-            onPressed: onResetFilters,
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: SearchSection(
+                searchController: searchController,
+                onSearchChanged: onSearchChanged,
+                selectedLocation: selectedLocation,
+                selectedLotSize: selectedLotSize,
+                selectedBudget: selectedBudget,
+                onLocationChanged: onLocationChanged,
+                onLotSizeChanged: onLotSizeChanged,
+                onBudgetChanged: onBudgetChanged,
+                onResetFilters: onResetFilters,
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: SectionHeader(
+                title: 'Recommended Properties',
+                actionText: 'Reset',
+                onPressed: onResetFilters,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
           if (properties.isEmpty)
-            const EmptyState()
+            const SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(child: EmptyState()),
+            )
           else
-            ...properties.map(
-              (property) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: PropertyCard(
-                  property: property,
-                  isSaved: savedProperties.contains(property),
-                  onToggleSave: () => onToggleSave(property),
-                ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              sliver: SliverList.builder(
+                itemCount: properties.length,
+                itemBuilder: (context, index) {
+                  final Property property = properties[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: PropertyCard(
+                      property: property,
+                      isSaved: savedProperties.contains(property),
+                      onToggleSave: () => onToggleSave(property),
+                    ),
+                  );
+                },
               ),
             ),
         ],
@@ -664,6 +839,7 @@ class SavedTab extends StatelessWidget {
                                 width: 56,
                                 height: 56,
                                 child: _buildPropertyImage(
+                                  context: context,
                                   property: property,
                                   height: 56,
                                   fallbackChild: const Center(
@@ -697,7 +873,9 @@ class SavedTab extends StatelessWidget {
                                   ),
                                   child: Text(
                                     property.titleStatus,
-                                    style: Theme.of(context).textTheme.labelSmall
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
                                         ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ),
@@ -706,10 +884,11 @@ class SavedTab extends StatelessWidget {
                             trailing: Text(property.price),
                             isThreeLine: true,
                             onTap: () {
+                              _warmPropertyImage(context, property);
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) => PropertyDetailsPage(
+                                _instantRoute(
+                                  PropertyDetailsPage(
                                     property: property,
                                     isSaved: true,
                                     onToggleSave: () => onToggleSave(property),
@@ -852,7 +1031,13 @@ class _MessagesTabState extends State<MessagesTab> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadConversations());
+    final List<ConversationSummary> cachedConversations =
+        MessagingService.getCachedConversationSummaries();
+    if (cachedConversations.isNotEmpty) {
+      _conversations = cachedConversations;
+      _isLoading = false;
+    }
+    unawaited(_loadConversations(showLoader: cachedConversations.isEmpty));
   }
 
   _InboxCardPalette _paletteForConversation(
@@ -906,13 +1091,27 @@ class _MessagesTabState extends State<MessagesTab> {
   }
 
   Future<void> _openConversation(ConversationSummary conversation) async {
+    final int index = _conversations.indexWhere(
+      (item) => item.id == conversation.id,
+    );
+    if (index != -1 && _conversations[index].isUnread) {
+      setState(() {
+        _conversations[index] = _conversations[index].copyWith(isUnread: false);
+      });
+      unawaited(MessagingService.markConversationAsRead(conversation.id));
+    }
+
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ChatPage(
+      _instantRoute(
+        ChatPage(
           conversationId: conversation.id,
           senderName: conversation.otherParticipantName,
           propertyColor: _propertyColorForConversation(conversation),
+          initialMessages: MessagingService.getCachedConversationMessages(
+            conversation.id,
+            limit: MessagingService.initialMessagePageSize,
+          ),
         ),
       ),
     );
@@ -988,7 +1187,8 @@ class _MessagesTabState extends State<MessagesTab> {
 
                     return ListView.separated(
                       itemCount: _conversations.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final ConversationSummary conversation =
                             _conversations[index];
@@ -1021,9 +1221,7 @@ class _MessagesTabState extends State<MessagesTab> {
       color: palette.background,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(
-          color: palette.border,
-        ),
+        side: BorderSide(color: palette.border),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
@@ -1397,12 +1595,14 @@ class ChatPage extends StatefulWidget {
   final String conversationId;
   final String senderName;
   final Color? propertyColor;
+  final List<ConversationMessage> initialMessages;
 
   const ChatPage({
     super.key,
     required this.conversationId,
     required this.senderName,
     this.propertyColor,
+    this.initialMessages = const [],
   });
 
   @override
@@ -1414,6 +1614,8 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _messagesScrollController = ScrollController();
   bool _isLoading = true;
   bool _isSending = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreMessages = true;
   String? _errorText;
   List<ConversationMessage> _messages = const [];
   RealtimeChannel? _messagesChannel;
@@ -1458,8 +1660,19 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _messages = List<ConversationMessage>.from(widget.initialMessages);
+    _isLoading = _messages.isEmpty;
+    _hasMoreMessages =
+        _messages.length >= MessagingService.initialMessagePageSize;
+    _messagesScrollController.addListener(_handleMessagesScroll);
     _subscribeToMessageUpdates();
-    unawaited(_loadMessages(scrollToBottom: true));
+    if (_messages.isNotEmpty) {
+      _jumpToBottom();
+    }
+    unawaited(MessagingService.markConversationAsRead(widget.conversationId));
+    unawaited(
+      _loadMessages(showLoader: _messages.isEmpty, scrollToBottom: true),
+    );
   }
 
   @override
@@ -1486,10 +1699,26 @@ class _ChatPageState extends State<ChatPage> {
           ),
           callback: (_) {
             if (!mounted) return;
+            unawaited(
+              MessagingService.markConversationAsRead(widget.conversationId),
+            );
             unawaited(_loadMessages(showLoader: false, scrollToBottom: true));
           },
         )
         .subscribe();
+  }
+
+  void _handleMessagesScroll() {
+    if (!_messagesScrollController.hasClients ||
+        _isLoadingMore ||
+        !_hasMoreMessages ||
+        _messages.isEmpty) {
+      return;
+    }
+
+    if (_messagesScrollController.position.pixels <= 120) {
+      unawaited(_loadOlderMessages());
+    }
   }
 
   void _scrollToBottom() {
@@ -1501,6 +1730,33 @@ class _ChatPageState extends State<ChatPage> {
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+      _messagesScrollController.jumpTo(
+        _messagesScrollController.position.maxScrollExtent,
+      );
+    });
+  }
+
+  List<ConversationMessage> _mergeMessages(
+    Iterable<ConversationMessage> existing,
+    Iterable<ConversationMessage> incoming,
+  ) {
+    final Map<String, ConversationMessage> byId =
+        <String, ConversationMessage>{};
+    for (final ConversationMessage message in existing) {
+      byId[message.id] = message;
+    }
+    for (final ConversationMessage message in incoming) {
+      byId[message.id] = message;
+    }
+
+    final List<ConversationMessage> merged = byId.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return merged;
   }
 
   Future<void> _loadMessages({
@@ -1515,22 +1771,32 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     try {
-      await MessagingService.markConversationAsRead(widget.conversationId);
       final List<ConversationMessage> messages =
           await MessagingService.fetchConversationMessages(
             widget.conversationId,
+            limit: MessagingService.initialMessagePageSize,
           );
       final int previousCount = _messages.length;
+      final List<ConversationMessage> mergedMessages = _mergeMessages(
+        _messages,
+        messages,
+      );
 
       if (!mounted) return;
       setState(() {
-        _messages = messages;
+        _messages = mergedMessages;
         _isLoading = false;
         _errorText = null;
         _isSending = false;
+        _hasMoreMessages =
+            messages.length >= MessagingService.initialMessagePageSize;
       });
-      if (scrollToBottom || messages.length > previousCount) {
-        _scrollToBottom();
+      if (scrollToBottom || mergedMessages.length > previousCount) {
+        if (previousCount == 0) {
+          _jumpToBottom();
+        } else {
+          _scrollToBottom();
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -1538,6 +1804,56 @@ class _ChatPageState extends State<ChatPage> {
         _isLoading = false;
         _isSending = false;
         _errorText = 'Failed to load messages.';
+      });
+    }
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_isLoadingMore || !_hasMoreMessages || _messages.isEmpty) return;
+
+    final DateTime before = _messages.first.createdAt;
+    final double previousOffset = _messagesScrollController.hasClients
+        ? _messagesScrollController.offset
+        : 0;
+    final double previousMaxExtent = _messagesScrollController.hasClients
+        ? _messagesScrollController.position.maxScrollExtent
+        : 0;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final List<ConversationMessage> olderMessages =
+          await MessagingService.fetchConversationMessages(
+            widget.conversationId,
+            limit: MessagingService.initialMessagePageSize,
+            before: before,
+          );
+      final List<ConversationMessage> mergedMessages = _mergeMessages(
+        _messages,
+        olderMessages,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _messages = mergedMessages;
+        _isLoadingMore = false;
+        _hasMoreMessages =
+            olderMessages.length >= MessagingService.initialMessagePageSize;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_messagesScrollController.hasClients) return;
+        final double delta =
+            _messagesScrollController.position.maxScrollExtent -
+            previousMaxExtent;
+        _messagesScrollController.jumpTo(previousOffset + delta);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMore = false;
       });
     }
   }
@@ -1565,11 +1881,19 @@ class _ChatPageState extends State<ChatPage> {
     _scrollToBottom();
 
     try {
-      await MessagingService.sendMessage(
-        conversationId: widget.conversationId,
-        body: text,
-      );
-      await _loadMessages(showLoader: false, scrollToBottom: true);
+      final ConversationMessage sentMessage =
+          await MessagingService.sendMessage(
+            conversationId: widget.conversationId,
+            body: text,
+          );
+      if (!mounted) return;
+      final List<ConversationMessage> currentMessages = _messages
+          .where((message) => message.id != optimisticMessage.id)
+          .toList();
+      setState(() {
+        _isSending = false;
+        _messages = _mergeMessages(currentMessages, [sentMessage]);
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1737,8 +2061,8 @@ class _ChatPageState extends State<ChatPage> {
           Expanded(
             child: Builder(
               builder: (context) {
-                if (_isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                if (_isLoading && _messages.isEmpty) {
+                  return const _ChatLoadingPlaceholder();
                 }
 
                 if (_errorText != null && _messages.isEmpty) {
@@ -1752,12 +2076,36 @@ class _ChatPageState extends State<ChatPage> {
                   );
                 }
 
+                if (_messages.isEmpty) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: const [
+                      SizedBox(height: 80),
+                      Center(child: Text('No messages yet.')),
+                    ],
+                  );
+                }
+
                 return ListView.builder(
                   controller: _messagesScrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
+                  itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
                   itemBuilder: (context, index) {
-                    final ConversationMessage msg = _messages[index];
+                    if (_isLoadingMore && index == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final int messageIndex = _isLoadingMore ? index - 1 : index;
+                    final ConversationMessage msg = _messages[messageIndex];
                     final bool isMe = msg.isFrom(_currentUserId);
                     final Color bubbleColor = isMe
                         ? palette.outgoingBubble
@@ -1773,62 +2121,44 @@ class _ChatPageState extends State<ChatPage> {
                         onLongPress: isMe && !msg.isPending
                             ? () => _showMessageActions(msg)
                             : null,
-                        child: TweenAnimationBuilder<double>(
-                          key: ValueKey(msg.id),
-                          tween: Tween(begin: 0, end: 1),
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, value, child) {
-                            return Opacity(
-                              opacity: value,
-                              child: Transform.translate(
-                                offset: Offset(
-                                  isMe ? (1 - value) * 18 : -(1 - value) * 18,
-                                  (1 - value) * 10,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: bubbleColor,
+                            borderRadius: BorderRadius.circular(16).copyWith(
+                              bottomRight: isMe
+                                  ? const Radius.circular(0)
+                                  : const Radius.circular(16),
+                              bottomLeft: !isMe
+                                  ? const Radius.circular(0)
+                                  : const Radius.circular(16),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                msg.body,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 16,
                                 ),
-                                child: child,
                               ),
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: bubbleColor,
-                              borderRadius: BorderRadius.circular(16).copyWith(
-                                bottomRight: isMe
-                                    ? const Radius.circular(0)
-                                    : const Radius.circular(16),
-                                bottomLeft: !isMe
-                                    ? const Radius.circular(0)
-                                    : const Radius.circular(16),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              if (isMe) ...[
+                                const SizedBox(height: 6),
                                 Text(
-                                  msg.body,
+                                  msg.isPending ? 'Sending...' : 'Sent',
                                   style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 16,
+                                    fontSize: 11,
+                                    color: textColor.withValues(alpha: 0.85),
                                   ),
                                 ),
-                                if (isMe) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    msg.isPending ? 'Sending...' : 'Sent',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: textColor.withValues(alpha: 0.85),
-                                    ),
-                                  ),
-                                ],
                               ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
@@ -1910,6 +2240,43 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
+class _ChatLoadingPlaceholder extends StatelessWidget {
+  const _ChatLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final Color baseColor = Theme.of(
+      context,
+    ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.7);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: List<Widget>.generate(6, (index) {
+        final bool isOutgoing = index.isOdd;
+        return Align(
+          alignment: isOutgoing ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: isOutgoing ? 220 : 180,
+            height: 54,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: baseColor,
+              borderRadius: BorderRadius.circular(16).copyWith(
+                bottomRight: isOutgoing
+                    ? const Radius.circular(0)
+                    : const Radius.circular(16),
+                bottomLeft: !isOutgoing
+                    ? const Radius.circular(0)
+                    : const Radius.circular(16),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -1948,7 +2315,7 @@ class _SettingsPageState extends State<SettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       onChanged: onChanged,
-      activeColor: Theme.of(context).colorScheme.primary,
+      activeThumbColor: Theme.of(context).colorScheme.primary,
       controlAffinity: ListTileControlAffinity.trailing,
     );
   }
@@ -2013,7 +2380,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   child: Text(
                     'This is an example text. Adjust the slider above to see the font size change.',
-                    textScaleFactor: _currentFontSizeScale,
+                    textScaler: TextScaler.linear(_currentFontSizeScale),
                   ),
                 ),
                 if (_notificationsEnabled)
@@ -2177,6 +2544,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _routeByRole(User? user) async {
+    appThemeNotifier.value = ThemeMode.dark;
+
     final role =
         ((user?.appMetadata['role'] ?? user?.userMetadata?['role']) as String?)
             ?.toLowerCase() ??
@@ -2213,10 +2582,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _signInWithDevUserShortcut() async {
     try {
       final AuthResponse response = await Supabase.instance.client.auth
-          .signInWithPassword(
-            email: _devUserEmail,
-            password: _devUserPassword,
-          );
+          .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
       await _routeByRole(response.user);
       return;
     } on AuthException catch (error) {
@@ -2235,10 +2601,7 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     final AuthResponse response = await Supabase.instance.client.auth
-        .signInWithPassword(
-          email: _devUserEmail,
-          password: _devUserPassword,
-        );
+        .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
     await _routeByRole(response.user);
   }
 
@@ -2272,10 +2635,11 @@ class _LoginPageState extends State<LoginPage> {
           _errorText = 'Dev user login failed. Please try again.';
         });
       } finally {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
       return;
     }
@@ -2315,10 +2679,11 @@ class _LoginPageState extends State<LoginPage> {
         _errorText = 'Login failed. Please try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -2346,10 +2711,11 @@ class _LoginPageState extends State<LoginPage> {
         _errorText = 'Google sign-in failed. Please try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGoogleLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
     }
   }
 
@@ -2374,13 +2740,13 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Land Finder',
+                    'Kogihan Sa Negros',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    'Sign in to continue',
+                    'finding you an asset that fits your budget',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -2594,10 +2960,11 @@ class _SignUpPageState extends State<SignUpPage> {
         _errorText = 'Sign up failed. Please try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -2737,10 +3104,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         _errorText = 'Failed to send reset email. Please try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -2875,10 +3243,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         _errorText = 'Failed to update password. Please try again.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -3115,10 +3484,7 @@ class SearchSection extends StatelessWidget {
           child: TextField(
             controller: searchController,
             onChanged: onSearchChanged,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
             decoration: InputDecoration(
               hintText: 'Search by city, barangay, or price',
               hintStyle: TextStyle(
@@ -3349,8 +3715,10 @@ class PropertyCard extends StatelessWidget {
                   top: Radius.circular(22),
                 ),
                 child: _buildPropertyImage(
+                  context: context,
                   property: property,
                   height: 210,
+                  useThumbnail: true,
                   fallbackChild: const Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -3523,10 +3891,11 @@ class PropertyCard extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
+                      _warmPropertyImage(context, property);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => PropertyDetailsPage(
+                        _instantRoute(
+                          PropertyDetailsPage(
                             property: property,
                             isSaved: isSaved,
                             onToggleSave: onToggleSave,
@@ -3601,6 +3970,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPropertyImage(
+              context: context,
               property: widget.property,
               height: 300,
               fallbackChild: const Center(
@@ -3704,7 +4074,9 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
@@ -3713,15 +4085,20 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
                             Icon(
                               Icons.verified_outlined,
                               size: 18,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               widget.property.titleStatus,
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),
@@ -4229,11 +4606,7 @@ class EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 48,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
             message,
