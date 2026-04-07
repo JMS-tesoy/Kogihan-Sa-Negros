@@ -16,6 +16,7 @@ final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light)
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
+const int _initialPropertyImagePrefetchCount = 4;
 
 String _messageInitial(String value) {
   final String trimmed = value.trim();
@@ -57,40 +58,19 @@ String _formatMessageTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
-String _optimizedPropertyImageUrl(
-  String imageUrl, {
-  required int targetWidth,
-}) {
-  final Uri? uri = Uri.tryParse(imageUrl);
-  if (uri == null) return imageUrl;
-
-  final String host = uri.host.toLowerCase();
-  if (!host.contains('unsplash.com')) return imageUrl;
-
-  final Map<String, String> queryParameters = Map<String, String>.from(
-    uri.queryParameters,
-  );
-  queryParameters['auto'] = 'format';
-  queryParameters['fit'] = 'crop';
-  queryParameters['w'] = targetWidth.toString();
-  queryParameters['q'] = '70';
-
-  return uri.replace(queryParameters: queryParameters).toString();
-}
-
 ImageProvider<Object>? _propertyImageProvider(
   Property property, {
   int? targetWidth,
   bool useThumbnail = false,
 }) {
-  final String? imageUrl = property.imageUrl;
+  final String? imageUrl = resolvePropertyImageUrl(
+    property,
+    preferThumbnail: useThumbnail,
+    targetWidth: useThumbnail ? targetWidth : null,
+  );
   if (imageUrl == null || imageUrl.isEmpty) return null;
   if (imageUrl.startsWith('http')) {
-    final String resolvedImageUrl =
-        useThumbnail && targetWidth != null
-        ? _optimizedPropertyImageUrl(imageUrl, targetWidth: targetWidth)
-        : imageUrl;
-    return CachedNetworkImageProvider(resolvedImageUrl);
+    return CachedNetworkImageProvider(imageUrl);
   }
   return AssetImage(imageUrl);
 }
@@ -205,7 +185,11 @@ Widget _buildPropertyImage({
       }
       return fallback;
     },
-    loadingBuilder: property.imageUrl?.startsWith('http') == true
+    loadingBuilder: resolvePropertyImageUrl(
+          property,
+          preferThumbnail: useThumbnail,
+        )?.startsWith('http') ==
+        true
         ? (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
             return fallback;
@@ -406,7 +390,9 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      for (final Property property in properties.take(3)) {
+      for (final Property property in properties.take(
+        _initialPropertyImagePrefetchCount,
+      )) {
         if (_warmedPropertyImageIds.add(property.id)) {
           _warmPropertyImage(context, property, useThumbnail: true);
         }
@@ -862,6 +848,7 @@ class SavedTab extends StatelessWidget {
                                   context: context,
                                   property: property,
                                   height: 56,
+                                  useThumbnail: true,
                                   fallbackChild: const Center(
                                     child: Icon(
                                       Icons.landscape_rounded,
@@ -2593,7 +2580,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } else {
       final List<Property> initialProperties = appPropertiesNotifier.value
-          .take(3)
+          .take(_initialPropertyImagePrefetchCount)
           .toList(growable: false);
       await Future.wait(
         initialProperties.map(

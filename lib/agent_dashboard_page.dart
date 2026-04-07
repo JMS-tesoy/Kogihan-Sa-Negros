@@ -631,6 +631,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   late final TextEditingController _statusController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _imageUrlController;
+  late final TextEditingController _thumbnailUrlController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
@@ -847,7 +848,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   : Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
+                      errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: theme.colorScheme.surfaceContainerHighest,
                           child: Center(
@@ -1061,10 +1062,11 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         SnackBar(content: Text('Unexpected upload error: $error')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isUploadingImage = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
     }
   }
 
@@ -1099,6 +1101,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _imageUrlController = TextEditingController(
       text: widget.initialProperty?.imageUrl ?? '',
     );
+    _thumbnailUrlController = TextEditingController(
+      text: widget.initialProperty?.thumbnailUrl ?? '',
+    );
   }
 
   @override
@@ -1111,6 +1116,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _statusController.dispose();
     _descriptionController.dispose();
     _imageUrlController.dispose();
+    _thumbnailUrlController.dispose();
     super.dispose();
   }
 
@@ -1138,6 +1144,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       imageUrl: _imageUrlController.text.trim().isEmpty
           ? null
           : _imageUrlController.text.trim(),
+      thumbnailUrl: _thumbnailUrlController.text.trim().isEmpty
+          ? null
+          : _thumbnailUrlController.text.trim(),
     );
 
     Navigator.pop(context, property);
@@ -1374,6 +1383,14 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   icon: Icons.image_outlined,
                   keyboardType: TextInputType.url,
                 ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _thumbnailUrlController,
+                  label: 'Thumbnail URL (optional)',
+                  hintText: 'https://example.com/property-thumb.jpg',
+                  icon: Icons.photo_size_select_small_outlined,
+                  keyboardType: TextInputType.url,
+                ),
                 if (_imageUrlController.text.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Align(
@@ -1446,11 +1463,21 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
               children: [
                 Positioned.fill(
                   child:
-                      property.imageUrl != null && property.imageUrl!.isNotEmpty
+                      resolvePropertyImageUrl(
+                            property,
+                            preferThumbnail: true,
+                            targetWidth: 720,
+                          ) !=
+                          null
                       ? Image.network(
-                          property.imageUrl!,
+                          resolvePropertyImageUrl(
+                                property,
+                                preferThumbnail: true,
+                                targetWidth: 720,
+                              ) ??
+                              property.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) {
+                          errorBuilder: (context, error, stackTrace) {
                             return Container(
                               color: theme.colorScheme.primaryContainer,
                               child: Icon(
@@ -1623,6 +1650,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
       _properties[index] = updatedProperty;
     });
     await widget.onUpdateProperty(updatedProperty);
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${updatedProperty.title} updated successfully.')),
@@ -1634,6 +1662,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
       _properties.removeWhere((item) => item.id == property.id);
     });
     await widget.onDeleteProperty(property.id);
+    if (!mounted) return;
 
     ScaffoldMessenger.of(
       context,
@@ -1775,7 +1804,8 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _inquiries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final AgentInquiry inquiry = _inquiries[index];
                   return Card(
@@ -2092,10 +2122,11 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to send reply: $e')));
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isSending = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
     }
   }
 
@@ -2263,7 +2294,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                             itemCount:
                                 _messages.length +
                                 (_isLoadingMoreMessages ? 1 : 0),
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (context, index) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               if (_isLoadingMoreMessages && index == 0) {

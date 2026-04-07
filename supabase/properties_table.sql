@@ -12,6 +12,9 @@ create table if not exists public.properties (
   updated_at timestamptz not null default now()
 );
 
+alter table public.properties
+add column if not exists thumbnail_url text;
+
 create or replace function public.set_properties_updated_at()
 returns trigger
 language plpgsql

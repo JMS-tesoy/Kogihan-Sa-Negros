@@ -15,6 +15,7 @@ class Property {
   final String description;
   final Color imageColor;
   final String? imageUrl;
+  final String? thumbnailUrl;
 
   const Property({
     required this.id,
@@ -30,6 +31,7 @@ class Property {
     required this.description,
     required this.imageColor,
     this.imageUrl,
+    this.thumbnailUrl,
   });
 
   Property copyWith({
@@ -46,6 +48,7 @@ class Property {
     String? description,
     Color? imageColor,
     String? imageUrl,
+    String? thumbnailUrl,
   }) {
     return Property(
       id: id ?? this.id,
@@ -61,6 +64,7 @@ class Property {
       description: description ?? this.description,
       imageColor: imageColor ?? this.imageColor,
       imageUrl: imageUrl ?? this.imageUrl,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
     );
   }
 
@@ -86,6 +90,7 @@ class Property {
       description: (map['description'] ?? '') as String,
       imageColor: Color(_toInt(map['image_color'])),
       imageUrl: _toNullableString(map['image_url']),
+      thumbnailUrl: _toNullableString(map['thumbnail_url']),
     );
   }
 
@@ -103,6 +108,7 @@ class Property {
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
+      'thumbnail_url': _toNullableString(thumbnailUrl),
     };
   }
 
@@ -120,6 +126,7 @@ class Property {
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
+      'thumbnail_url': _toNullableString(thumbnailUrl),
     };
   }
 
@@ -137,6 +144,49 @@ class Property {
   static int _toSigned32Bit(int value) {
     return value > 0x7FFFFFFF ? value - 0x100000000 : value;
   }
+}
+
+String _optimizedPropertyImageUrl(
+  String imageUrl, {
+  required int targetWidth,
+}) {
+  final Uri? uri = Uri.tryParse(imageUrl);
+  if (uri == null) return imageUrl;
+
+  final String host = uri.host.toLowerCase();
+  if (!host.contains('unsplash.com')) return imageUrl;
+
+  final Map<String, String> queryParameters = Map<String, String>.from(
+    uri.queryParameters,
+  );
+  queryParameters['auto'] = 'format';
+  queryParameters['fit'] = 'crop';
+  queryParameters['w'] = targetWidth.toString();
+  queryParameters['q'] = '70';
+
+  return uri.replace(queryParameters: queryParameters).toString();
+}
+
+String? resolvePropertyImageUrl(
+  Property property, {
+  bool preferThumbnail = false,
+  int? targetWidth,
+}) {
+  final String? primarySource = preferThumbnail
+      ? property.thumbnailUrl ?? property.imageUrl
+      : property.imageUrl ?? property.thumbnailUrl;
+  final String normalized = (primarySource ?? '').trim();
+  if (normalized.isEmpty) return null;
+
+  if (preferThumbnail && (property.thumbnailUrl ?? '').trim().isNotEmpty) {
+    return normalized;
+  }
+
+  if (targetWidth != null) {
+    return _optimizedPropertyImageUrl(normalized, targetWidth: targetWidth);
+  }
+
+  return normalized;
 }
 
 const List<Property> _fallbackProperties = [
