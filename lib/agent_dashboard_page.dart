@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -680,6 +681,23 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         : value;
   }
 
+  String? get _previewImageSource {
+    final String thumbnailUrl = _thumbnailUrlController.text.trim();
+    if (thumbnailUrl.isNotEmpty) return thumbnailUrl;
+
+    final String imageUrl = _imageUrlController.text.trim();
+    return imageUrl.isEmpty ? null : imageUrl;
+  }
+
+  ImageProvider<Object>? get _previewImageProvider {
+    final String? imageSource = _previewImageSource;
+    if (imageSource == null) return null;
+    if (imageSource.startsWith('http')) {
+      return CachedNetworkImageProvider(imageSource);
+    }
+    return AssetImage(imageSource);
+  }
+
   Widget _buildSectionCard({
     required BuildContext context,
     required String title,
@@ -800,7 +818,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
   Widget _buildPreviewCard(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final String imageUrl = _imageUrlController.text.trim();
+    final ImageProvider<Object>? imageProvider = _previewImageProvider;
 
     return Container(
       decoration: BoxDecoration(
@@ -815,7 +833,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             child: SizedBox(
               height: 132,
               width: double.infinity,
-              child: imageUrl.isEmpty
+              child: imageProvider == null
                   ? Container(
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
@@ -845,8 +863,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                         ),
                       ),
                     )
-                  : Image.network(
-                      imageUrl,
+                  : Image(
+                      image: imageProvider,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
@@ -1447,9 +1465,40 @@ class ManagePropertiesPage extends StatefulWidget {
 
 class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
   late List<Property> _properties;
+  final Set<String> _warmedPropertyImageIds = <String>{};
+
+  ImageProvider<Object>? _managePropertyImageProvider(Property property) {
+    final String? imageUrl = resolvePropertyImageUrl(
+      property,
+      preferThumbnail: true,
+      targetWidth: 720,
+    );
+    if (imageUrl == null || imageUrl.isEmpty) return null;
+    if (imageUrl.startsWith('http')) {
+      return CachedNetworkImageProvider(imageUrl);
+    }
+    return AssetImage(imageUrl);
+  }
+
+  void _warmInitialPropertyImages() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      for (final Property property in _properties.take(4)) {
+        final ImageProvider<Object>? imageProvider =
+            _managePropertyImageProvider(property);
+        if (imageProvider == null) continue;
+        if (_warmedPropertyImageIds.add(property.id)) {
+          unawaited(precacheImage(imageProvider, context));
+        }
+      }
+    });
+  }
 
   Widget _buildManagePropertyCard(BuildContext context, Property property) {
     final ThemeData theme = Theme.of(context);
+    final ImageProvider<Object>? imageProvider =
+        _managePropertyImageProvider(property);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -1462,20 +1511,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child:
-                      resolvePropertyImageUrl(
-                            property,
-                            preferThumbnail: true,
-                            targetWidth: 720,
-                          ) !=
-                          null
-                      ? Image.network(
-                          resolvePropertyImageUrl(
-                                property,
-                                preferThumbnail: true,
-                                targetWidth: 720,
-                              ) ??
-                              property.imageUrl!,
+                  child: imageProvider != null
+                      ? Image(
+                          image: imageProvider,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
@@ -1628,6 +1666,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
   void initState() {
     super.initState();
     _properties = List<Property>.from(widget.properties);
+    _warmInitialPropertyImages();
   }
 
   Future<void> _editProperty(Property property) async {
@@ -1681,7 +1720,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
                 maxCrossAxisExtent: 360,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                mainAxisExtent: 258,
+                mainAxisExtent: 292,
               ),
               itemCount: _properties.length,
               itemBuilder: (context, index) {

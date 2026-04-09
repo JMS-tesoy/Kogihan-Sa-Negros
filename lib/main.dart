@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:developer' as developer;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,7 +11,9 @@ import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
 import 'shared_properties.dart';
 
-final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(ThemeMode.light);
+final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
+  ThemeMode.light,
+);
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
@@ -152,7 +153,10 @@ Widget _buildPropertyImage({
     width: double.infinity,
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [property.imageColor, property.imageColor.withValues(alpha: 0.78)],
+        colors: [
+          property.imageColor,
+          property.imageColor.withValues(alpha: 0.78),
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -185,11 +189,12 @@ Widget _buildPropertyImage({
       }
       return fallback;
     },
-    loadingBuilder: resolvePropertyImageUrl(
-          property,
-          preferThumbnail: useThumbnail,
-        )?.startsWith('http') ==
-        true
+    loadingBuilder:
+        resolvePropertyImageUrl(
+              property,
+              preferThumbnail: useThumbnail,
+            )?.startsWith('http') ==
+            true
         ? (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
             return fallback;
@@ -355,7 +360,7 @@ class _HomePageState extends State<HomePage> {
     appPropertiesNotifier.value,
   );
 
-  String? _profileImagePath;
+  Uint8List? _profileImageBytes;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -380,7 +385,9 @@ class _HomePageState extends State<HomePage> {
       _savedProperties
         ..clear()
         ..addAll(
-          _availableProperties.where((property) => _savedPropertyIds.contains(property.id)),
+          _availableProperties.where(
+            (property) => _savedPropertyIds.contains(property.id),
+          ),
         );
     });
     _warmInitialPropertyCardImages(_availableProperties);
@@ -409,11 +416,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _restoreSavedProperties() async {
-    final SharedPreferences preferences =
-        await SharedPreferences.getInstance();
-    final Set<String> savedIds = preferences
-        .getStringList(_savedPropertyIdsPrefsKey)
-        ?.toSet() ??
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final Set<String> savedIds =
+        preferences.getStringList(_savedPropertyIdsPrefsKey)?.toSet() ??
         <String>{};
 
     if (!mounted || savedIds.isEmpty) return;
@@ -433,8 +438,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _persistSavedProperties() async {
-    final SharedPreferences preferences =
-        await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(
       _savedPropertyIdsPrefsKey,
       _savedPropertyIds.toList(),
@@ -448,8 +452,9 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (pickedFile != null) {
+      final Uint8List imageBytes = await pickedFile.readAsBytes();
       setState(() {
-        _profileImagePath = pickedFile.path;
+        _profileImageBytes = imageBytes;
       });
     }
   }
@@ -461,8 +466,9 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (pickedFile != null) {
+      final Uint8List imageBytes = await pickedFile.readAsBytes();
       setState(() {
-        _profileImagePath = pickedFile.path;
+        _profileImageBytes = imageBytes;
       });
     }
   }
@@ -490,7 +496,7 @@ class _HomePageState extends State<HomePage> {
                   _pickAvatarFromCamera();
                 },
               ),
-              if (_profileImagePath != null)
+              if (_profileImageBytes != null)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
                   title: const Text(
@@ -500,7 +506,7 @@ class _HomePageState extends State<HomePage> {
                   onTap: () {
                     Navigator.pop(context);
                     setState(() {
-                      _profileImagePath = null;
+                      _profileImageBytes = null;
                     });
                   },
                 ),
@@ -520,7 +526,10 @@ class _HomePageState extends State<HomePage> {
     final bool hasLotSizeFilter = _selectedLotSize != null;
     final bool hasBudgetFilter = _selectedBudget != null;
 
-    if (!hasSearchQuery) {
+    if (!hasSearchQuery &&
+        !hasLocationFilter &&
+        !hasLotSizeFilter &&
+        !hasBudgetFilter) {
       return List<Property>.from(_availableProperties);
     }
 
@@ -554,6 +563,8 @@ class _HomePageState extends State<HomePage> {
 
             if (!matchesBudget) return false;
           }
+
+          if (!hasSearchQuery) return true;
 
           final String normalizedTitle = _normalizeSearchText(property.title);
           final String normalizedLocation = _normalizeSearchText(
@@ -638,7 +649,7 @@ class _HomePageState extends State<HomePage> {
       ),
       const MessagesTab(),
       ProfileTab(
-        profileImagePath: _profileImagePath,
+        profileImageBytes: _profileImageBytes,
         onAvatarTap: _showAvatarOptions,
       ),
     ];
@@ -1153,9 +1164,9 @@ class _MessagesTabState extends State<MessagesTab> {
             .toList();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Conversation deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Conversation deleted.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1290,79 +1301,82 @@ class _MessagesTabState extends State<MessagesTab> {
           borderRadius: BorderRadius.circular(16),
         ),
         child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: palette.avatarBackground,
-          foregroundColor: palette.avatarForeground,
-          child: Text(_messageInitial(conversation.title)),
-        ),
-        title: Text(
-          conversation.title,
-          style: TextStyle(
-            fontWeight: conversation.isUnread
-                ? FontWeight.bold
-                : FontWeight.normal,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              conversation.otherParticipantName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
+          leading: CircleAvatar(
+            backgroundColor: palette.avatarBackground,
+            foregroundColor: palette.avatarForeground,
+            child: Text(_messageInitial(conversation.title)),
+          ),
+          title: Text(
+            conversation.title,
+            style: TextStyle(
+              fontWeight: conversation.isUnread
+                  ? FontWeight.bold
+                  : FontWeight.normal,
             ),
-            const SizedBox(height: 4),
-            Text(
-              previewText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: conversation.isUnread
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-                color: conversation.isUnread
-                    ? Theme.of(context).colorScheme.onSurface
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              _formatMessageTime(conversation.lastMessageAt),
-              style: TextStyle(
-                fontSize: 12,
-                color: conversation.isUnread
-                    ? palette.accent
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: conversation.isUnread
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-            if (conversation.isUnread) ...[
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
               const SizedBox(height: 4),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: palette.accent,
-                  shape: BoxShape.circle,
+              Text(
+                conversation.otherParticipantName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                previewText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: conversation.isUnread
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                  color: conversation.isUnread
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
-          ],
-        ),
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _formatMessageTime(conversation.lastMessageAt),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: conversation.isUnread
+                      ? palette.accent
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: conversation.isUnread
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+              if (conversation.isUnread) ...[
+                const SizedBox(height: 4),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: palette.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
+          ),
           onTap: () => _openConversation(conversation),
         ),
       ),
@@ -1494,12 +1508,12 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
 }
 
 class ProfileTab extends StatelessWidget {
-  final String? profileImagePath;
+  final Uint8List? profileImageBytes;
   final VoidCallback onAvatarTap;
 
   const ProfileTab({
     super.key,
-    required this.profileImagePath,
+    required this.profileImageBytes,
     required this.onAvatarTap,
   });
 
@@ -1519,10 +1533,10 @@ class ProfileTab extends StatelessWidget {
                   child: CircleAvatar(
                     radius: 48,
                     backgroundColor: Theme.of(context).colorScheme.primary,
-                    backgroundImage: profileImagePath != null
-                        ? FileImage(File(profileImagePath!))
+                    backgroundImage: profileImageBytes != null
+                        ? MemoryImage(profileImageBytes!)
                         : null,
-                    child: profileImagePath == null
+                    child: profileImageBytes == null
                         ? const Icon(
                             Icons.person,
                             size: 50,
@@ -2560,12 +2574,18 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   static const String _devAgentShortcutUsername = '1q1q';
   static const String _devAgentShortcutPassword = '1q1q';
-  static const String _devAgentEmail = 'johsah447@gmail.com';
-  static const String _devAgentPassword = 'JMS_@26';
+  static const String _devAgentEmail = String.fromEnvironment(
+    'DEV_AGENT_EMAIL',
+  );
+  static const String _devAgentPassword = String.fromEnvironment(
+    'DEV_AGENT_PASSWORD',
+  );
   static const String _devUserShortcutUsername = '2q2q';
   static const String _devUserShortcutPassword = '2q2q';
-  static const String _devUserEmail = 'dev.user.2q2q@gmail.com';
-  static const String _devUserPassword = '2q2q2q';
+  static const String _devUserEmail = String.fromEnvironment('DEV_USER_EMAIL');
+  static const String _devUserPassword = String.fromEnvironment(
+    'DEV_USER_PASSWORD',
+  );
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -2574,6 +2594,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   String? _errorText;
   StreamSubscription<AuthState>? _authSubscription;
+  bool _isRouting = false;
+
+  bool get _hasDevAgentCredentials =>
+      _devAgentEmail.isNotEmpty && _devAgentPassword.isNotEmpty;
+
+  bool get _hasDevUserCredentials =>
+      _devUserEmail.isNotEmpty && _devUserPassword.isNotEmpty;
 
   @override
   void initState() {
@@ -2581,9 +2608,12 @@ class _LoginPageState extends State<LoginPage> {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
-      if (data.event == AuthChangeEvent.signedIn) {
-        _routeByRole(data.session?.user);
-      }
+      unawaited(_routeToAuthenticatedUser(data.session?.user));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        _routeToAuthenticatedUser(Supabase.instance.client.auth.currentUser),
+      );
     });
   }
 
@@ -2593,6 +2623,19 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _routeToAuthenticatedUser(User? user) async {
+    if (user == null || !mounted || _isRouting) return;
+
+    _isRouting = true;
+    try {
+      await _routeByRole(user);
+    } finally {
+      if (mounted) {
+        _isRouting = false;
+      }
+    }
   }
 
   Future<void> _routeByRole(User? user) async {
@@ -2629,11 +2672,8 @@ class _LoginPageState extends State<LoginPage> {
           .toList(growable: false);
       await Future.wait(
         initialProperties.map(
-          (property) => _precachePropertyImage(
-            context,
-            property,
-            useThumbnail: true,
-          ),
+          (property) =>
+              _precachePropertyImage(context, property, useThumbnail: true),
         ),
       );
       if (!mounted) return;
@@ -2648,7 +2688,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final AuthResponse response = await Supabase.instance.client.auth
           .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
-      await _routeByRole(response.user);
+      await _routeToAuthenticatedUser(response.user);
       return;
     } on AuthException catch (error) {
       final String message = error.message.toLowerCase();
@@ -2667,19 +2707,41 @@ class _LoginPageState extends State<LoginPage> {
 
     final AuthResponse response = await Supabase.instance.client.auth
         .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
-    await _routeByRole(response.user);
+    await _routeToAuthenticatedUser(response.user);
   }
 
   Future<void> _signIn() async {
     final enteredEmail = _emailController.text.trim();
     final enteredPassword = _passwordController.text;
-
-    final bool isDevAgentShortcut =
+    final bool requestedDevAgentShortcut =
         enteredEmail == _devAgentShortcutUsername &&
         enteredPassword == _devAgentShortcutPassword;
-    final bool isDevUserShortcut =
+    final bool requestedDevUserShortcut =
         enteredEmail == _devUserShortcutUsername &&
         enteredPassword == _devUserShortcutPassword;
+
+    final bool isDevAgentShortcut =
+        requestedDevAgentShortcut && _hasDevAgentCredentials;
+    final bool isDevUserShortcut =
+        requestedDevUserShortcut && _hasDevUserCredentials;
+
+    if (requestedDevAgentShortcut && !_hasDevAgentCredentials) {
+      setState(() {
+        _errorText =
+            'Dev agent shortcut is disabled until DEV_AGENT_EMAIL and '
+            'DEV_AGENT_PASSWORD are provided.';
+      });
+      return;
+    }
+
+    if (requestedDevUserShortcut && !_hasDevUserCredentials) {
+      setState(() {
+        _errorText =
+            'Dev user shortcut is disabled until DEV_USER_EMAIL and '
+            'DEV_USER_PASSWORD are provided.';
+      });
+      return;
+    }
 
     if (isDevUserShortcut) {
       setState(() {
@@ -2729,7 +2791,7 @@ class _LoginPageState extends State<LoginPage> {
         email: email,
         password: password,
       );
-      await _routeByRole(response.user);
+      await _routeToAuthenticatedUser(response.user);
     } on AuthException catch (e) {
       if (!mounted) return;
       final String normalizedMessage = e.message.toLowerCase();
