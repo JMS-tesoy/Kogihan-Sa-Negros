@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'shared_properties.dart';
+import 'subscription.dart';
 
 class MessagingProfile {
   final String id;
@@ -8,6 +9,7 @@ class MessagingProfile {
   final String? email;
   final String? phone;
   final String role;
+  final UserSubscription? subscription;
 
   const MessagingProfile({
     required this.id,
@@ -15,6 +17,7 @@ class MessagingProfile {
     required this.email,
     required this.phone,
     required this.role,
+    required this.subscription,
   });
 
   String get displayName {
@@ -30,6 +33,10 @@ class MessagingProfile {
     return 'Unknown User';
   }
 
+  bool get isPremium => subscription?.isPremium ?? false;
+  String get planName => subscription?.planName ?? 'Free';
+  DateTime? get expiresAt => subscription?.expiresAt;
+
   factory MessagingProfile.fromMap(Map<String, dynamic> map) {
     return MessagingProfile(
       id: map['id'] as String,
@@ -37,6 +44,7 @@ class MessagingProfile {
       email: map['email'] as String?,
       phone: map['phone'] as String?,
       role: (map['role'] as String?) ?? 'user',
+      subscription: UserSubscription.maybeFromProfileMap(map),
     );
   }
 }
@@ -53,6 +61,8 @@ class ConversationSummary {
   final String otherParticipantName;
   final bool isUnread;
   final String? propertyTitle;
+  final String? propertyImageUrl;
+  final String? propertyThumbnailUrl;
 
   const ConversationSummary({
     required this.id,
@@ -66,6 +76,8 @@ class ConversationSummary {
     required this.otherParticipantName,
     required this.isUnread,
     required this.propertyTitle,
+    required this.propertyImageUrl,
+    required this.propertyThumbnailUrl,
   });
 
   ConversationSummary copyWith({
@@ -80,6 +92,8 @@ class ConversationSummary {
     String? otherParticipantName,
     bool? isUnread,
     String? propertyTitle,
+    String? propertyImageUrl,
+    String? propertyThumbnailUrl,
   }) {
     return ConversationSummary(
       id: id ?? this.id,
@@ -93,6 +107,8 @@ class ConversationSummary {
       otherParticipantName: otherParticipantName ?? this.otherParticipantName,
       isUnread: isUnread ?? this.isUnread,
       propertyTitle: propertyTitle ?? this.propertyTitle,
+      propertyImageUrl: propertyImageUrl ?? this.propertyImageUrl,
+      propertyThumbnailUrl: propertyThumbnailUrl ?? this.propertyThumbnailUrl,
     );
   }
 
@@ -150,6 +166,8 @@ class ConversationSummary {
           latestMessage['sender_id'] != currentUserId &&
           latestMessage['read_at'] == null,
       propertyTitle: property['title'] as String?,
+      propertyImageUrl: property['image_url'] as String?,
+      propertyThumbnailUrl: property['thumbnail_url'] as String?,
     );
   }
 }
@@ -192,8 +210,8 @@ class MessagingService {
   static final SupabaseClient _client = Supabase.instance.client;
   static const int initialMessagePageSize = 24;
   static List<ConversationSummary> _conversationSummariesCache = const [];
-  static final Map<String, List<ConversationMessage>> _conversationMessagesCache =
-      <String, List<ConversationMessage>>{};
+  static final Map<String, List<ConversationMessage>>
+  _conversationMessagesCache = <String, List<ConversationMessage>>{};
 
   static User get _currentUser {
     final User? user = _client.auth.currentUser;
@@ -225,13 +243,15 @@ class MessagingService {
     int? limit,
   }) {
     final List<ConversationMessage> cached = List<ConversationMessage>.from(
-      _conversationMessagesCache[conversationId] ?? const <ConversationMessage>[],
+      _conversationMessagesCache[conversationId] ??
+          const <ConversationMessage>[],
     );
     if (limit == null || cached.length <= limit) return cached;
     return cached.sublist(cached.length - limit);
   }
 
-  static List<ConversationMessage> getCachedConversationMessagesForConversations(
+  static List<ConversationMessage>
+  getCachedConversationMessagesForConversations(
     List<String> conversationIds, {
     int? limit,
   }) {
@@ -255,7 +275,7 @@ class MessagingService {
           'id, buyer_id, agent_id, property_id, subject, last_message_preview, '
           'last_message_at, buyer:buyer_id(id, full_name, email, phone, role), '
           'agent:agent_id(id, full_name, email, phone, role), '
-          'property:property_id(id, title), '
+          'property:property_id(id, title, image_url, thumbnail_url), '
           'messages(id, sender_id, body, read_at, created_at)',
         )
         .or('buyer_id.eq.${user.id},agent_id.eq.${user.id}')
@@ -311,7 +331,8 @@ class MessagingService {
     return messages;
   }
 
-  static Future<List<ConversationMessage>> fetchConversationMessagesForConversations(
+  static Future<List<ConversationMessage>>
+  fetchConversationMessagesForConversations(
     List<String> conversationIds, {
     int limit = initialMessagePageSize,
     DateTime? before,
@@ -368,12 +389,12 @@ class MessagingService {
         .toList();
   }
 
-  static Future<void> markConversationsAsRead(List<String> conversationIds) async {
+  static Future<void> markConversationsAsRead(
+    List<String> conversationIds,
+  ) async {
     if (conversationIds.isEmpty) return;
 
-    await Future.wait(
-      conversationIds.map(markConversationAsRead),
-    );
+    await Future.wait(conversationIds.map(markConversationAsRead));
   }
 
   static Future<ConversationMessage> sendMessage({
@@ -381,32 +402,37 @@ class MessagingService {
     required String body,
   }) async {
     final User user = _currentUser;
-    final Map<String, dynamic> response = await _client.from('messages').insert({
-      'conversation_id': conversationId,
-      'sender_id': user.id,
-      'body': body.trim(),
-    }).select().single();
+    final Map<String, dynamic> response = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': user.id,
+          'body': body.trim(),
+        })
+        .select()
+        .single();
     final ConversationMessage message = ConversationMessage.fromMap(response);
     _storeConversationMessages(conversationId, [message]);
-    _conversationSummariesCache = _conversationSummariesCache
-        .map(
-          (summary) => summary.id == conversationId
-              ? summary.copyWith(
-                  lastMessagePreview: message.body,
-                  lastMessageAt: message.createdAt,
-                  isUnread: false,
-                )
-              : summary,
-        )
-        .toList()
-      ..sort((a, b) {
-        final DateTime? first = a.lastMessageAt;
-        final DateTime? second = b.lastMessageAt;
-        if (first == null && second == null) return 0;
-        if (first == null) return 1;
-        if (second == null) return -1;
-        return second.compareTo(first);
-      });
+    _conversationSummariesCache =
+        _conversationSummariesCache
+            .map(
+              (summary) => summary.id == conversationId
+                  ? summary.copyWith(
+                      lastMessagePreview: message.body,
+                      lastMessageAt: message.createdAt,
+                      isUnread: false,
+                    )
+                  : summary,
+            )
+            .toList()
+          ..sort((a, b) {
+            final DateTime? first = a.lastMessageAt;
+            final DateTime? second = b.lastMessageAt;
+            if (first == null && second == null) return 0;
+            if (first == null) return 1;
+            if (second == null) return -1;
+            return second.compareTo(first);
+          });
     return message;
   }
 

@@ -185,7 +185,7 @@ class AgentInquiry {
 }
 
 class AdminHomePage extends StatefulWidget {
-  final VoidCallback onLogout;
+  final Future<void> Function(BuildContext context) onLogout;
 
   const AdminHomePage({super.key, required this.onLogout});
 
@@ -505,7 +505,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: widget.onLogout,
+            onPressed: () async {
+              await widget.onLogout(context);
+            },
           ),
         ],
       ),
@@ -971,7 +973,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     ),
                     Chip(
                       label: Text(
-                        imageUrl.isEmpty ? 'No image yet' : 'Image attached',
+                        _previewImageSource == null
+                            ? 'No image yet'
+                            : 'Image attached',
                       ),
                       avatar: const Icon(Icons.image_outlined, size: 18),
                     ),

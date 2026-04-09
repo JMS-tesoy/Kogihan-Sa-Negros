@@ -10,6 +10,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
 import 'shared_properties.dart';
+import 'subscription.dart';
+import 'subscription_screen.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
   ThemeMode.light,
@@ -59,6 +61,28 @@ String _formatMessageTime(DateTime? value) {
   return '${months[localValue.month - 1]} ${localValue.day}';
 }
 
+String _formatSubscriptionDate(DateTime? value) {
+  if (value == null) return 'No renewal date yet';
+
+  const List<String> months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  final DateTime localValue = value.toLocal();
+  return '${months[localValue.month - 1]} ${localValue.day}, ${localValue.year}';
+}
+
 ImageProvider<Object>? _propertyImageProvider(
   Property property, {
   int? targetWidth,
@@ -98,6 +122,34 @@ ImageProvider<Object>? _propertyDisplayImageProvider(
     (height * devicePixelRatio).round(),
     imageProvider,
   );
+}
+
+String _buyerInboxConversationTitle(ConversationSummary conversation) {
+  final String propertyTitle = (conversation.propertyTitle ?? '').trim();
+  if (propertyTitle.isNotEmpty) return propertyTitle;
+  return conversation.title;
+}
+
+ImageProvider<Object>? _buyerInboxConversationImageProvider(
+  BuildContext context,
+  ConversationSummary conversation,
+) {
+  final String? rawImageUrl = (() {
+    final String thumbnailUrl = (conversation.propertyThumbnailUrl ?? '')
+        .trim();
+    if (thumbnailUrl.isNotEmpty) return thumbnailUrl;
+
+    final String imageUrl = (conversation.propertyImageUrl ?? '').trim();
+    if (imageUrl.isNotEmpty) return imageUrl;
+
+    return null;
+  })();
+
+  if (rawImageUrl == null || rawImageUrl.isEmpty) return null;
+  if (rawImageUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(rawImageUrl);
+  }
+  return AssetImage(rawImageUrl);
 }
 
 void _warmPropertyImage(
@@ -294,6 +346,8 @@ void main() async {
     );
   }
 
+  await SubscriptionService.initialize();
+
   runApp(const RealEstateApp());
 }
 
@@ -367,13 +421,16 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_syncAvailableProperties);
+    appSubscriptionNotifier.addListener(_handleSubscriptionChanged);
     _warmInitialPropertyCardImages(_availableProperties);
     unawaited(_restoreSavedProperties());
+    unawaited(_syncSubscriptionFromProfile());
   }
 
   @override
   void dispose() {
     appPropertiesNotifier.removeListener(_syncAvailableProperties);
+    appSubscriptionNotifier.removeListener(_handleSubscriptionChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -391,6 +448,26 @@ class _HomePageState extends State<HomePage> {
         );
     });
     _warmInitialPropertyCardImages(_availableProperties);
+  }
+
+  void _handleSubscriptionChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _syncSubscriptionFromProfile() async {
+    final UserSubscription currentSubscription = appSubscriptionNotifier.value;
+    final bool hasLocalSubscriptionData =
+        currentSubscription.tier != SubscriptionTier.free ||
+        currentSubscription.expiresAt != null;
+    if (hasLocalSubscriptionData) return;
+
+    try {
+      final MessagingProfile? profile =
+          await MessagingService.fetchCurrentProfile();
+      if (profile?.subscription == null) return;
+      appSubscriptionNotifier.value = profile!.subscription!;
+    } catch (_) {}
   }
 
   void _warmInitialPropertyCardImages(List<Property> properties) {
@@ -442,6 +519,66 @@ class _HomePageState extends State<HomePage> {
     await preferences.setStringList(
       _savedPropertyIdsPrefsKey,
       _savedPropertyIds.toList(),
+    );
+  }
+
+  Future<void> _openSubscriptionPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+    );
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _showSavedPropertiesUpgradePrompt() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Premium feature',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Free users can save up to $freeSavedPropertiesLimit properties. Upgrade to premium for unlimited saved listings.',
+                  style: TextStyle(
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _openSubscriptionPage();
+                    },
+                    child: const Text('View Plans'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Not Now'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -597,6 +734,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleSavedProperty(Property property) {
+    if (!_savedProperties.contains(property) &&
+        !appSubscriptionNotifier.value.isPremium &&
+        _savedProperties.length >= freeSavedPropertiesLimit) {
+      unawaited(_showSavedPropertiesUpgradePrompt());
+      return;
+    }
+
     setState(() {
       if (_savedProperties.contains(property)) {
         _savedProperties.remove(property);
@@ -646,6 +790,8 @@ class _HomePageState extends State<HomePage> {
       SavedTab(
         savedProperties: _savedProperties.toList(),
         onToggleSave: _toggleSavedProperty,
+        subscription: appSubscriptionNotifier.value,
+        onOpenSubscription: _openSubscriptionPage,
       ),
       const MessagesTab(),
       ProfileTab(
@@ -812,11 +958,15 @@ class MapTab extends StatelessWidget {
 class SavedTab extends StatelessWidget {
   final List<Property> savedProperties;
   final ValueChanged<Property> onToggleSave;
+  final UserSubscription subscription;
+  final VoidCallback onOpenSubscription;
 
   const SavedTab({
     super.key,
     required this.savedProperties,
     required this.onToggleSave,
+    required this.subscription,
+    required this.onOpenSubscription,
   });
 
   @override
@@ -833,6 +983,22 @@ class SavedTab extends StatelessWidget {
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
+            if (!subscription.isPremium) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.workspace_premium_outlined),
+                  title: const Text('Free plan save limit'),
+                  subtitle: Text(
+                    'Save up to $freeSavedPropertiesLimit properties on Free. Upgrade for unlimited saved listings.',
+                  ),
+                  trailing: TextButton(
+                    onPressed: onOpenSubscription,
+                    child: const Text('Upgrade'),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Expanded(
               child: savedProperties.isEmpty
@@ -901,8 +1067,13 @@ class SavedTab extends StatelessWidget {
                             ),
                             trailing: Text(property.price),
                             isThreeLine: true,
-                            onTap: () {
-                              _warmPropertyImage(context, property);
+                            onTap: () async {
+                              await _precachePropertyImage(
+                                context,
+                                property,
+                                height: 300,
+                              );
+                              if (!context.mounted) return;
                               Navigator.push(
                                 context,
                                 _instantRoute(
@@ -983,6 +1154,8 @@ class _MessagesTabState extends State<MessagesTab> {
   bool _isLoading = true;
   String? _errorText;
   List<ConversationSummary> _conversations = const [];
+  String? _hoveredConversationButtonId;
+  String? _pressedConversationButtonId;
 
   static const List<_InboxCardPalette> _lightInboxPalettes = [
     _InboxCardPalette(
@@ -1062,12 +1235,28 @@ class _MessagesTabState extends State<MessagesTab> {
     BuildContext context,
     ConversationSummary conversation,
   ) {
-    final bool isLightTheme = Theme.of(context).brightness == Brightness.light;
-    final List<_InboxCardPalette> palettes = isLightTheme
-        ? _lightInboxPalettes
-        : _darkInboxPalettes;
-    final int index = conversation.id.hashCode.abs() % palettes.length;
-    return palettes[index];
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return _InboxCardPalette(
+      background: colorScheme.surface,
+      border: colorScheme.outlineVariant,
+      accent: colorScheme.primary,
+      avatarBackground: colorScheme.surfaceContainerHighest,
+      avatarForeground: colorScheme.onSurface,
+    );
+  }
+
+  void _setHoveredConversationButton(String? conversationId) {
+    if (_hoveredConversationButtonId == conversationId) return;
+    setState(() {
+      _hoveredConversationButtonId = conversationId;
+    });
+  }
+
+  void _setPressedConversationButton(String? conversationId) {
+    if (_pressedConversationButtonId == conversationId) return;
+    setState(() {
+      _pressedConversationButtonId = conversationId;
+    });
   }
 
   Future<void> _loadConversations({bool showLoader = true}) async {
@@ -1128,13 +1317,14 @@ class _MessagesTabState extends State<MessagesTab> {
   Future<bool> _confirmDeleteConversation(
     ConversationSummary conversation,
   ) async {
+    final String displayTitle = _buyerInboxConversationTitle(conversation);
     final bool? shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Delete conversation'),
           content: Text(
-            'Delete your conversation for "${conversation.title}"? This will also remove its messages.',
+            'Delete your conversation for "$displayTitle"? This will also remove its messages.',
           ),
           actions: [
             TextButton(
@@ -1265,13 +1455,18 @@ class _MessagesTabState extends State<MessagesTab> {
     BuildContext context,
     ConversationSummary conversation,
   ) {
-    final String previewText = conversation.lastMessagePreview.isNotEmpty
-        ? conversation.lastMessagePreview
-        : 'No messages yet.';
+    final String displayTitle = _buyerInboxConversationTitle(conversation);
     final _InboxCardPalette palette = _paletteForConversation(
       context,
       conversation,
     );
+    final ImageProvider<Object>? propertyImageProvider =
+        _buyerInboxConversationImageProvider(context, conversation);
+    final bool isButtonHovered =
+        _hoveredConversationButtonId == conversation.id;
+    final bool isButtonPressed =
+        _pressedConversationButtonId == conversation.id;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Dismissible(
       key: ValueKey(conversation.id),
@@ -1300,84 +1495,199 @@ class _MessagesTabState extends State<MessagesTab> {
           side: BorderSide(color: palette.border),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: CircleAvatar(
-            backgroundColor: palette.avatarBackground,
-            foregroundColor: palette.avatarForeground,
-            child: Text(_messageInitial(conversation.title)),
-          ),
-          title: Text(
-            conversation.title,
-            style: TextStyle(
-              fontWeight: conversation.isUnread
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-            ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 4),
-              Text(
-                conversation.otherParticipantName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+        clipBehavior: Clip.antiAlias,
+        child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double thumbnailWidth = (constraints.maxWidth * 0.34)
+                  .clamp(112.0, 148.0)
+                  .toDouble();
+
+            return SizedBox(
+              height: 116,
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: thumbnailWidth,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: palette.avatarBackground,
+                            ),
+                            child: propertyImageProvider != null
+                                ? Image(
+                                    image: propertyImageProvider,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      _messageInitial(displayTitle),
+                                      style: TextStyle(
+                                        color: palette.avatarForeground,
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    displayTitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: conversation.isUnread
+                                          ? FontWeight.w700
+                                          : FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _formatMessageTime(
+                                        conversation.lastMessageAt,
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: conversation.isUnread
+                                            ? palette.accent
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                        fontWeight: conversation.isUnread
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                    if (conversation.isUnread) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: palette.accent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: MouseRegion(
+                                onEnter: (_) =>
+                                    _setHoveredConversationButton(
+                                      conversation.id,
+                                    ),
+                                onExit: (_) {
+                                  _setHoveredConversationButton(null);
+                                  _setPressedConversationButton(null);
+                                },
+                                cursor: SystemMouseCursors.click,
+                                child: Listener(
+                                  onPointerDown: (_) =>
+                                      _setPressedConversationButton(
+                                        conversation.id,
+                                      ),
+                                  onPointerUp: (_) =>
+                                      _setPressedConversationButton(null),
+                                  onPointerCancel: (_) =>
+                                      _setPressedConversationButton(null),
+                                  child: AnimatedScale(
+                                    duration: const Duration(milliseconds: 140),
+                                    curve: Curves.easeOutCubic,
+                                    scale: isButtonPressed
+                                        ? 0.96
+                                        : isButtonHovered
+                                        ? 1.03
+                                        : 1.0,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(999),
+                                        boxShadow:
+                                            isButtonHovered || isButtonPressed
+                                            ? [
+                                                BoxShadow(
+                                                  color: colorScheme.primary
+                                                      .withValues(alpha: 0.14),
+                                                  blurRadius: 14,
+                                                  offset: const Offset(0, 6),
+                                                ),
+                                              ]
+                                            : const [],
+                                      ),
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          _setPressedConversationButton(null);
+                                          _openConversation(conversation);
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: isButtonHovered
+                                              ? colorScheme.surfaceContainerHighest
+                                              : colorScheme.surface,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                          side: BorderSide(
+                                            color: isButtonHovered
+                                                ? colorScheme.primary.withValues(
+                                                    alpha: 0.32,
+                                                  )
+                                                : colorScheme.outlineVariant,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          size: 16,
+                                        ),
+                                        label: const Text('Chat Agent'),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                previewText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: conversation.isUnread
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                  color: conversation.isUnread
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatMessageTime(conversation.lastMessageAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: conversation.isUnread
-                      ? palette.accent
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: conversation.isUnread
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
-              if (conversation.isUnread) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: palette.accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          onTap: () => _openConversation(conversation),
+              );
+            },
         ),
       ),
     );
@@ -1507,7 +1817,145 @@ class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
   }
 }
 
-class ProfileTab extends StatelessWidget {
+class _BuyerProfileData {
+  final String displayName;
+  final String email;
+  final String phone;
+  final UserSubscription subscription;
+
+  const _BuyerProfileData({
+    required this.displayName,
+    required this.email,
+    required this.phone,
+    required this.subscription,
+  });
+
+  bool get isPremium => subscription.isPremium;
+  String get planName => subscription.planName;
+  DateTime? get expiresAt => subscription.expiresAt;
+
+  _BuyerProfileData copyWith({
+    String? displayName,
+    String? email,
+    String? phone,
+    UserSubscription? subscription,
+  }) {
+    return _BuyerProfileData(
+      displayName: displayName ?? this.displayName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      subscription: subscription ?? this.subscription,
+    );
+  }
+}
+
+const _BuyerProfileData _defaultBuyerProfileData = _BuyerProfileData(
+  displayName: 'Buyer',
+  email: 'No email available',
+  phone: 'No phone available',
+  subscription: UserSubscription.free(),
+);
+
+String _profileTextValue(Object? value) {
+  return value == null ? '' : value.toString().trim();
+}
+
+Future<_BuyerProfileData> _loadCurrentBuyerProfileData() async {
+  final User? user = Supabase.instance.client.auth.currentUser;
+  if (user == null) {
+    return _defaultBuyerProfileData;
+  }
+
+  final UserSubscription localSubscription =
+      await SubscriptionService.loadCurrentSubscription();
+
+  try {
+    final MessagingProfile? profile =
+        await MessagingService.fetchCurrentProfile();
+    final String profileName = _profileTextValue(profile?.fullName);
+    final String metadataName = _profileTextValue(
+      user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
+    );
+    final String displayName = profileName.isNotEmpty
+        ? profileName
+        : metadataName.isNotEmpty
+        ? metadataName
+        : _profileTextValue(user.email).isNotEmpty
+        ? _profileTextValue(user.email)
+        : _profileTextValue(user.phone).isNotEmpty
+        ? _profileTextValue(user.phone)
+        : 'Buyer';
+    final String email = _profileTextValue(profile?.email).isNotEmpty
+        ? _profileTextValue(profile?.email)
+        : _profileTextValue(user.email);
+    final String phone = _profileTextValue(profile?.phone).isNotEmpty
+        ? _profileTextValue(profile?.phone)
+        : _profileTextValue(user.phone);
+    final UserSubscription subscription =
+        profile?.subscription ?? localSubscription;
+
+    return _BuyerProfileData(
+      displayName: displayName,
+      email: email.isNotEmpty ? email : 'No email available',
+      phone: phone.isNotEmpty ? phone : 'No phone available',
+      subscription: subscription,
+    );
+  } catch (_) {
+    final String metadataName = _profileTextValue(
+      user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
+    );
+    final String email = _profileTextValue(user.email);
+    final String phone = _profileTextValue(user.phone);
+
+    return _BuyerProfileData(
+      displayName: metadataName.isNotEmpty
+          ? metadataName
+          : email.isNotEmpty
+          ? email
+          : phone.isNotEmpty
+          ? phone
+          : 'Buyer',
+      email: email.isNotEmpty ? email : 'No email available',
+      phone: phone.isNotEmpty ? phone : 'No phone available',
+      subscription: localSubscription,
+    );
+  }
+}
+
+_BuyerProfileData _resolveBuyerProfileData(
+  _BuyerProfileData? profile,
+  UserSubscription currentSubscription,
+) {
+  final _BuyerProfileData baseProfile = profile ?? _defaultBuyerProfileData;
+  final bool hasLocalSubscriptionData =
+      currentSubscription.tier != SubscriptionTier.free ||
+      currentSubscription.expiresAt != null;
+
+  return baseProfile.copyWith(
+    subscription: hasLocalSubscriptionData
+        ? currentSubscription
+        : baseProfile.subscription,
+  );
+}
+
+Future<void> _signOutAndReturnToLogin(BuildContext context) async {
+  try {
+    await Supabase.instance.client.auth.signOut();
+    if (!context.mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Failed to log out. Please try again.')),
+    );
+  }
+}
+
+class ProfileTab extends StatefulWidget {
   final Uint8List? profileImageBytes;
   final VoidCallback onAvatarTap;
 
@@ -1518,154 +1966,262 @@ class ProfileTab extends StatelessWidget {
   });
 
   @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  late final Future<_BuyerProfileData> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadCurrentBuyerProfileData();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                GestureDetector(
-                  onTap: onAvatarTap,
-                  child: CircleAvatar(
-                    radius: 48,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    backgroundImage: profileImageBytes != null
-                        ? MemoryImage(profileImageBytes!)
-                        : null,
-                    child: profileImageBytes == null
-                        ? const Icon(
-                            Icons.person,
-                            size: 50,
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
-                ),
-                Positioned(
-                  right: -2,
-                  bottom: -2,
-                  child: GestureDetector(
-                    onTap: onAvatarTap,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 2,
+      child: ValueListenableBuilder<UserSubscription>(
+        valueListenable: appSubscriptionNotifier,
+        builder: (context, currentSubscription, child) {
+          return FutureBuilder<_BuyerProfileData>(
+            future: _profileFuture,
+            builder: (context, snapshot) {
+              final _BuyerProfileData profile = _resolveBuyerProfileData(
+                snapshot.data,
+                currentSubscription,
+              );
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        GestureDetector(
+                          onTap: widget.onAvatarTap,
+                          child: CircleAvatar(
+                            radius: 48,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            backgroundImage: widget.profileImageBytes != null
+                                ? MemoryImage(widget.profileImageBytes!)
+                                : null,
+                            child: widget.profileImageBytes == null
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 50,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Colors.white,
+                        Positioned(
+                          right: -2,
+                          bottom: -2,
+                          child: GestureDetector(
+                            onTap: widget.onAvatarTap,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.edit,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      profile.displayName,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Real Estate Buyer Profile',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: const Text('Account'),
+                        subtitle: const Text('Personal contact details'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AccountPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.workspace_premium_outlined),
+                        title: const Text('Subscription'),
+                        subtitle: Text(
+                          profile.isPremium
+                              ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
+                              : 'Current plan: ${profile.planName}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SubscriptionPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.settings_outlined),
+                        title: const Text('Settings'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.logout, color: Colors.red),
+                        title: const Text('Log Out'),
+                        textColor: Colors.red,
+                        onTap: () async {
+                          await _signOutAndReturnToLogin(context);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Boss JO',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Real Estate Buyer Profile',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 30),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('Account'),
-                subtitle: const Text('Personal contact details'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AccountPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Settings'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SettingsPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Log Out'),
-                textColor: Colors.red,
-                onTap: () {
-                  Supabase.instance.client.auth.signOut();
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                    (route) => false,
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  late final Future<_BuyerProfileData> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadCurrentBuyerProfileData();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Account'), centerTitle: true),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.email_outlined),
-                title: const Text('Email'),
-                subtitle: const Text('bossjo@example.com'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.phone_outlined),
-                title: const Text('Phone'),
-                subtitle: const Text('+63 9XX XXX XXXX'),
-              ),
-            ),
-          ],
-        ),
+      body: ValueListenableBuilder<UserSubscription>(
+        valueListenable: appSubscriptionNotifier,
+        builder: (context, currentSubscription, child) {
+          return FutureBuilder<_BuyerProfileData>(
+            future: _profileFuture,
+            builder: (context, snapshot) {
+              final _BuyerProfileData profile = _resolveBuyerProfileData(
+                snapshot.data,
+                currentSubscription,
+              );
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: const Text('Name'),
+                        subtitle: Text(profile.displayName),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.email_outlined),
+                        title: const Text('Email'),
+                        subtitle: Text(profile.email),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.phone_outlined),
+                        title: const Text('Phone'),
+                        subtitle: Text(profile.phone),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.workspace_premium_outlined),
+                        title: const Text('Subscription'),
+                        subtitle: Text(
+                          profile.isPremium
+                              ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
+                              : 'Current plan: ${profile.planName}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SubscriptionPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -2608,12 +3164,9 @@ class _LoginPageState extends State<LoginPage> {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
-      unawaited(_routeToAuthenticatedUser(data.session?.user));
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(
-        _routeToAuthenticatedUser(Supabase.instance.client.auth.currentUser),
-      );
+      if (data.event == AuthChangeEvent.signedIn) {
+        unawaited(_routeToAuthenticatedUser(data.session?.user));
+      }
     });
   }
 
@@ -2638,32 +3191,23 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _routeByRole(User? user) async {
+  Future<void> _routeByRole(User user) async {
     appThemeNotifier.value = ThemeMode.light;
 
     final role =
-        ((user?.appMetadata['role'] ?? user?.userMetadata?['role']) as String?)
+        ((user.appMetadata['role'] ?? user.userMetadata?['role']) as String?)
             ?.toLowerCase() ??
         'user';
 
-    if (user != null) {
-      await loadProperties();
-    }
+    await loadProperties();
 
     if (!mounted) return;
     if (role == 'admin') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => AdminHomePage(
-            onLogout: () {
-              Supabase.instance.client.auth.signOut();
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-          ),
+          builder: (context) =>
+              AdminHomePage(onLogout: _signOutAndReturnToLogin),
         ),
       );
     } else {
@@ -4018,7 +4562,10 @@ class PropertyCard extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      _warmPropertyImage(context, property);
+                      unawaited(
+                        _precachePropertyImage(context, property, height: 300),
+                      );
+                      if (!context.mounted) return;
                       Navigator.push(
                         context,
                         _instantRoute(
