@@ -70,6 +70,39 @@ flutter run
 
 This command will compile the app and launch it. It also enables hot reload, allowing you to see changes instantly as you modify the code.
 
+### Dart MCP and Flutter MCP Notes
+
+This repo can be used with both Dart MCP and Flutter MCP.
+
+- **Dart MCP** works without a running app for lightweight tooling actions such as listing available devices.
+- **Flutter MCP** needs a running Flutter app session and a valid DTD URI.
+
+#### How to connect Flutter MCP in VS Code
+
+1. Start the app normally on your Android Emulator from VS Code.
+2. Open the Command Palette with `Ctrl+Shift+P`.
+3. Search for `Copy DTD Uri`.
+4. Use `Dart: Copy DTD Uri to Clipboard` or `Flutter: Copy DTD Uri to Clipboard`.
+5. Paste that URI into the agent chat so the agent can connect.
+
+Example DTD URI:
+
+```text
+ws://127.0.0.1:57358/UCFJOTDqprE=
+```
+
+#### What works after Flutter MCP is connected
+
+- Read current runtime errors
+- Inspect the widget tree
+- Inspect the selected widget
+- Hot reload
+- Hot restart
+
+#### Important note
+
+The DTD URI is tied to the current running app session. If you stop and rerun the app, copy a new DTD URI before trying to reconnect.
+
 ### Specific Commands
 
 - **List available devices:**
