@@ -175,6 +175,14 @@ class SubscriptionService {
     return subscription;
   }
 
+  static Future<UserSubscription> cancelSubscription() async {
+    // INTEGRATION POINT: Replace this with real cancellation handling once
+    // store billing is connected.
+    const UserSubscription subscription = UserSubscription.free();
+    await _saveSubscription(subscription);
+    return subscription;
+  }
+
   static Future<void> _saveSubscription(UserSubscription subscription) async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setString(

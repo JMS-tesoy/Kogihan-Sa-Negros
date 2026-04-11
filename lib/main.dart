@@ -1,17 +1,25 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
+    hide ImageSource, Size;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
+import 'negros_places.dart';
 import 'shared_properties.dart';
 import 'subscription.dart';
 import 'subscription_screen.dart';
+
+part 'map_tab.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
   ThemeMode.light,
@@ -59,6 +67,32 @@ String _formatMessageTime(DateTime? value) {
   ];
 
   return '${months[localValue.month - 1]} ${localValue.day}';
+}
+
+String _formatInboxTimestamp(DateTime? value) {
+  if (value == null) return '';
+
+  const List<String> months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  final DateTime localValue = value.toLocal();
+  final int hour = localValue.hour % 12 == 0 ? 12 : localValue.hour % 12;
+  final String minute = localValue.minute.toString().padLeft(2, '0');
+  final String suffix = localValue.hour >= 12 ? 'PM' : 'AM';
+
+  return '${months[localValue.month - 1]} ${localValue.day}, $hour:$minute $suffix';
 }
 
 String _formatSubscriptionDate(DateTime? value) {
@@ -330,12 +364,25 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    await dotenv.load(fileName: '.env');
+    final String envToken = dotenv.env['MAPBOX_ACCESS_TOKEN']?.trim() ?? '';
+    if (envToken.isNotEmpty) {
+      _mapboxAccessToken = envToken;
+    }
+  } catch (_) {}
+
+  if (_mapboxAccessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(_mapboxAccessToken);
+  }
+
+  try {
     await Supabase.initialize(
       // TODO: Paste your actual Supabase URL and Anon Key here
       url: 'https://vludvvjkrrqzjahxjdjl.supabase.co',
       anonKey: 'sb_publishable_xrlYmyU6k2ItwhoSycq_iQ_4RxiPGdJ',
     );
     unawaited(loadProperties());
+    unawaited(loadNegrosPlaces());
     developer.log('✅ Supabase connected successfully!', name: 'Supabase');
   } catch (e, stackTrace) {
     developer.log(
@@ -410,6 +457,9 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _savedPropertyIds = <String>{};
   final Set<Property> _savedProperties = {};
   final Set<String> _warmedPropertyImageIds = <String>{};
+  List<NegrosPlace> _negrosPlaces = List<NegrosPlace>.from(
+    appNegrosPlacesNotifier.value,
+  );
   List<Property> _availableProperties = List<Property>.from(
     appPropertiesNotifier.value,
   );
@@ -421,6 +471,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     appPropertiesNotifier.addListener(_syncAvailableProperties);
+    appNegrosPlacesNotifier.addListener(_syncNegrosPlaces);
     appSubscriptionNotifier.addListener(_handleSubscriptionChanged);
     _warmInitialPropertyCardImages(_availableProperties);
     unawaited(_restoreSavedProperties());
@@ -430,6 +481,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     appPropertiesNotifier.removeListener(_syncAvailableProperties);
+    appNegrosPlacesNotifier.removeListener(_syncNegrosPlaces);
     appSubscriptionNotifier.removeListener(_handleSubscriptionChanged);
     _searchController.dispose();
     super.dispose();
@@ -454,6 +506,47 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {});
   }
+
+  void _syncNegrosPlaces() {
+    if (!mounted) return;
+    setState(() {
+      _negrosPlaces = List<NegrosPlace>.from(appNegrosPlacesNotifier.value);
+    });
+  }
+
+  List<double>? _parseCoordinates(String value) {
+    final List<String> parts = value.split(',');
+    if (parts.length < 2) return null;
+
+    final double? latitude = double.tryParse(parts[0].trim());
+    final double? longitude = double.tryParse(parts[1].trim());
+    if (latitude == null || longitude == null) return null;
+
+    return <double>[latitude, longitude];
+  }
+
+  double _distanceInKm({
+    required double startLatitude,
+    required double startLongitude,
+    required double endLatitude,
+    required double endLongitude,
+  }) {
+    const double earthRadiusKm = 6371;
+    final double latitudeDelta = _degreesToRadians(endLatitude - startLatitude);
+    final double longitudeDelta = _degreesToRadians(
+      endLongitude - startLongitude,
+    );
+    final double a =
+        math.sin(latitudeDelta / 2) * math.sin(latitudeDelta / 2) +
+        math.cos(_degreesToRadians(startLatitude)) *
+            math.cos(_degreesToRadians(endLatitude)) *
+            math.sin(longitudeDelta / 2) *
+            math.sin(longitudeDelta / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  double _degreesToRadians(double degrees) => degrees * (math.pi / 180);
 
   Future<void> _syncSubscriptionFromProfile() async {
     final UserSubscription currentSubscription = appSubscriptionNotifier.value;
@@ -672,8 +765,36 @@ class _HomePageState extends State<HomePage> {
 
     return _availableProperties
         .where((property) {
-          if (hasLocationFilter && property.location != _selectedLocation) {
-            return false;
+          if (hasLocationFilter) {
+            final NegrosPlace? selectedPlace = _negrosPlaces.cast<NegrosPlace?>().firstWhere(
+              (place) => place?.placeName == _selectedLocation,
+              orElse: () => null,
+            );
+
+            if (selectedPlace != null) {
+              final List<double>? propertyCoordinates = _parseCoordinates(
+                property.location,
+              );
+              final double? placeLatitude = selectedPlace.latitude;
+              final double? placeLongitude = selectedPlace.longitude;
+
+              if (propertyCoordinates == null ||
+                  placeLatitude == null ||
+                  placeLongitude == null) {
+                return false;
+              }
+
+              final double distanceInKm = _distanceInKm(
+                startLatitude: propertyCoordinates[0],
+                startLongitude: propertyCoordinates[1],
+                endLatitude: placeLatitude,
+                endLongitude: placeLongitude,
+              );
+
+              if (distanceInKm > 25) return false;
+            } else if (property.location != _selectedLocation) {
+              return false;
+            }
           }
 
           if (hasLotSizeFilter) {
@@ -767,6 +888,11 @@ class _HomePageState extends State<HomePage> {
           });
         },
         selectedLocation: _selectedLocation,
+        locationItems: _negrosPlaces
+            .map((place) => place.placeName)
+            .toSet()
+            .toList()
+          ..sort(),
         selectedLotSize: _selectedLotSize,
         selectedBudget: _selectedBudget,
         onLocationChanged: (value) {
@@ -848,6 +974,7 @@ class HomeTab extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final String? selectedLocation;
+  final List<String> locationItems;
   final String? selectedLotSize;
   final String? selectedBudget;
   final ValueChanged<String?> onLocationChanged;
@@ -863,6 +990,7 @@ class HomeTab extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.selectedLocation,
+    required this.locationItems,
     required this.selectedLotSize,
     required this.selectedBudget,
     required this.onLocationChanged,
@@ -889,6 +1017,7 @@ class HomeTab extends StatelessWidget {
                 searchController: searchController,
                 onSearchChanged: onSearchChanged,
                 selectedLocation: selectedLocation,
+                locationItems: locationItems,
                 selectedLotSize: selectedLotSize,
                 selectedBudget: selectedBudget,
                 onLocationChanged: onLocationChanged,
@@ -934,22 +1063,6 @@ class HomeTab extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class MapTab extends StatelessWidget {
-  const MapTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Map screen coming soon',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
       ),
     );
   }
@@ -1156,6 +1269,7 @@ class _MessagesTabState extends State<MessagesTab> {
   List<ConversationSummary> _conversations = const [];
   String? _hoveredConversationButtonId;
   String? _pressedConversationButtonId;
+  Timer? _inboxClockRefreshTimer;
 
   static const List<_InboxCardPalette> _lightInboxPalettes = [
     _InboxCardPalette(
@@ -1228,7 +1342,34 @@ class _MessagesTabState extends State<MessagesTab> {
       _conversations = cachedConversations;
       _isLoading = false;
     }
+    _scheduleInboxClockRefresh();
     unawaited(_loadConversations(showLoader: cachedConversations.isEmpty));
+  }
+
+  @override
+  void dispose() {
+    _inboxClockRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleInboxClockRefresh() {
+    _inboxClockRefreshTimer?.cancel();
+
+    final DateTime now = DateTime.now();
+    final Duration delay = Duration(
+      minutes: 1,
+    ) -
+    Duration(
+      seconds: now.second,
+      milliseconds: now.millisecond,
+      microseconds: now.microsecond,
+    );
+
+    _inboxClockRefreshTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() {});
+      _scheduleInboxClockRefresh();
+    });
   }
 
   _InboxCardPalette _paletteForConversation(
@@ -1373,28 +1514,11 @@ class _MessagesTabState extends State<MessagesTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Inbox',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const BuyerChecklistPage(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.checklist),
-                  label: const Text('Checklist'),
-                ),
-              ],
+            Text(
+              'Inbox',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -1475,128 +1599,73 @@ class _MessagesTabState extends State<MessagesTab> {
       onDismissed: (_) {
         _deleteConversation(conversation);
       },
-      background: Container(
-        alignment: Alignment.centerRight,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Icon(
-          Icons.delete_outline,
-          color: Theme.of(context).colorScheme.onErrorContainer,
-        ),
-      ),
-      child: Card(
-        color: palette.background,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(color: palette.border),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: LayoutBuilder(
-            builder: (context, constraints) {
-              final double thumbnailWidth = (constraints.maxWidth * 0.34)
-                  .clamp(112.0, 148.0)
-                  .toDouble();
+      background: const SizedBox.shrink(),
+      secondaryBackground: const SizedBox.shrink(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            color: palette.background,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: palette.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double thumbnailWidth = (constraints.maxWidth * 0.28)
+                    .clamp(88.0, 112.0)
+                    .toDouble();
 
-            return SizedBox(
-              height: 116,
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: thumbnailWidth,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: palette.avatarBackground,
-                            ),
-                            child: propertyImageProvider != null
-                                ? Image(
-                                    image: propertyImageProvider,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Center(
-                                    child: Text(
-                                      _messageInitial(displayTitle),
-                                      style: TextStyle(
-                                        color: palette.avatarForeground,
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
+                return SizedBox(
+                  height: 88,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: thumbnailWidth,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: palette.avatarBackground,
                           ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
+                          child: propertyImageProvider != null
+                              ? Image(
+                                  image: propertyImageProvider,
+                                  fit: BoxFit.cover,
+                                )
+                              : Center(
                                   child: Text(
-                                    displayTitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                    _messageInitial(displayTitle),
                                     style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: conversation.isUnread
-                                          ? FontWeight.w700
-                                          : FontWeight.w600,
+                                      color: palette.avatarForeground,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      _formatMessageTime(
-                                        conversation.lastMessageAt,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: conversation.isUnread
-                                            ? palette.accent
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                        fontWeight: conversation.isUnread
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                    if (conversation.isUnread) ...[
-                                      const SizedBox(height: 6),
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: palette.accent,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                displayTitle,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.15,
+                                  fontWeight: conversation.isUnread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: MouseRegion(
+                              ),
+                              MouseRegion(
                                 onEnter: (_) =>
                                     _setHoveredConversationButton(
                                       conversation.id,
@@ -1621,8 +1690,8 @@ class _MessagesTabState extends State<MessagesTab> {
                                     scale: isButtonPressed
                                         ? 0.96
                                         : isButtonHovered
-                                        ? 1.03
-                                        : 1.0,
+                                            ? 1.03
+                                            : 1.0,
                                     child: AnimatedContainer(
                                       duration: const Duration(
                                         milliseconds: 180,
@@ -1632,15 +1701,15 @@ class _MessagesTabState extends State<MessagesTab> {
                                         borderRadius: BorderRadius.circular(999),
                                         boxShadow:
                                             isButtonHovered || isButtonPressed
-                                            ? [
-                                                BoxShadow(
-                                                  color: colorScheme.primary
-                                                      .withValues(alpha: 0.14),
-                                                  blurRadius: 14,
-                                                  offset: const Offset(0, 6),
-                                                ),
-                                              ]
-                                            : const [],
+                                                ? [
+                                                    BoxShadow(
+                                                      color: colorScheme.primary
+                                                          .withValues(alpha: 0.14),
+                                                      blurRadius: 14,
+                                                      offset: const Offset(0, 6),
+                                                    ),
+                                                  ]
+                                                : const [],
                                       ),
                                       child: OutlinedButton.icon(
                                         onPressed: () {
@@ -1649,12 +1718,15 @@ class _MessagesTabState extends State<MessagesTab> {
                                         },
                                         style: OutlinedButton.styleFrom(
                                           visualDensity: VisualDensity.compact,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          minimumSize: const Size(0, 28),
                                           backgroundColor: isButtonHovered
                                               ? colorScheme.surfaceContainerHighest
                                               : colorScheme.surface,
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 8,
+                                            horizontal: 8,
+                                            vertical: 4,
                                           ),
                                           side: BorderSide(
                                             color: isButtonHovered
@@ -1671,147 +1743,60 @@ class _MessagesTabState extends State<MessagesTab> {
                                         ),
                                         icon: const Icon(
                                           Icons.chat_bubble_outline_rounded,
-                                          size: 16,
+                                          size: 13,
                                         ),
-                                        label: const Text('Chat Agent'),
+                                        label: const Text(
+                                          'Chat Agent',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
-        ),
-      ),
-    );
-  }
-}
-
-class BuyerChecklistPage extends StatefulWidget {
-  const BuyerChecklistPage({super.key});
-
-  @override
-  State<BuyerChecklistPage> createState() => _BuyerChecklistPageState();
-}
-
-class _BuyerChecklistPageState extends State<BuyerChecklistPage> {
-  // Complete checklist categories
-  final Map<String, Map<String, bool>> _checklist = {
-    'About the land itself': {
-      'What is the exact lot size?': false,
-      'What is the shape of the property?': false,
-      'Is the terrain flat, sloped, rocky, or flood-prone?': false,
-      'What is the actual road access?': false,
-      'Is it along a main road or interior road?': false,
-      'Is the boundary clear and surveyed?': false,
-      'Are the markers visible on site?': false,
-      'What is the current use of the land?': false,
-    },
-    'About title and ownership': {
-      'Is the title clean?': false,
-      'Is it under one owner only?': false,
-      'Is the title transferred already to the current owner?': false,
-      'Are there any liens, mortgage, encumbrances, or adverse claims?': false,
-      'Are real property taxes updated?': false,
-      'Is there a tax declaration?': false,
-      'Is the lot covered by TCT, CCT, or other documents?': false,
-      'Are the documents ready for due diligence?': false,
-    },
-    'About legal and zoning': {
-      'Is this land residential, commercial, agricultural, or industrial?':
-          false,
-      'Can I legally build a house, warehouse, resort, or business here?':
-          false,
-      'Is it inside a protected area, easement, or right-of-way?': false,
-      'Are there zoning restrictions?': false,
-      'Are there setback requirements?': false,
-      'Is it allowed for foreigners through a corporation or other legal structure?':
-          false,
-    },
-    'About utilities and development': {
-      'Is there electricity already nearby?': false,
-      'Is there water supply?': false,
-      'Is internet signal strong?': false,
-      'Is drainage available?': false,
-      'Is the road concrete or rough road?': false,
-      'Are there nearby developments already?': false,
-      'How far is it from schools, hospitals, markets, airport, or city center?':
-          false,
-    },
-    'About price and payment': {
-      'What is the total price?': false,
-      'What is the price per square meter?': false,
-      'Is the price negotiable?': false,
-      'What is included in the price?': false,
-      'Who will pay for CGT, DST, transfer tax, registration, notary, and broker fees?':
-          false,
-      'Is installment allowed?': false,
-      'What is the reservation fee?': false,
-      'Are there hidden costs after purchase?': false,
-    },
-    'About safety and risk': {
-      'Is the area flood-prone?': false,
-      'Is there a history of landslide?': false,
-      'Are there squatters, tenants, or occupants?': false,
-      'Are there boundary disputes?': false,
-      'Is the property under inheritance dispute?': false,
-      'Is the area peaceful and safe?': false,
-      'Are there future road projects that may affect the land?': false,
-      'Is there any issue with access through another property?': false,
-    },
-    'About investment value': {
-      'Why is the owner selling?': false,
-      'How long has it been on the market?': false,
-      'What makes this a good buy?': false,
-      'What are the future developments in the area?': false,
-      'What is the resale potential?': false,
-      'Is the area appreciating?': false,
-      'Is it good for flipping, farming, leasing, or long-term holding?': false,
-    },
-    'Questions buyers ask agents directly': {
-      'Can you send the exact location pin?': false,
-      'Can you send a copy of the title and tax declaration?': false,
-      'Can I schedule a site visit?': false,
-      'Can we verify the documents first before negotiating?': false,
-      'Is your listing exclusive or direct to owner?': false,
-      'How do you secure the transaction?': false,
-      'What is your commission arrangement?': false,
-      'Can you help with due diligence and transfer process?': false,
-    },
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Buyer Checklist'), centerTitle: true),
-      body: ListView(
-        children: _checklist.keys.map((category) {
-          return ExpansionTile(
-            title: Text(
-              category,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+                    ],
+                  ),
+                );
+              },
             ),
-            children: _checklist[category]!.keys.map((question) {
-              return CheckboxListTile(
-                title: Text(question),
-                value: _checklist[category]![question],
-                controlAffinity: ListTileControlAffinity.leading,
-                onChanged: (bool? value) {
-                  setState(() {
-                    _checklist[category]![question] = value ?? false;
-                  });
-                },
-              );
-            }).toList(),
-          );
-        }).toList(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, right: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                if (conversation.isUnread) ...[
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: palette.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  _formatInboxTimestamp(conversation.lastMessageAt),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: conversation.isUnread
+                        ? palette.accent
+                        : colorScheme.onSurfaceVariant,
+                    fontWeight: conversation.isUnread
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2928,6 +2913,10 @@ class _SettingsPageState extends State<SettingsPage> {
     required ValueChanged<bool> onChanged,
     bool dense = false,
   }) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color activeSwitchColor = isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : Theme.of(context).colorScheme.primary;
     return SwitchListTile(
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle),
@@ -2937,13 +2926,18 @@ class _SettingsPageState extends State<SettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       onChanged: onChanged,
-      activeThumbColor: Theme.of(context).colorScheme.primary,
+      activeThumbColor: activeSwitchColor,
       controlAffinity: ListTileControlAffinity.trailing,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color activeSwitchColor = isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: ListView(
@@ -2952,12 +2946,24 @@ class _SettingsPageState extends State<SettingsPage> {
             data: Theme.of(context).copyWith(
               switchTheme: SwitchThemeData(
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                thumbColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return activeSwitchColor;
+                  }
+                  return null;
+                }),
+                trackColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return activeSwitchColor.withValues(alpha: 0.42);
+                  }
+                  return null;
+                }),
               ),
             ),
             child: Column(
               children: [
                 Transform.scale(
-                  scale: 0.88,
+                  scale: 0.76,
                   alignment: Alignment.centerRight,
                   child: _buildCompactSwitchTile(
                     title: 'Push Notifications',
@@ -2979,7 +2985,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: const Icon(Icons.format_size),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.only(
+                    left: 72,
+                    right: 20,
+                  ),
                   child: Slider(
                     value: _currentFontSizeScale,
                     min: 0.8,
@@ -3011,7 +3020,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       children: [
                         Transform.scale(
-                          scale: 0.88,
+                          scale: 0.76,
                           alignment: Alignment.centerRight,
                           child: _buildCompactSwitchTile(
                             title: 'New Property Alerts',
@@ -3023,7 +3032,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                         Transform.scale(
-                          scale: 0.88,
+                          scale: 0.76,
                           alignment: Alignment.centerRight,
                           child: _buildCompactSwitchTile(
                             title: 'Price Drops on Saved',
@@ -3035,7 +3044,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                         Transform.scale(
-                          scale: 0.88,
+                          scale: 0.76,
                           alignment: Alignment.centerRight,
                           child: _buildCompactSwitchTile(
                             title: 'Agent Messages',
@@ -3050,7 +3059,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 Transform.scale(
-                  scale: 0.88,
+                  scale: 0.76,
                   alignment: Alignment.centerRight,
                   child: _buildCompactSwitchTile(
                     title: 'Dark Mode',
@@ -4098,6 +4107,7 @@ class SearchSection extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final String? selectedLocation;
+  final List<String> locationItems;
   final String? selectedLotSize;
   final String? selectedBudget;
   final ValueChanged<String?> onLocationChanged;
@@ -4110,6 +4120,7 @@ class SearchSection extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.selectedLocation,
+    required this.locationItems,
     required this.selectedLotSize,
     required this.selectedBudget,
     required this.onLocationChanged,
@@ -4190,13 +4201,7 @@ class SearchSection extends StatelessWidget {
               child: FilterDropdown(
                 label: 'Location',
                 value: selectedLocation,
-                items: const [
-                  'Dumaguete City',
-                  'Valencia',
-                  'Bais City',
-                  'Sibulan',
-                  'Bayawan City',
-                ],
+                items: locationItems,
                 onChanged: onLocationChanged,
               ),
             ),
