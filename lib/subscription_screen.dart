@@ -170,7 +170,7 @@ class SubscriptionPage extends StatelessWidget {
                       const SizedBox(height: 10),
                       _SubscriptionDetailRow(
                         icon: Icons.bookmark_border,
-                        label: 'Saved properties',
+                        label: 'Saved lots',
                         value: subscription.isPremium
                             ? 'Unlimited'
                             : 'Up to $freeSavedPropertiesLimit',

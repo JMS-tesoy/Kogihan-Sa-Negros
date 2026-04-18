@@ -609,7 +609,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Free users can save up to $freeSavedPropertiesLimit properties. Upgrade to premium for unlimited saved listings.',
+                  'Free users can save up to $freeSavedPropertiesLimit lots. Upgrade to premium for unlimited saved listings.',
                   style: TextStyle(
                     color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                   ),
@@ -975,29 +975,40 @@ class HomeTab extends StatelessWidget {
       child: CustomScrollView(
         cacheExtent: 400,
         slivers: [
-          const SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-            sliver: SliverToBoxAdapter(child: TopHeader()),
+          SliverAppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            elevation: 0,
+            floating: true,
+            snap: true,
+            surfaceTintColor: Colors.transparent,
+            toolbarHeight: 84,
+            flexibleSpace: const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: TopHeader(),
+            ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverToBoxAdapter(
-              child: SearchSection(
-                searchController: searchController,
-                onSearchChanged: onSearchChanged,
-                selectedLocation: selectedLocation,
-                locationItems: locationItems,
-                selectedLotSize: selectedLotSize,
-                selectedBudget: selectedBudget,
-                onLocationChanged: onLocationChanged,
-                onLotSizeChanged: onLotSizeChanged,
-                onBudgetChanged: onBudgetChanged,
-                onResetFilters: onResetFilters,
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickySearchHeaderDelegate(
+              height: 166,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: SearchSection(
+                  searchController: searchController,
+                  onSearchChanged: onSearchChanged,
+                  selectedLocation: selectedLocation,
+                  locationItems: locationItems,
+                  selectedLotSize: selectedLotSize,
+                  selectedBudget: selectedBudget,
+                  onLocationChanged: onLocationChanged,
+                  onLotSizeChanged: onLotSizeChanged,
+                  onBudgetChanged: onBudgetChanged,
+                  onResetFilters: onResetFilters,
+                ),
               ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
@@ -1030,7 +1041,7 @@ class HomeTab extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               sliver: SliverToBoxAdapter(
                 child: Text(
-                  'Properties',
+                  'Lots',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -1061,6 +1072,52 @@ class HomeTab extends StatelessWidget {
   }
 }
 
+class _StickySearchHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+
+  const _StickySearchHeaderDelegate({
+    required this.child,
+    required this.height,
+  });
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        boxShadow: overlapsContent
+            ? [
+                BoxShadow(
+                  color: theme.colorScheme.shadow.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickySearchHeaderDelegate oldDelegate) {
+    return height != oldDelegate.height || child != oldDelegate.child;
+  }
+}
+
 class SavedTab extends StatelessWidget {
   final List<Property> savedProperties;
   final ValueChanged<Property> onToggleSave;
@@ -1084,7 +1141,7 @@ class SavedTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Saved Properties',
+              'Saved Lots',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
@@ -1096,7 +1153,7 @@ class SavedTab extends StatelessWidget {
                   leading: const Icon(Icons.workspace_premium_outlined),
                   title: const Text('Free plan save limit'),
                   subtitle: Text(
-                    'Save up to $freeSavedPropertiesLimit properties on Free. Upgrade for unlimited saved listings.',
+                    'Save up to $freeSavedPropertiesLimit lots on Free. Upgrade for unlimited saved listings.',
                   ),
                   trailing: TextButton(
                     onPressed: onOpenSubscription,
@@ -1110,7 +1167,7 @@ class SavedTab extends StatelessWidget {
               child: savedProperties.isEmpty
                   ? const EmptyState(
                       icon: Icons.favorite_border_rounded,
-                      message: 'No saved properties yet.',
+                      message: 'No saved lots yet.',
                       subtitle:
                           'Tap the heart on any listing to keep it here for quick access.',
                     )
@@ -1121,7 +1178,13 @@ class SavedTab extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final property = savedProperties[index];
                         return Card(
+                          margin: EdgeInsets.zero,
                           child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            minVerticalPadding: 0,
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
                               child: SizedBox(
@@ -1142,13 +1205,21 @@ class SavedTab extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            title: Text(property.title),
+                            title: Text(
+                              property.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const SizedBox(height: 2),
-                                Text(property.location),
+                                Text(
+                                  property.location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 const SizedBox(height: 6),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1172,7 +1243,6 @@ class SavedTab extends StatelessWidget {
                               ],
                             ),
                             trailing: Text(property.price),
-                            isThreeLine: true,
                             onTap: () async {
                               await _precachePropertyImage(
                                 context,
@@ -2898,7 +2968,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   alignment: Alignment.centerRight,
                   child: _buildCompactSwitchTile(
                     title: 'Push Notifications',
-                    subtitle: 'Receive alerts for new properties',
+                    subtitle: 'Receive alerts for new lots',
                     value: _notificationsEnabled,
                     onChanged: (value) {
                       setState(() {
@@ -2954,7 +3024,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           scale: 0.76,
                           alignment: Alignment.centerRight,
                           child: _buildCompactSwitchTile(
-                            title: 'New Property Alerts',
+                            title: 'New Lot Alerts',
                             value: _notifyNewProperties,
                             dense: true,
                             onChanged: (value) {
@@ -3998,7 +4068,7 @@ class TopHeader extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Explore premium lots and investment-ready properties.',
+                'Explore premium lots and investment-ready land.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -4297,13 +4367,45 @@ class _RecommendedPropertiesCarousel extends StatefulWidget {
 
 class _RecommendedPropertiesCarouselState
     extends State<_RecommendedPropertiesCarousel> {
-  late final PageController _pageController;
+  late final CarouselController _carouselController;
   int _currentPage = 0;
+  static const List<int> _carouselWeights = <int>[1];
+  static const double _inactiveCardHeight = 233;
+  static const double _activeCardHeight = 265;
+  static const double _indicatorHeight = 19;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.48);
+    _carouselController = CarouselController();
+    _carouselController.addListener(_handleCarouselScroll);
+  }
+
+  void _handleCarouselScroll() {
+    if (!_carouselController.hasClients || widget.properties.isEmpty) return;
+
+    final ScrollPosition position = _carouselController.position;
+    if (!position.hasViewportDimension || position.viewportDimension == 0) {
+      return;
+    }
+
+    final double itemScrollExtent =
+        position.viewportDimension /
+        _carouselWeights.reduce((value, element) => value + element);
+    if (itemScrollExtent == 0) return;
+
+    final int nextPage = math.max(
+      0,
+      math.min(
+        widget.properties.length - 1,
+        (_carouselController.offset / itemScrollExtent).round(),
+      ),
+    );
+
+    if (nextPage == _currentPage) return;
+    setState(() {
+      _currentPage = nextPage;
+    });
   }
 
   @override
@@ -4318,15 +4420,16 @@ class _RecommendedPropertiesCarouselState
     if (_currentPage >= widget.properties.length) {
       _currentPage = widget.properties.length - 1;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_pageController.hasClients) return;
-        _pageController.jumpToPage(_currentPage);
+        if (!mounted || !_carouselController.hasClients) return;
+        unawaited(_carouselController.animateToItem(_currentPage));
       });
     }
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _carouselController.removeListener(_handleCarouselScroll);
+    _carouselController.dispose();
     super.dispose();
   }
 
@@ -4337,33 +4440,47 @@ class _RecommendedPropertiesCarouselState
     final ThemeData theme = Theme.of(context);
 
     return SizedBox(
-      height: 252,
+      height:
+          _activeCardHeight +
+          (widget.properties.length > 1 ? _indicatorHeight : 0),
       child: Column(
         children: [
           Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              padEnds: false,
-              itemCount: widget.properties.length,
-              onPageChanged: (page) {
-                setState(() {
-                  _currentPage = page;
-                });
-              },
-              itemBuilder: (context, index) {
+            child: CarouselView.weighted(
+              controller: _carouselController,
+              itemSnapping: true,
+              flexWeights: _carouselWeights,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              itemClipBehavior: Clip.none,
+              enableSplash: false,
+              children: List<Widget>.generate(widget.properties.length, (
+                index,
+              ) {
                 final Property property = widget.properties[index];
+                final bool isActive = index == _currentPage;
+
                 return Padding(
-                  padding: EdgeInsets.only(
-                    left: index == 0 ? 16 : 7,
-                    right: index == widget.properties.length - 1 ? 16 : 7,
-                  ),
-                  child: _RecommendedPropertyCard(
-                    property: property,
-                    isSaved: widget.savedProperties.contains(property),
-                    onToggleSave: () => widget.onToggleSave(property),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      height: isActive
+                          ? _activeCardHeight
+                          : _inactiveCardHeight,
+                      child: _RecommendedPropertyCard(
+                        property: property,
+                        isSaved: widget.savedProperties.contains(property),
+                        isActive: isActive,
+                        onToggleSave: () => widget.onToggleSave(property),
+                      ),
+                    ),
                   ),
                 );
-              },
+              }),
             ),
           ),
           if (widget.properties.length > 1) ...[
@@ -4396,11 +4513,13 @@ class _RecommendedPropertiesCarouselState
 class _RecommendedPropertyCard extends StatelessWidget {
   final Property property;
   final bool isSaved;
+  final bool isActive;
   final VoidCallback onToggleSave;
 
   const _RecommendedPropertyCard({
     required this.property,
     required this.isSaved,
+    required this.isActive,
     required this.onToggleSave,
   });
 
@@ -4436,7 +4555,7 @@ class _RecommendedPropertyCard extends StatelessWidget {
                 _buildPropertyImage(
                   context: context,
                   property: property,
-                  height: 140,
+                  height: isActive ? 172 : 140,
                   useThumbnail: true,
                   fallbackChild: const Center(
                     child: Icon(
@@ -4546,7 +4665,7 @@ class _PropertyTile extends StatelessWidget {
 
     Widget metaChip(IconData icon, String label) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(999),
@@ -4576,126 +4695,139 @@ class _PropertyTile extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 0,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       child: InkWell(
         onTap: () => unawaited(_openDetails(context)),
-        child: Padding(
-          padding: const EdgeInsets.all(1),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 108,
-                  height: 118,
-                  child: _buildPropertyImage(
-                    context: context,
-                    property: property,
-                    height: 118,
-                    useThumbnail: true,
-                    fallbackChild: const Center(
-                      child: Icon(
-                        Icons.landscape_rounded,
-                        color: Colors.white,
-                        size: 34,
+        child: SizedBox(
+          height: 118,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double thumbnailWidth = constraints.maxWidth / 3;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        width: thumbnailWidth,
+                        height: 118,
+                        child: _buildPropertyImage(
+                          context: context,
+                          property: property,
+                          height: 118,
+                          useThumbnail: true,
+                          fallbackChild: const Center(
+                            child: Icon(
+                              Icons.landscape_rounded,
+                              color: Colors.white,
+                              size: 34,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            property.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              height: 1.15,
-                            ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  property.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                tooltip: isSaved
+                                    ? 'Remove from saved'
+                                    : 'Save lot',
+                                onPressed: onToggleSave,
+                                style: IconButton.styleFrom(
+                                  backgroundColor:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                  foregroundColor: isSaved
+                                      ? Colors.red
+                                      : theme.iconTheme.color,
+                                  fixedSize: const Size(36, 36),
+                                  minimumSize: const Size(36, 36),
+                                  padding: EdgeInsets.zero,
+                                ),
+                                icon: Icon(
+                                  isSaved
+                                      ? Icons.favorite
+                                      : Icons.favorite_border_rounded,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: isSaved
-                              ? 'Remove from saved'
-                              : 'Save property',
-                          onPressed: onToggleSave,
-                          style: IconButton.styleFrom(
-                            backgroundColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            foregroundColor: isSaved
-                                ? Colors.red
-                                : theme.iconTheme.color,
-                            fixedSize: const Size(36, 36),
-                            minimumSize: const Size(36, 36),
-                            padding: EdgeInsets.zero,
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 15,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  property.location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          icon: Icon(
-                            isSaved
-                                ? Icons.favorite
-                                : Icons.favorite_border_rounded,
-                            size: 20,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  property.price,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              metaChip(
+                                Icons.square_foot_outlined,
+                                property.size,
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 15,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            property.location,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        metaChip(Icons.verified_outlined, property.titleStatus),
-                        metaChip(Icons.square_foot_outlined, property.size),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      property.price,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w800,
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -4773,7 +4905,7 @@ class PropertyCard extends StatelessWidget {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          'Property Preview',
+                          'Lot Preview',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -5009,7 +5141,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Property Details'),
+        title: const Text('Lot Details'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -5212,7 +5344,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
                   const SizedBox(height: 12),
                   Text(
                     widget.property.description.trim().isEmpty
-                        ? 'No description available for this property yet.'
+                        ? 'No description available for this lot yet.'
                         : widget.property.description,
                     style: TextStyle(
                       fontSize: 16,
@@ -5636,7 +5768,7 @@ class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
     this.icon = Icons.search_off,
-    this.message = 'No properties matched your filters.',
+    this.message = 'No lots matched your filters.',
     this.subtitle,
   });
 

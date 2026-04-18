@@ -103,9 +103,9 @@ const List<SubscriptionPlan> subscriptionPlans = [
     priceLabel: '₱0',
     billingLabel: 'Current starter access',
     features: [
-      'Browse property listings',
+      'Browse lot listings',
       'Message agents',
-      'Save up to 3 properties',
+      'Save up to 3 lots',
     ],
   ),
   SubscriptionPlan(
@@ -114,7 +114,7 @@ const List<SubscriptionPlan> subscriptionPlans = [
     priceLabel: '₱199',
     billingLabel: 'Per month placeholder',
     features: [
-      'Unlimited saved properties',
+      'Unlimited saved lots',
       'Premium-only feature gates',
       'Ready for store billing hookup',
     ],

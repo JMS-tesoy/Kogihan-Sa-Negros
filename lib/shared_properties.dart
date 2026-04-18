@@ -270,7 +270,7 @@ const List<Property> _fallbackProperties = [
     tag: 'Budget',
     titleStatus: 'Clean Title',
     description:
-        'Entry-level lot for first-time buyers seeking an accessible parcel for a modest home build or initial property investment.',
+        'Entry-level lot for first-time buyers seeking an accessible parcel for a modest home build or initial lot investment.',
     imageColor: Color(0xFFFFB74D),
     imageUrl:
         'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
