@@ -1044,7 +1044,7 @@ class HomeTab extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final Property property = properties[index];
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 2),
                     child: _PropertyTile(
                       property: property,
                       isSaved: savedProperties.contains(property),
@@ -4106,6 +4106,7 @@ class SearchSection extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
               prefixIcon: Icon(Icons.search, color: mutedColor),
+              suffixIcon: Icon(Icons.tune_rounded, color: mutedColor),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 18,
                 vertical: 18,
@@ -4336,7 +4337,7 @@ class _RecommendedPropertiesCarouselState
     final ThemeData theme = Theme.of(context);
 
     return SizedBox(
-      height: 250,
+      height: 252,
       child: Column(
         children: [
           Expanded(
@@ -4435,7 +4436,7 @@ class _RecommendedPropertyCard extends StatelessWidget {
                 _buildPropertyImage(
                   context: context,
                   property: property,
-                  height: 92,
+                  height: 140,
                   useThumbnail: true,
                   fallbackChild: const Center(
                     child: Icon(
@@ -4471,7 +4472,7 @@ class _RecommendedPropertyCard extends StatelessWidget {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              padding: const EdgeInsets.all(2),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -4543,70 +4544,160 @@ class _PropertyTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 64,
-            height: 64,
-            child: _buildPropertyImage(
-              context: context,
-              property: property,
-              height: 64,
-              useThumbnail: true,
-              fallbackChild: const Center(
-                child: Icon(
-                  Icons.landscape_rounded,
-                  color: Colors.white,
-                  size: 26,
-                ),
-              ),
-            ),
-          ),
+    Widget metaChip(IconData icon, String label) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(999),
         ),
-        title: Text(
-          property.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 2),
-            Text(
-              property.location,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${property.price} - ${property.size}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
+            Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 112),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
         ),
-        trailing: IconButton(
-          tooltip: isSaved ? 'Remove from saved' : 'Save property',
-          visualDensity: VisualDensity.compact,
-          onPressed: onToggleSave,
-          icon: Icon(
-            isSaved ? Icons.favorite : Icons.favorite_border_rounded,
-            color: isSaved ? Colors.red : theme.iconTheme.color,
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: InkWell(
+        onTap: () => unawaited(_openDetails(context)),
+        child: Padding(
+          padding: const EdgeInsets.all(1),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 108,
+                  height: 118,
+                  child: _buildPropertyImage(
+                    context: context,
+                    property: property,
+                    height: 118,
+                    useThumbnail: true,
+                    fallbackChild: const Center(
+                      child: Icon(
+                        Icons.landscape_rounded,
+                        color: Colors.white,
+                        size: 34,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            property.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: isSaved
+                              ? 'Remove from saved'
+                              : 'Save property',
+                          onPressed: onToggleSave,
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                            foregroundColor: isSaved
+                                ? Colors.red
+                                : theme.iconTheme.color,
+                            fixedSize: const Size(36, 36),
+                            minimumSize: const Size(36, 36),
+                            padding: EdgeInsets.zero,
+                          ),
+                          icon: Icon(
+                            isSaved
+                                ? Icons.favorite
+                                : Icons.favorite_border_rounded,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 15,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            property.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        metaChip(Icons.verified_outlined, property.titleStatus),
+                        metaChip(Icons.square_foot_outlined, property.size),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      property.price,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        isThreeLine: true,
-        onTap: () => unawaited(_openDetails(context)),
       ),
     );
   }
