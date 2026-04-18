@@ -4,3 +4,12 @@
     ],
     "cmake.sourceDirectory": "D:/Documents/Website Project/flutter_application_1/windows/flutter"
 }
+
+{
+  "servers": {
+    "mapbox-mcp": {
+      "type": "http",
+      "url": "https://mcp.mapbox.com/mcp"
+    }
+  }
+}

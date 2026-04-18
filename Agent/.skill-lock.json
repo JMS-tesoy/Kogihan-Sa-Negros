@@ -1,0 +1,184 @@
+{
+  "version": 3,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "3013fdeb8a11b10b1eb795ec3ae8bfca38f7c26d",
+      "installedAt": "2026-03-28T10:31:26.366Z",
+      "updatedAt": "2026-03-28T10:31:26.366Z"
+    },
+    "mapbox-android-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-android-patterns/SKILL.md",
+      "skillFolderHash": "7f5308ccdc7c69d80ab93f65eb46d41cb0264d00",
+      "installedAt": "2026-04-11T12:31:58.288Z",
+      "updatedAt": "2026-04-11T12:31:58.288Z"
+    },
+    "mapbox-data-visualization-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-data-visualization-patterns/SKILL.md",
+      "skillFolderHash": "fee7a17da68cade0cc4a2066602403b45c87964d",
+      "installedAt": "2026-04-11T12:31:59.184Z",
+      "updatedAt": "2026-04-11T12:31:59.184Z"
+    },
+    "mapbox-geospatial-operations": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-geospatial-operations/SKILL.md",
+      "skillFolderHash": "3521a38df5ff6825c2dfc2ec3b151941e304a059",
+      "installedAt": "2026-04-11T12:32:00.091Z",
+      "updatedAt": "2026-04-11T12:32:00.091Z"
+    },
+    "mapbox-cartography": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-cartography/SKILL.md",
+      "skillFolderHash": "99b72507cd2bbda867257f368b41671b4a5dd083",
+      "installedAt": "2026-04-11T12:32:01.020Z",
+      "updatedAt": "2026-04-11T12:32:01.020Z"
+    },
+    "mapbox-google-maps-migration": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-google-maps-migration/SKILL.md",
+      "skillFolderHash": "6321267c6faf70663cb69facc21f3ee884c53066",
+      "installedAt": "2026-04-11T12:32:02.407Z",
+      "updatedAt": "2026-04-11T12:32:02.407Z"
+    },
+    "mapbox-ios-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-ios-patterns/SKILL.md",
+      "skillFolderHash": "f2a9f078349e7d554d6c8eef6a8cfdc84e10352e",
+      "installedAt": "2026-04-11T12:32:03.113Z",
+      "updatedAt": "2026-04-11T12:32:03.113Z"
+    },
+    "mapbox-maplibre-migration": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-maplibre-migration/SKILL.md",
+      "skillFolderHash": "0d79f2038d75777eaa059596579cfb7d0cf6f1b2",
+      "installedAt": "2026-04-11T12:32:04.044Z",
+      "updatedAt": "2026-04-11T12:32:04.044Z"
+    },
+    "mapbox-mcp-devkit-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-mcp-devkit-patterns/SKILL.md",
+      "skillFolderHash": "7d1c0759993d2c8af1b9af19dd6463db70fa966f",
+      "installedAt": "2026-04-11T12:32:05.012Z",
+      "updatedAt": "2026-04-11T12:32:05.012Z"
+    },
+    "mapbox-mcp-runtime-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-mcp-runtime-patterns/SKILL.md",
+      "skillFolderHash": "830984d5241ebc643dbb0fb216468ddc61119442",
+      "installedAt": "2026-04-11T12:32:05.968Z",
+      "updatedAt": "2026-04-11T12:32:05.968Z"
+    },
+    "mapbox-search-integration": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-search-integration/SKILL.md",
+      "skillFolderHash": "67a6312feac80d1173a9ed0a8daa83c7e2baedf3",
+      "installedAt": "2026-04-11T12:32:06.800Z",
+      "updatedAt": "2026-04-11T12:32:06.800Z"
+    },
+    "mapbox-search-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-search-patterns/SKILL.md",
+      "skillFolderHash": "a15d668705353dd44c7c74f5776ab6878c731834",
+      "installedAt": "2026-04-11T12:32:07.643Z",
+      "updatedAt": "2026-04-11T12:32:07.643Z"
+    },
+    "mapbox-store-locator-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-store-locator-patterns/SKILL.md",
+      "skillFolderHash": "b2712e409431a1690d9931a126090f6eeadfd204",
+      "installedAt": "2026-04-11T12:32:09.006Z",
+      "updatedAt": "2026-04-11T12:32:09.006Z"
+    },
+    "mapbox-style-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-style-patterns/SKILL.md",
+      "skillFolderHash": "0262db28ba7d0f00da79c85e249eb14f72da0567",
+      "installedAt": "2026-04-11T12:32:10.303Z",
+      "updatedAt": "2026-04-11T12:32:10.303Z"
+    },
+    "mapbox-style-quality": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-style-quality/SKILL.md",
+      "skillFolderHash": "c792de6dbc2ef5dfbb29791504c2bfb12969ac1c",
+      "installedAt": "2026-04-11T12:32:11.246Z",
+      "updatedAt": "2026-04-11T12:32:11.246Z"
+    },
+    "mapbox-token-security": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-token-security/SKILL.md",
+      "skillFolderHash": "d9b0120b3de191e996aeb1bb49d3709ba94dc82b",
+      "installedAt": "2026-04-11T12:32:12.639Z",
+      "updatedAt": "2026-04-11T12:32:12.639Z"
+    },
+    "mapbox-web-integration-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-web-integration-patterns/SKILL.md",
+      "skillFolderHash": "35fd22114b03247c1ef4c1678919a5b2efe2d75a",
+      "installedAt": "2026-04-11T12:32:13.493Z",
+      "updatedAt": "2026-04-11T12:32:13.493Z"
+    },
+    "mapbox-web-performance-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mapbox/mapbox-agent-skills.git",
+      "skillPath": "skills/mapbox-web-performance-patterns/SKILL.md",
+      "skillFolderHash": "7367fd4c1e68466cacd7616df7ee3c306c238b45",
+      "installedAt": "2026-04-11T12:32:14.199Z",
+      "updatedAt": "2026-04-11T12:32:14.199Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "antigravity",
+    "cline",
+    "codex",
+    "cursor",
+    "deepagents",
+    "firebender",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-cli",
+    "opencode",
+    "warp"
+  ]
+}

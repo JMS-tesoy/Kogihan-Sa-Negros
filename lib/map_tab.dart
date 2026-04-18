@@ -68,7 +68,6 @@ class _MapTabState extends State<MapTab> {
   Cancelable? _annotationTapCancelable;
 
   int _annotationSyncVersion = 0;
-  bool _hasCompletedInitialSync = false;
   bool _hasFittedCamera = false;
   String? _selectedPropertyId;
   String _currentStyleUri = MapboxStyles.STANDARD;
@@ -97,7 +96,6 @@ class _MapTabState extends State<MapTab> {
     _annotationTapCancelable = null;
     _mapboxMap = null;
     _circleAnnotationManager = null;
-    _hasCompletedInitialSync = false;
     _hasFittedCamera = false;
     _currentStyleUri = nextStyleUri;
   }
@@ -429,9 +427,6 @@ class _MapTabState extends State<MapTab> {
         if (!mounted || syncVersion != _annotationSyncVersion) return;
         _hasFittedCamera = true;
       }
-      setState(() {
-        _hasCompletedInitialSync = true;
-      });
       return;
     }
 
@@ -477,10 +472,6 @@ class _MapTabState extends State<MapTab> {
       _warmMapPropertyImages(properties.sublist(start, end));
     }
 
-    if (!mounted || syncVersion != _annotationSyncVersion) return;
-    setState(() {
-      _hasCompletedInitialSync = true;
-    });
   }
 
   @override

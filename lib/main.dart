@@ -35,40 +35,6 @@ String _messageInitial(String value) {
   return trimmed[0].toUpperCase();
 }
 
-String _formatMessageTime(DateTime? value) {
-  if (value == null) return '';
-
-  final DateTime localValue = value.toLocal();
-  final DateTime now = DateTime.now();
-  final Duration difference = now.difference(localValue);
-
-  if (difference.inDays == 0) {
-    final int hour = localValue.hour % 12 == 0 ? 12 : localValue.hour % 12;
-    final String minute = localValue.minute.toString().padLeft(2, '0');
-    final String suffix = localValue.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $suffix';
-  }
-
-  if (difference.inDays == 1) return 'Yesterday';
-
-  const List<String> months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  return '${months[localValue.month - 1]} ${localValue.day}';
-}
-
 String _formatInboxTimestamp(DateTime? value) {
   if (value == null) return '';
 
@@ -1001,6 +967,10 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final List<Property> recommendedProperties = properties
+        .take(5)
+        .toList(growable: false);
+
     return SafeArea(
       child: CustomScrollView(
         cacheExtent: 400,
@@ -1046,14 +1016,36 @@ class HomeTab extends StatelessWidget {
             )
           else
             SliverPadding(
+              padding: const EdgeInsets.only(bottom: 20),
+              sliver: SliverToBoxAdapter(
+                child: _RecommendedPropertiesCarousel(
+                  properties: recommendedProperties,
+                  savedProperties: savedProperties,
+                  onToggleSave: onToggleSave,
+                ),
+              ),
+            ),
+          if (properties.isNotEmpty) ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              sliver: SliverToBoxAdapter(
+                child: Text(
+                  'Properties',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
               sliver: SliverList.builder(
                 itemCount: properties.length,
                 itemBuilder: (context, index) {
                   final Property property = properties[index];
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: PropertyCard(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _PropertyTile(
                       property: property,
                       isSaved: savedProperties.contains(property),
                       onToggleSave: () => onToggleSave(property),
@@ -1062,6 +1054,7 @@ class HomeTab extends StatelessWidget {
                 },
               ),
             ),
+          ],
         ],
       ),
     );
@@ -1270,68 +1263,6 @@ class _MessagesTabState extends State<MessagesTab> {
   String? _hoveredConversationButtonId;
   String? _pressedConversationButtonId;
   Timer? _inboxClockRefreshTimer;
-
-  static const List<_InboxCardPalette> _lightInboxPalettes = [
-    _InboxCardPalette(
-      background: Color(0xFFF2F8F2),
-      border: Color(0xFFB8D7BB),
-      accent: Color(0xFF2E7D32),
-      avatarBackground: Color(0xFFD9ECD8),
-      avatarForeground: Color(0xFF1F5A24),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFFF3F7FD),
-      border: Color(0xFFBDD0EA),
-      accent: Color(0xFF2B6CB0),
-      avatarBackground: Color(0xFFDCE7F8),
-      avatarForeground: Color(0xFF1F4E85),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFFFBF6EF),
-      border: Color(0xFFE5CFAE),
-      accent: Color(0xFF9A6700),
-      avatarBackground: Color(0xFFF2E4CA),
-      avatarForeground: Color(0xFF704C00),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFFF8F3FA),
-      border: Color(0xFFD7C3E3),
-      accent: Color(0xFF7A4FA3),
-      avatarBackground: Color(0xFFE9DAF1),
-      avatarForeground: Color(0xFF5E3684),
-    ),
-  ];
-
-  static const List<_InboxCardPalette> _darkInboxPalettes = [
-    _InboxCardPalette(
-      background: Color(0xFF1B2B1E),
-      border: Color(0xFF355D3B),
-      accent: Color(0xFF8FD694),
-      avatarBackground: Color(0xFF29452E),
-      avatarForeground: Color(0xFFD7F3D9),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFF182633),
-      border: Color(0xFF31506B),
-      accent: Color(0xFF8EC5FF),
-      avatarBackground: Color(0xFF243A4E),
-      avatarForeground: Color(0xFFD9ECFF),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFF2B2418),
-      border: Color(0xFF5E4D2E),
-      accent: Color(0xFFF0C674),
-      avatarBackground: Color(0xFF433722),
-      avatarForeground: Color(0xFFFFEDBF),
-    ),
-    _InboxCardPalette(
-      background: Color(0xFF261D2D),
-      border: Color(0xFF544064),
-      accent: Color(0xFFD8B4F8),
-      avatarBackground: Color(0xFF3B2C47),
-      avatarForeground: Color(0xFFF2DFFF),
-    ),
-  ];
 
   @override
   void initState() {
@@ -4347,22 +4278,367 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
+class _RecommendedPropertiesCarousel extends StatefulWidget {
+  final List<Property> properties;
+  final Set<Property> savedProperties;
+  final ValueChanged<Property> onToggleSave;
+
+  const _RecommendedPropertiesCarousel({
+    required this.properties,
+    required this.savedProperties,
+    required this.onToggleSave,
+  });
+
+  @override
+  State<_RecommendedPropertiesCarousel> createState() =>
+      _RecommendedPropertiesCarouselState();
+}
+
+class _RecommendedPropertiesCarouselState
+    extends State<_RecommendedPropertiesCarousel> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.48);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RecommendedPropertiesCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.properties.isEmpty) {
+      _currentPage = 0;
+      return;
+    }
+
+    if (_currentPage >= widget.properties.length) {
+      _currentPage = widget.properties.length - 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pageController.hasClients) return;
+        _pageController.jumpToPage(_currentPage);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.properties.isEmpty) return const SizedBox.shrink();
+
+    final ThemeData theme = Theme.of(context);
+
+    return SizedBox(
+      height: 250,
+      child: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              padEnds: false,
+              itemCount: widget.properties.length,
+              onPageChanged: (page) {
+                setState(() {
+                  _currentPage = page;
+                });
+              },
+              itemBuilder: (context, index) {
+                final Property property = widget.properties[index];
+                return Padding(
+                  padding: EdgeInsets.only(
+                    left: index == 0 ? 16 : 7,
+                    right: index == widget.properties.length - 1 ? 16 : 7,
+                  ),
+                  child: _RecommendedPropertyCard(
+                    property: property,
+                    isSaved: widget.savedProperties.contains(property),
+                    onToggleSave: () => widget.onToggleSave(property),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (widget.properties.length > 1) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(widget.properties.length, (index) {
+                final bool isActive = index == _currentPage;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: isActive ? 18 : 7,
+                  height: 7,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendedPropertyCard extends StatelessWidget {
+  final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
+
+  const _RecommendedPropertyCard({
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+
+  Future<void> _openDetails(BuildContext context) async {
+    await _precachePropertyImage(context, property, height: 300);
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      _instantRoute(
+        PropertyDetailsPage(
+          property: property,
+          isSaved: isSaved,
+          onToggleSave: onToggleSave,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => unawaited(_openDetails(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                _buildPropertyImage(
+                  context: context,
+                  property: property,
+                  height: 92,
+                  useThumbnail: true,
+                  fallbackChild: const Center(
+                    child: Icon(
+                      Icons.landscape_rounded,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: onToggleSave,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isSaved
+                            ? Icons.favorite
+                            : Icons.favorite_border_rounded,
+                        size: 18,
+                        color: isSaved ? Colors.red : theme.iconTheme.color,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    property.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    property.price,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    property.location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PropertyTile extends StatelessWidget {
+  final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
+
+  const _PropertyTile({
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+
+  Future<void> _openDetails(BuildContext context) async {
+    await _precachePropertyImage(context, property, height: 300);
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      _instantRoute(
+        PropertyDetailsPage(
+          property: property,
+          isSaved: isSaved,
+          onToggleSave: onToggleSave,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 64,
+            height: 64,
+            child: _buildPropertyImage(
+              context: context,
+              property: property,
+              height: 64,
+              useThumbnail: true,
+              fallbackChild: const Center(
+                child: Icon(
+                  Icons.landscape_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          property.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2),
+            Text(
+              property.location,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${property.price} - ${property.size}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        trailing: IconButton(
+          tooltip: isSaved ? 'Remove from saved' : 'Save property',
+          visualDensity: VisualDensity.compact,
+          onPressed: onToggleSave,
+          icon: Icon(
+            isSaved ? Icons.favorite : Icons.favorite_border_rounded,
+            color: isSaved ? Colors.red : theme.iconTheme.color,
+          ),
+        ),
+        isThreeLine: true,
+        onTap: () => unawaited(_openDetails(context)),
+      ),
+    );
+  }
+}
+
 class PropertyCard extends StatelessWidget {
   final Property property;
   final bool isSaved;
   final VoidCallback onToggleSave;
+  final bool compact;
 
   const PropertyCard({
     super.key,
     required this.property,
     required this.isSaved,
     required this.onToggleSave,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final double imageHeight = compact ? 155 : 210;
+    final EdgeInsets contentPadding = compact
+        ? const EdgeInsets.fromLTRB(14, 12, 14, 14)
+        : const EdgeInsets.fromLTRB(16, 16, 16, 18);
+    final TextStyle? titleStyle =
+        (compact ? theme.textTheme.titleMedium : theme.textTheme.titleLarge)
+            ?.copyWith(fontWeight: FontWeight.w700);
+    final double priceFontSize = compact ? 18 : 20;
+    final double buttonVerticalPadding = compact ? 13 : 16;
 
     return Container(
       decoration: BoxDecoration(
@@ -4393,7 +4669,7 @@ class PropertyCard extends StatelessWidget {
                 child: _buildPropertyImage(
                   context: context,
                   property: property,
-                  height: 210,
+                  height: imageHeight,
                   useThumbnail: true,
                   fallbackChild: const Center(
                     child: Column(
@@ -4419,12 +4695,12 @@ class PropertyCard extends StatelessWidget {
                 ),
               ),
               Positioned(
-                top: 14,
-                left: 14,
+                top: compact ? 12 : 14,
+                left: compact ? 12 : 14,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 10 : 12,
+                    vertical: compact ? 6 : 7,
                   ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
@@ -4440,13 +4716,13 @@ class PropertyCard extends StatelessWidget {
                 ),
               ),
               Positioned(
-                top: 14,
-                right: 14,
+                top: compact ? 12 : 14,
+                right: compact ? 12 : 14,
                 child: GestureDetector(
                   onTap: onToggleSave,
                   child: Container(
-                    width: 42,
-                    height: 42,
+                    width: compact ? 38 : 42,
+                    height: compact ? 38 : 42,
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
                       shape: BoxShape.circle,
@@ -4463,17 +4739,17 @@ class PropertyCard extends StatelessWidget {
             ],
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: contentPadding,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   property.title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  maxLines: compact ? 2 : null,
+                  overflow: compact ? TextOverflow.ellipsis : null,
+                  style: titleStyle,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: compact ? 6 : 8),
                 Row(
                   children: [
                     Icon(
@@ -4485,6 +4761,8 @@ class PropertyCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         property.location,
+                        maxLines: compact ? 1 : null,
+                        overflow: compact ? TextOverflow.ellipsis : null,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -4492,7 +4770,7 @@ class PropertyCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: compact ? 10 : 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -4527,22 +4805,22 @@ class PropertyCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: compact ? 12 : 14),
                 Row(
                   children: [
                     Text(
                       property.price,
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: priceFontSize,
                         fontWeight: FontWeight.w700,
                         color: theme.colorScheme.primary,
                       ),
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 10 : 12,
+                        vertical: compact ? 7 : 8,
                       ),
                       decoration: BoxDecoration(
                         color: isDark
@@ -4562,7 +4840,7 @@ class PropertyCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: compact ? 12 : 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -4583,7 +4861,9 @@ class PropertyCard extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.symmetric(
+                        vertical: buttonVerticalPadding,
+                      ),
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
