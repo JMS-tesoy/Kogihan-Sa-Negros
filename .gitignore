@@ -46,3 +46,4 @@ app.*.map.json
 cheatsheet prompt
 .env
 .env
+/test

@@ -3003,36 +3003,170 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final Color activeSwitchColor = isDarkMode
-        ? const Color(0xFF7DD3FC)
-        : Theme.of(context).colorScheme.primary;
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDarkMode = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
-      body: ListView(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Theme(
-            data: Theme.of(context).copyWith(
-              switchTheme: SwitchThemeData(
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                thumbColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return activeSwitchColor;
-                  }
-                  return null;
-                }),
-                trackColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return activeSwitchColor.withValues(alpha: 0.42);
-                  }
-                  return null;
-                }),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              title,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            child: Column(
+          ),
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.30),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDarkMode
+                      ? Colors.black.withValues(alpha: 0.14)
+                      : Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsDivider() {
+    return const Divider(height: 1, indent: 16, endIndent: 16);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+    final Color activeSwitchColor = isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : theme.colorScheme.primary;
+    final user = Supabase.instance.client.auth.currentUser;
+    final String accountLabel = user?.email ?? 'Logged in account';
+
+    return Scaffold(
+      backgroundColor: isDarkMode
+          ? theme.scaffoldBackgroundColor
+          : const Color(0xFFF7F8FA),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
+      body: Theme(
+        data: theme.copyWith(
+          switchTheme: SwitchThemeData(
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            thumbColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return activeSwitchColor;
+              }
+              return null;
+            }),
+            trackColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return activeSwitchColor.withValues(alpha: 0.42);
+              }
+              return null;
+            }),
+          ),
+        ),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(0, 16, 0, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AccountPage(),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: theme.dividerColor.withValues(alpha: 0.30),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDarkMode
+                            ? Colors.black.withValues(alpha: 0.14)
+                            : Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.12,
+                        ),
+                        foregroundColor: theme.colorScheme.primary,
+                        child: Text(
+                          _messageInitial(accountLabel),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Account Settings',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              accountLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _buildSectionCard(
+              title: 'Notifications',
               children: [
                 Transform.scale(
                   scale: 0.76,
@@ -3048,7 +3182,59 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
-                // Font Sizing Feature
+                if (_notificationsEnabled) ...[
+                  _settingsDivider(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      children: [
+                        Transform.scale(
+                          scale: 0.76,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'New Lot Alerts',
+                            value: _notifyNewProperties,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyNewProperties = value);
+                            },
+                          ),
+                        ),
+                        _settingsDivider(),
+                        Transform.scale(
+                          scale: 0.76,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'Price Drops on Saved',
+                            value: _notifyPriceDrops,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyPriceDrops = value);
+                            },
+                          ),
+                        ),
+                        _settingsDivider(),
+                        Transform.scale(
+                          scale: 0.76,
+                          alignment: Alignment.centerRight,
+                          child: _buildCompactSwitchTile(
+                            title: 'Agent Messages',
+                            value: _notifyMessages,
+                            dense: true,
+                            onChanged: (value) {
+                              setState(() => _notifyMessages = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            _buildSectionCard(
+              title: 'Appearance',
+              children: [
                 ListTile(
                   title: const Text('Font Size'),
                   subtitle: Text(
@@ -3086,50 +3272,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     textScaler: TextScaler.linear(_currentFontSizeScale),
                   ),
                 ),
-                if (_notificationsEnabled)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 32.0),
-                    child: Column(
-                      children: [
-                        Transform.scale(
-                          scale: 0.76,
-                          alignment: Alignment.centerRight,
-                          child: _buildCompactSwitchTile(
-                            title: 'New Lot Alerts',
-                            value: _notifyNewProperties,
-                            dense: true,
-                            onChanged: (value) {
-                              setState(() => _notifyNewProperties = value);
-                            },
-                          ),
-                        ),
-                        Transform.scale(
-                          scale: 0.76,
-                          alignment: Alignment.centerRight,
-                          child: _buildCompactSwitchTile(
-                            title: 'Price Drops on Saved',
-                            value: _notifyPriceDrops,
-                            dense: true,
-                            onChanged: (value) {
-                              setState(() => _notifyPriceDrops = value);
-                            },
-                          ),
-                        ),
-                        Transform.scale(
-                          scale: 0.76,
-                          alignment: Alignment.centerRight,
-                          child: _buildCompactSwitchTile(
-                            title: 'Agent Messages',
-                            value: _notifyMessages,
-                            dense: true,
-                            onChanged: (value) {
-                              setState(() => _notifyMessages = value);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                _settingsDivider(),
                 Transform.scale(
                   scale: 0.76,
                   alignment: Alignment.centerRight,
@@ -3149,53 +3292,69 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text('Reset Password'),
-            subtitle: const Text('Change password for this account'),
-            leading: const Icon(Icons.lock_reset),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ChangePasswordPage(),
+            _buildSectionCard(
+              title: 'Security',
+              children: [
+                ListTile(
+                  title: const Text('Password'),
+                  subtitle: const Text('Update your account password'),
+                  leading: const Icon(Icons.lock_reset),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChangePasswordPage(),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          ValueListenableBuilder<String?>(
-            valueListenable: appPinCodeNotifier,
-            builder: (context, pinCode, child) {
-              return ListTile(
-                title: const Text('PIN Code'),
-                subtitle: Text(
-                  pinCode == null ? 'Set a 4-digit PIN' : 'PIN is configured',
+                _settingsDivider(),
+                ValueListenableBuilder<String?>(
+                  valueListenable: appPinCodeNotifier,
+                  builder: (context, pinCode, child) {
+                    return ListTile(
+                      title: const Text('PIN Code'),
+                      subtitle: Text(
+                        pinCode == null
+                            ? 'Protect access with a 4-digit PIN'
+                            : 'PIN is configured',
+                      ),
+                      leading: const Icon(Icons.pin_outlined),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PinCodePage(),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-                leading: const Icon(Icons.pin_outlined),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => PinCodePage()),
-                  );
-                },
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text('Help & Support'),
-            leading: const Icon(Icons.help_outline),
-            onTap: () {},
-          ),
-          ListTile(
-            title: const Text('About'),
-            leading: const Icon(Icons.info_outline),
-            onTap: () {},
-          ),
-        ],
+              ],
+            ),
+            _buildSectionCard(
+              title: 'Support',
+              children: [
+                ListTile(
+                  title: const Text('Help & Support'),
+                  leading: const Icon(Icons.help_outline),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {},
+                ),
+                _settingsDivider(),
+                ListTile(
+                  title: const Text('About'),
+                  leading: const Icon(Icons.info_outline),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
