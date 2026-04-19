@@ -280,22 +280,72 @@ const List<Property> _fallbackProperties = [
 final ValueNotifier<List<Property>> appPropertiesNotifier =
     ValueNotifier<List<Property>>(List<Property>.from(_fallbackProperties));
 
-Future<void> loadProperties() async {
+const int propertyPageSize = 20;
+int _loadedPropertyCount = 0;
+bool _hasMoreProperties = true;
+Future<void>? _propertiesLoadFuture;
+
+bool get hasMoreProperties => _hasMoreProperties;
+
+Future<void> loadProperties({bool reset = true}) {
+  if (_propertiesLoadFuture != null) return _propertiesLoadFuture!;
+  if (!reset && !_hasMoreProperties) return Future<void>.value();
+
+  _propertiesLoadFuture = _loadPropertiesPage(reset: reset).whenComplete(() {
+    _propertiesLoadFuture = null;
+  });
+  return _propertiesLoadFuture!;
+}
+
+Future<void> loadMoreProperties() => loadProperties(reset: false);
+
+Future<void> _loadPropertiesPage({required bool reset}) async {
+  if (reset) {
+    _loadedPropertyCount = 0;
+    _hasMoreProperties = true;
+  }
+
   try {
+    final int from = _loadedPropertyCount;
+    final int to = from + propertyPageSize - 1;
     final List<dynamic> response = await Supabase.instance.client
         .from('properties')
         .select()
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .range(from, to);
 
     final List<Property> loadedProperties = response
         .map((item) => Property.fromMap(Map<String, dynamic>.from(item as Map)))
         .toList();
 
-    appPropertiesNotifier.value = loadedProperties.isEmpty
-        ? List<Property>.from(_fallbackProperties)
-        : loadedProperties;
+    _loadedPropertyCount += loadedProperties.length;
+    _hasMoreProperties = loadedProperties.length == propertyPageSize;
+
+    if (reset) {
+      appPropertiesNotifier.value = loadedProperties.isEmpty
+          ? List<Property>.from(_fallbackProperties)
+          : loadedProperties;
+      return;
+    }
+
+    if (loadedProperties.isEmpty) return;
+
+    final List<Property> currentProperties = List<Property>.from(
+      appPropertiesNotifier.value,
+    );
+    final Set<String> existingIds = currentProperties
+        .map((property) => property.id)
+        .toSet();
+    currentProperties.addAll(
+      loadedProperties.where((property) => existingIds.add(property.id)),
+    );
+    appPropertiesNotifier.value = currentProperties;
   } catch (_) {
-    appPropertiesNotifier.value = List<Property>.from(_fallbackProperties);
+    if (reset) {
+      _loadedPropertyCount = 0;
+      appPropertiesNotifier.value = List<Property>.from(_fallbackProperties);
+    }
+    _hasMoreProperties = false;
   }
 }
 

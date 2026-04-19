@@ -30,7 +30,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data
-                    android:scheme="com.example.flutter_application_1"
+                    android:scheme="com.example.flutterapplication1"
                     android:host="login-callback" />
             </intent-filter>
         </activity>

@@ -28,6 +28,8 @@ final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
 const int _initialPropertyImagePrefetchCount = 4;
+const String _authRedirectUrl =
+    'com.example.flutterapplication1://login-callback/';
 
 String _messageInitial(String value) {
   final String trimmed = value.trim();
@@ -968,105 +970,174 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Property> recommendedProperties = properties
-        .take(5)
+        .take(6)
         .toList(growable: false);
+    final List<Widget> activeFilterChips = <Widget>[
+      if (selectedLocation != null)
+        _ActiveFilterChip(
+          label: selectedLocation!,
+          onDeleted: () => onLocationChanged(null),
+        ),
+      if (selectedLotSize != null)
+        _ActiveFilterChip(
+          label: selectedLotSize!,
+          onDeleted: () => onLotSizeChanged(null),
+        ),
+      if (selectedBudget != null)
+        _ActiveFilterChip(
+          label: selectedBudget!,
+          onDeleted: () => onBudgetChanged(null),
+        ),
+    ];
+    final bool hasSearchQuery = searchController.text.trim().isNotEmpty;
+    final bool hasActiveFilters =
+        hasSearchQuery || activeFilterChips.isNotEmpty;
+    final String lotsHeaderTitle =
+        hasActiveFilters ? 'Filtered Lots' : 'Available Lots';
 
     return SafeArea(
       child: CustomScrollView(
         cacheExtent: 400,
         slivers: [
-          SliverAppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            elevation: 0,
-            floating: true,
-            snap: true,
-            surfaceTintColor: Colors.transparent,
-            toolbarHeight: 84,
-            flexibleSpace: const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: TopHeader(),
-            ),
-          ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _StickySearchHeaderDelegate(
-              height: 166,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: SearchSection(
-                  searchController: searchController,
-                  onSearchChanged: onSearchChanged,
-                  selectedLocation: selectedLocation,
-                  locationItems: locationItems,
-                  selectedLotSize: selectedLotSize,
-                  selectedBudget: selectedBudget,
-                  onLocationChanged: onLocationChanged,
-                  onLotSizeChanged: onLotSizeChanged,
-                  onBudgetChanged: onBudgetChanged,
-                  onResetFilters: onResetFilters,
-                ),
+            SliverAppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              elevation: 0,
+              floating: true,
+              snap: true,
+              surfaceTintColor: Colors.transparent,
+              toolbarHeight: 84,
+              flexibleSpace: const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: TopHeader(),
               ),
             ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverToBoxAdapter(
-              child: SectionHeader(
-                title: 'Recommended Properties',
-                actionText: 'Reset',
-                onPressed: onResetFilters,
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-          if (properties.isEmpty)
-            const SliverPadding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverToBoxAdapter(child: EmptyState()),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.only(bottom: 20),
-              sliver: SliverToBoxAdapter(
-                child: _RecommendedPropertiesCarousel(
-                  properties: recommendedProperties,
-                  savedProperties: savedProperties,
-                  onToggleSave: onToggleSave,
-                ),
-              ),
-            ),
-          if (properties.isNotEmpty) ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  'Lots',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickySearchHeaderDelegate(
+                height: 76,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: SearchSection(
+                    searchController: searchController,
+                    onSearchChanged: onSearchChanged,
+                    selectedLocation: selectedLocation,
+                    locationItems: locationItems,
+                    selectedLotSize: selectedLotSize,
+                    selectedBudget: selectedBudget,
+                    onLocationChanged: onLocationChanged,
+                    onLotSizeChanged: onLotSizeChanged,
+                    onBudgetChanged: onBudgetChanged,
+                    onResetFilters: onResetFilters,
                   ),
                 ),
               ),
             ),
+            if (activeFilterChips.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                sliver: SliverToBoxAdapter(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...activeFilterChips,
+                      ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        label: const Text('Clear'),
+                        onPressed: onResetFilters,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              sliver: SliverList.builder(
-                itemCount: properties.length,
-                itemBuilder: (context, index) {
-                  final Property property = properties[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: _PropertyTile(
-                      property: property,
-                      isSaved: savedProperties.contains(property),
-                      onToggleSave: () => onToggleSave(property),
-                    ),
-                  );
-                },
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: SectionHeader(
+                  title: 'Recommended Properties',
+                  actionText: 'Reset',
+                  onPressed: onResetFilters,
+                ),
               ),
             ),
-          ],
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            if (properties.isEmpty)
+              const SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverToBoxAdapter(child: EmptyState()),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.only(bottom: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _RecommendedPropertiesCarousel(
+                    properties: recommendedProperties,
+                    savedProperties: savedProperties,
+                    onToggleSave: onToggleSave,
+                  ),
+                ),
+              ),
+            if (properties.isNotEmpty) ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    '$lotsHeaderTitle (${properties.length})',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                sliver: SliverList.builder(
+                  itemCount: properties.length,
+                  itemBuilder: (context, index) {
+                    final Property property = properties[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _PropertyTile(
+                        property: property,
+                        isSaved: savedProperties.contains(property),
+                        onToggleSave: () => onToggleSave(property),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
         ],
+      ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onDeleted;
+
+  const _ActiveFilterChip({
+    required this.label,
+    required this.onDeleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 180),
+      child: InputChip(
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        deleteIcon: const Icon(Icons.close_rounded, size: 16),
+        onDeleted: onDeleted,
       ),
     );
   }
@@ -3161,6 +3232,7 @@ class _LoginPageState extends State<LoginPage> {
   String? _errorText;
   StreamSubscription<AuthState>? _authSubscription;
   bool _isRouting = false;
+  bool _isOpeningPasswordRecovery = false;
 
   bool get _hasDevAgentCredentials =>
       _devAgentEmail.isNotEmpty && _devAgentPassword.isNotEmpty;
@@ -3174,6 +3246,11 @@ class _LoginPageState extends State<LoginPage> {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        unawaited(_openPasswordRecoveryPage());
+        return;
+      }
+
       if (data.event == AuthChangeEvent.signedIn) {
         unawaited(_routeToAuthenticatedUser(data.session?.user));
       }
@@ -3189,7 +3266,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _routeToAuthenticatedUser(User? user) async {
-    if (user == null || !mounted || _isRouting) return;
+    if (user == null || !mounted || _isRouting || _isOpeningPasswordRecovery) {
+      return;
+    }
 
     _isRouting = true;
     try {
@@ -3198,6 +3277,23 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         _isRouting = false;
       }
+    }
+  }
+
+  Future<void> _openPasswordRecoveryPage() async {
+    if (!mounted || _isOpeningPasswordRecovery) return;
+
+    _isOpeningPasswordRecovery = true;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const ChangePasswordPage(isPasswordRecovery: true),
+      ),
+    );
+
+    if (mounted) {
+      _isOpeningPasswordRecovery = false;
     }
   }
 
@@ -3377,9 +3473,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: kIsWeb
-            ? null
-            : 'com.example.flutter_application_1://login-callback/',
+        redirectTo: kIsWeb ? null : _authRedirectUrl,
       );
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -3766,7 +3860,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: _authRedirectUrl,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -3795,16 +3892,20 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(title: const Text('Reset Password')),
-      body: Center(
+      body: SafeArea(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(
                   controller: _emailController,
@@ -3851,7 +3952,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 }
 
 class ChangePasswordPage extends StatefulWidget {
-  const ChangePasswordPage({super.key});
+  final bool isPasswordRecovery;
+
+  const ChangePasswordPage({
+    super.key,
+    this.isPasswordRecovery = false,
+  });
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -3912,6 +4018,18 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password updated successfully.')),
       );
+
+      if (widget.isPasswordRecovery) {
+        await Supabase.instance.client.auth.signOut();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (route) => false,
+        );
+        return;
+      }
+
       Navigator.pop(context);
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -3937,7 +4055,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final user = Supabase.instance.client.auth.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reset Password')),
+      appBar: AppBar(
+        title: Text(
+          widget.isPasswordRecovery ? 'Create New Password' : 'Reset Password',
+        ),
+      ),
       body: Center(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
@@ -3956,7 +4078,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Change the password for your current account.',
+                  widget.isPasswordRecovery
+                      ? 'Create a new password for your account.'
+                      : 'Change the password for your current account.',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -4046,6 +4170,123 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 }
 
+class _KsnHeaderLogo extends StatelessWidget {
+  const _KsnHeaderLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLightTheme = theme.brightness == Brightness.light;
+    const double logoSize = 48;
+
+    return Container(
+      width: logoSize,
+      height: logoSize,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: isLightTheme
+                ? theme.colorScheme.shadow.withValues(alpha: 0.10)
+                : Colors.black.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Image.asset(
+        'asset/ksn_logo.png',
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return CustomPaint(painter: _KsnLogoPainter());
+        },
+      ),
+    );
+  }
+}
+
+class _KsnLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect rect = Offset.zero & size;
+    final Paint backgroundPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF243F92), Color(0xFF070E2F)],
+      ).createShader(rect);
+    canvas.drawRect(rect, backgroundPaint);
+
+    final double width = size.width;
+    final double height = size.height;
+    final Color gold = const Color(0xFFC9BE57);
+    final Paint goldStroke = Paint()
+      ..color = gold
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width * 0.035
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final Paint darkFill = Paint()..color = const Color(0xFF10235F);
+
+    final Path tower = Path()
+      ..moveTo(width * 0.60, height * 0.22)
+      ..lineTo(width * 0.75, height * 0.14)
+      ..lineTo(width * 0.75, height * 0.48)
+      ..lineTo(width * 0.60, height * 0.42)
+      ..close();
+    canvas.drawPath(tower, darkFill);
+    canvas.drawPath(tower, goldStroke);
+
+    final Path roof = Path()
+      ..moveTo(width * 0.18, height * 0.53)
+      ..lineTo(width * 0.50, height * 0.32)
+      ..lineTo(width * 0.82, height * 0.53);
+    canvas.drawPath(roof, goldStroke);
+
+    final Path roofSweep = Path()
+      ..moveTo(width * 0.14, height * 0.61)
+      ..quadraticBezierTo(
+        width * 0.50,
+        height * 0.53,
+        width * 0.88,
+        height * 0.61,
+      );
+    canvas.drawPath(roofSweep, goldStroke);
+
+    final Paint windowPaint = Paint()..color = gold;
+    final double windowSize = width * 0.055;
+    for (final Offset offset in <Offset>[
+      Offset(width * 0.44, height * 0.48),
+      Offset(width * 0.51, height * 0.48),
+      Offset(width * 0.44, height * 0.56),
+      Offset(width * 0.51, height * 0.56),
+    ]) {
+      canvas.drawRect(offset & Size(windowSize, windowSize), windowPaint);
+    }
+
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(
+        text: 'KSN',
+        style: TextStyle(
+          color: gold,
+          fontSize: width * 0.25,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: width);
+    textPainter.paint(
+      canvas,
+      Offset((width - textPainter.width) / 2, height * 0.66),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _KsnLogoPainter oldDelegate) => false;
+}
+
 class TopHeader extends StatelessWidget {
   const TopHeader({super.key});
 
@@ -4056,12 +4297,16 @@ class TopHeader extends StatelessWidget {
 
     return Row(
       children: [
+        const _KsnHeaderLogo(),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Kogihan Sa Negros',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -4069,6 +4314,8 @@ class TopHeader extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 'Explore premium lots and investment-ready land.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -4076,6 +4323,7 @@ class TopHeader extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 12),
         Container(
           width: 48,
           height: 48,
@@ -4130,10 +4378,87 @@ class SearchSection extends StatelessWidget {
     required this.onResetFilters,
   });
 
+  void _showFilterSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Filters',
+                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilterDropdown(
+                  label: 'Location',
+                  value: selectedLocation,
+                  items: locationItems,
+                  onChanged: onLocationChanged,
+                ),
+                const SizedBox(height: 12),
+                FilterDropdown(
+                  label: 'Lot Size',
+                  value: selectedLotSize,
+                  items: const [
+                    'Below 500 sqm',
+                    '500 - 1000 sqm',
+                    'Above 1000 sqm',
+                  ],
+                  onChanged: onLotSizeChanged,
+                ),
+                const SizedBox(height: 12),
+                FilterDropdown(
+                  label: 'Budget',
+                  value: selectedBudget,
+                  items: const ['Below ₱1M', '₱1M - ₱3M', 'Above ₱3M'],
+                  onChanged: onBudgetChanged,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          onResetFilters();
+                          Navigator.pop(sheetContext);
+                        },
+                        child: const Text('Reset'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: const Text('Apply'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isLightTheme = theme.brightness == Brightness.light;
+    final int activeFilterCount = [
+      selectedLocation,
+      selectedLotSize,
+      selectedBudget,
+    ].where((value) => value != null).length;
     final Color searchSurface = isLightTheme
         ? Color.alphaBlend(
             theme.colorScheme.primary.withValues(alpha: 0.035),
@@ -4150,88 +4475,57 @@ class SearchSection extends StatelessWidget {
         ? theme.colorScheme.onSurfaceVariant
         : Colors.grey.shade700;
 
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: searchSurface,
+    return Container(
+      decoration: BoxDecoration(
+        color: searchSurface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: searchShadow,
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: searchController,
+        onChanged: onSearchChanged,
+        style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          hintText: 'Search by city, barangay, or price',
+          hintStyle: TextStyle(
+            color: mutedColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: Icon(Icons.search, color: mutedColor),
+          suffixIcon: IconButton(
+            tooltip: 'Filters',
+            onPressed: () => _showFilterSheet(context),
+            icon: Badge(
+              isLabelVisible: activeFilterCount > 0,
+              label: Text(activeFilterCount.toString()),
+              child: Icon(Icons.tune_rounded, color: mutedColor),
+            ),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+          border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: searchShadow,
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderSide: BorderSide.none,
           ),
-          child: TextField(
-            controller: searchController,
-            onChanged: onSearchChanged,
-            style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
-            decoration: InputDecoration(
-              hintText: 'Search by city, barangay, or price',
-              hintStyle: TextStyle(
-                color: mutedColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              prefixIcon: Icon(Icons.search, color: mutedColor),
-              suffixIcon: Icon(Icons.tune_rounded, color: mutedColor),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 18,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-            ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: FilterDropdown(
-                label: 'Location',
-                value: selectedLocation,
-                items: locationItems,
-                onChanged: onLocationChanged,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilterDropdown(
-                label: 'Lot Size',
-                value: selectedLotSize,
-                items: const [
-                  'Below 500 sqm',
-                  '500 - 1000 sqm',
-                  'Above 1000 sqm',
-                ],
-                onChanged: onLotSizeChanged,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilterDropdown(
-                label: 'Budget',
-                value: selectedBudget,
-                items: const ['Below ₱1M', '₱1M - ₱3M', 'Above ₱3M'],
-                onChanged: onBudgetChanged,
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }
@@ -4370,7 +4664,6 @@ class _RecommendedPropertiesCarouselState
   late final CarouselController _carouselController;
   int _currentPage = 0;
   static const List<int> _carouselWeights = <int>[1];
-  static const double _inactiveCardHeight = 233;
   static const double _activeCardHeight = 265;
   static const double _indicatorHeight = 19;
 
@@ -4465,12 +4758,8 @@ class _RecommendedPropertiesCarouselState
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Align(
                     alignment: Alignment.topCenter,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      height: isActive
-                          ? _activeCardHeight
-                          : _inactiveCardHeight,
+                    child: SizedBox(
+                      height: _activeCardHeight,
                       child: _RecommendedPropertyCard(
                         property: property,
                         isSaved: widget.savedProperties.contains(property),
