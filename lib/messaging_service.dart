@@ -9,6 +9,7 @@ class MessagingProfile {
   final String? email;
   final String? phone;
   final String role;
+  final String? avatarUrl;
   final UserSubscription? subscription;
 
   const MessagingProfile({
@@ -17,6 +18,7 @@ class MessagingProfile {
     required this.email,
     required this.phone,
     required this.role,
+    required this.avatarUrl,
     required this.subscription,
   });
 
@@ -44,6 +46,7 @@ class MessagingProfile {
       email: map['email'] as String?,
       phone: map['phone'] as String?,
       role: (map['role'] as String?) ?? 'user',
+      avatarUrl: map['avatar_url'] as String?,
       subscription: UserSubscription.maybeFromProfileMap(map),
     );
   }

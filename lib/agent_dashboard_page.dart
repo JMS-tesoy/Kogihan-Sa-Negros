@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'messaging_service.dart';
@@ -999,21 +1002,28 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
-  String _contentTypeForFileName(String fileName) {
-    final String extension = fileName.contains('.')
-        ? fileName.split('.').last.toLowerCase()
-        : '';
-
-    switch (extension) {
-      case 'png':
-        return 'image/png';
-      case 'webp':
-        return 'image/webp';
-      case 'gif':
-        return 'image/gif';
-      default:
-        return 'image/jpeg';
+  _OptimizedPropertyImages _optimizePropertyImages(Uint8List bytes) {
+    final img.Image? decodedImage = img.decodeImage(bytes);
+    if (decodedImage == null) {
+      throw const FormatException('Unsupported image format.');
     }
+
+    final img.Image orientedImage = img.bakeOrientation(decodedImage);
+    final int thumbnailWidth = orientedImage.width > 560
+        ? 560
+        : orientedImage.width;
+    final img.Image thumbnailImage = img.copyResize(
+      orientedImage,
+      width: thumbnailWidth,
+      interpolation: img.Interpolation.average,
+    );
+
+    return _OptimizedPropertyImages(
+      detailBytes: Uint8List.fromList(img.encodeJpg(orientedImage, quality: 72)),
+      thumbnailBytes: Uint8List.fromList(
+        img.encodeJpg(thumbnailImage, quality: 64),
+      ),
+    );
   }
 
   Future<void> _pickAndUploadPropertyImage() async {
@@ -1029,7 +1039,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     final XFile? pickedFile = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 85,
+      imageQuality: 72,
+      maxWidth: 1600,
+      maxHeight: 1200,
     );
 
     if (pickedFile == null) return;
@@ -1039,39 +1051,54 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     });
 
     try {
-      final bytes = await pickedFile.readAsBytes();
-      final String originalName = pickedFile.name.trim().isEmpty
-          ? 'property-image.jpg'
-          : pickedFile.name.trim();
-      final String extension = originalName.contains('.')
-          ? originalName.split('.').last.toLowerCase()
-          : 'jpg';
-      final String filePath =
-          '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final Uint8List bytes = await pickedFile.readAsBytes();
+      final _OptimizedPropertyImages optimizedImages =
+          _optimizePropertyImages(bytes);
+      final int uploadTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final String detailFilePath = '${user.id}/$uploadTimestamp-detail.jpg';
+      final String thumbnailFilePath = '${user.id}/$uploadTimestamp-thumb.jpg';
 
       await Supabase.instance.client.storage
           .from('property-images')
           .uploadBinary(
-            filePath,
-            bytes,
+            detailFilePath,
+            optimizedImages.detailBytes,
             fileOptions: FileOptions(
-              cacheControl: '3600',
+              cacheControl: '604800',
               upsert: true,
-              contentType: _contentTypeForFileName(originalName),
+              contentType: 'image/jpeg',
+            ),
+          );
+
+      await Supabase.instance.client.storage
+          .from('property-images')
+          .uploadBinary(
+            thumbnailFilePath,
+            optimizedImages.thumbnailBytes,
+            fileOptions: FileOptions(
+              cacheControl: '604800',
+              upsert: true,
+              contentType: 'image/jpeg',
             ),
           );
 
       final String publicUrl = Supabase.instance.client.storage
           .from('property-images')
-          .getPublicUrl(filePath);
+          .getPublicUrl(detailFilePath);
+      final String thumbnailPublicUrl = Supabase.instance.client.storage
+          .from('property-images')
+          .getPublicUrl(thumbnailFilePath);
 
       setState(() {
         _imageUrlController.text = publicUrl;
+        _thumbnailUrlController.text = thumbnailPublicUrl;
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Property image uploaded successfully.')),
+        const SnackBar(
+          content: Text('Property image uploaded and optimized successfully.'),
+        ),
       );
     } on StorageException catch (error) {
       if (!mounted) return;
@@ -2503,6 +2530,10 @@ class _InquiryThreadLoadingPlaceholder extends StatelessWidget {
     final Color baseColor = Theme.of(
       context,
     ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.7);
+    final Color highlightColor = Color.alphaBlend(
+      Colors.white.withValues(alpha: 0.35),
+      baseColor,
+    );
 
     return ListView(
       children: List<Widget>.generate(6, (index) {
@@ -2511,17 +2542,31 @@ class _InquiryThreadLoadingPlaceholder extends StatelessWidget {
           alignment: isAgentBubble
               ? Alignment.centerRight
               : Alignment.centerLeft,
-          child: Container(
-            width: isAgentBubble ? 260 : 200,
-            height: 72,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(16),
+          child: Shimmer.fromColors(
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+            child: Container(
+              width: isAgentBubble ? 260 : 200,
+              height: 72,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
           ),
         );
       }),
     );
   }
+}
+
+class _OptimizedPropertyImages {
+  const _OptimizedPropertyImages({
+    required this.detailBytes,
+    required this.thumbnailBytes,
+  });
+
+  final Uint8List detailBytes;
+  final Uint8List thumbnailBytes;
 }

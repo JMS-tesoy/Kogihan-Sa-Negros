@@ -7,10 +7,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agent_dashboard_page.dart';
 import 'messaging_service.dart';
@@ -26,10 +28,17 @@ final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
 );
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
+const String _darkThemePrefsKey = 'dark_theme_enabled';
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
 const int _initialPropertyImagePrefetchCount = 4;
+const String _profileAvatarsBucket = 'profile-avatars';
 const String _authRedirectUrl =
     'com.example.flutterapplication1://login-callback/';
+
+Future<void> _persistDarkThemePreference(bool enabled) async {
+  final SharedPreferences preferences = await SharedPreferences.getInstance();
+  await preferences.setBool(_darkThemePrefsKey, enabled);
+}
 
 String _messageInitial(String value) {
   final String trimmed = value.trim();
@@ -217,6 +226,36 @@ Widget _buildPropertyImage({
     ),
     child: fallbackChild,
   );
+  final Color shimmerHighlightColor = Color.alphaBlend(
+    Colors.white.withValues(alpha: 0.34),
+    property.imageColor,
+  );
+  final Widget loadingFallback = SizedBox(
+    height: height,
+    width: double.infinity,
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Shimmer.fromColors(
+          baseColor: property.imageColor,
+          highlightColor: shimmerHighlightColor,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  property.imageColor,
+                  property.imageColor.withValues(alpha: 0.78),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+        ),
+        fallbackChild,
+      ],
+    ),
+  );
 
   final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
     context,
@@ -241,7 +280,7 @@ Widget _buildPropertyImage({
       if (wasSynchronouslyLoaded || frame != null) {
         return child;
       }
-      return fallback;
+      return loadingFallback;
     },
     loadingBuilder:
         resolvePropertyImageUrl(
@@ -251,7 +290,7 @@ Widget _buildPropertyImage({
             true
         ? (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
-            return fallback;
+            return loadingFallback;
           }
         : null,
     errorBuilder: (context, error, stackTrace) => fallback,
@@ -328,6 +367,72 @@ ThemeData _buildLightTheme() {
   );
 }
 
+ThemeData _buildDarkTheme() {
+  const Color seedColor = Color(0xFF2563EB);
+  final ColorScheme scheme =
+      ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.dark,
+      ).copyWith(
+        primary: const Color(0xFF60A5FA),
+        onPrimary: const Color(0xFF07111F),
+        primaryContainer: const Color(0xFF1E3A8A),
+        onPrimaryContainer: const Color(0xFFDBEAFE),
+        secondary: const Color(0xFF94A3B8),
+        onSecondary: const Color(0xFF0F172A),
+        secondaryContainer: const Color(0xFF1E293B),
+        onSecondaryContainer: const Color(0xFFE2E8F0),
+        surface: const Color(0xFF111827),
+        onSurface: const Color(0xFFE5E7EB),
+        surfaceContainerHighest: const Color(0xFF1F2937),
+        onSurfaceVariant: const Color(0xFFCBD5E1),
+        outline: const Color(0xFF475569),
+        outlineVariant: const Color(0xFF334155),
+        shadow: Colors.black,
+      );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: const Color(0xFF0B1120),
+    cardColor: scheme.surface,
+    dividerColor: scheme.outlineVariant,
+    canvasColor: scheme.surface,
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: scheme.surface,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scheme.surface,
+      indicatorColor: scheme.primaryContainer,
+      surfaceTintColor: Colors.transparent,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        surfaceTintColor: Colors.transparent,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: scheme.primary),
+    ),
+    iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+    textTheme: ThemeData.dark().textTheme.apply(
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    ),
+  );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -362,6 +467,10 @@ void main() async {
   }
 
   await SubscriptionService.initialize();
+  final SharedPreferences preferences = await SharedPreferences.getInstance();
+  appThemeNotifier.value = preferences.getBool(_darkThemePrefsKey) == true
+      ? ThemeMode.dark
+      : ThemeMode.light;
 
   runApp(const RealEstateApp());
 }
@@ -381,6 +490,8 @@ class RealEstateApp extends StatelessWidget {
               title: 'Land Finder',
               debugShowCheckedModeBanner: false,
               themeMode: currentMode,
+              themeAnimationDuration: const Duration(milliseconds: 220),
+              themeAnimationCurve: Curves.easeOutCubic,
               builder: (context, child) {
                 return MediaQuery(
                   data: MediaQuery.of(
@@ -390,14 +501,7 @@ class RealEstateApp extends StatelessWidget {
                 );
               },
               theme: _buildLightTheme(),
-              darkTheme: ThemeData(
-                useMaterial3: true,
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: const Color(0xFF2E7D32),
-                  brightness: Brightness.dark,
-                ),
-                scaffoldBackgroundColor: const Color(0xFF121212),
-              ),
+              darkTheme: _buildDarkTheme(),
               home: const LoginPage(),
             );
           },
@@ -433,6 +537,7 @@ class _HomePageState extends State<HomePage> {
   );
 
   Uint8List? _profileImageBytes;
+  bool _profileAvatarHidden = false;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -444,6 +549,7 @@ class _HomePageState extends State<HomePage> {
     _warmInitialPropertyCardImages(_availableProperties);
     unawaited(_restoreSavedProperties());
     unawaited(_syncSubscriptionFromProfile());
+    unawaited(_warmCurrentUserAvatar());
   }
 
   @override
@@ -528,6 +634,25 @@ class _HomePageState extends State<HomePage> {
           await MessagingService.fetchCurrentProfile();
       if (profile?.subscription == null) return;
       appSubscriptionNotifier.value = profile!.subscription!;
+    } catch (_) {}
+  }
+
+  Future<void> _warmCurrentUserAvatar() async {
+    try {
+      final MessagingProfile? profile =
+          await MessagingService.fetchCurrentProfile();
+      final String avatarUrl = _profileTextValue(
+        profile?.avatarUrl ??
+            Supabase
+                .instance
+                .client
+                .auth
+                .currentUser
+                ?.userMetadata?['avatar_url'],
+      );
+      if (!mounted || _profileAvatarHidden || avatarUrl.isEmpty) return;
+
+      await precacheImage(CachedNetworkImageProvider(avatarUrl), context);
     } catch (_) {}
   }
 
@@ -643,17 +768,101 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Uint8List _optimizeAvatarImage(Uint8List bytes) {
+    final img.Image? decodedImage = img.decodeImage(bytes);
+    if (decodedImage == null) return bytes;
+
+    final img.Image orientedImage = img.bakeOrientation(decodedImage);
+    final int cropSize = math.min(orientedImage.width, orientedImage.height);
+    final int cropX = ((orientedImage.width - cropSize) / 2).floor();
+    final int cropY = ((orientedImage.height - cropSize) / 2).floor();
+    final img.Image squareImage = img.copyCrop(
+      orientedImage,
+      x: cropX,
+      y: cropY,
+      width: cropSize,
+      height: cropSize,
+    );
+    final int avatarSize = squareImage.width > 512 ? 512 : squareImage.width;
+    final img.Image avatarImage = img.copyResize(
+      squareImage,
+      width: avatarSize,
+      height: avatarSize,
+      interpolation: img.Interpolation.average,
+    );
+
+    return Uint8List.fromList(img.encodeJpg(avatarImage, quality: 70));
+  }
+
+  Future<void> _saveAvatarForCurrentUser(Uint8List imageBytes) async {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw StateError('Please sign in again before uploading your avatar.');
+    }
+
+    final String avatarPath =
+        '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    await Supabase.instance.client.storage
+        .from(_profileAvatarsBucket)
+        .uploadBinary(
+          avatarPath,
+          imageBytes,
+          fileOptions: const FileOptions(
+            cacheControl: '604800',
+            upsert: true,
+            contentType: 'image/jpeg',
+          ),
+        );
+
+    final String avatarUrl = Supabase.instance.client.storage
+        .from(_profileAvatarsBucket)
+        .getPublicUrl(avatarPath);
+
+    await Supabase.instance.client.from('profiles').upsert({
+      'id': user.id,
+      'avatar_url': avatarUrl,
+    }, onConflict: 'id');
+  }
+
+  Future<void> _removeAvatarForCurrentUser() async {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    await Supabase.instance.client
+        .from('profiles')
+        .update({'avatar_url': null})
+        .eq('id', user.id);
+  }
+
   Future<void> _pickAvatarFromGallery() async {
     final XFile? pickedFile = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80,
+      imageQuality: 70,
+      maxWidth: 512,
+      maxHeight: 512,
     );
 
     if (pickedFile != null) {
-      final Uint8List imageBytes = await pickedFile.readAsBytes();
-      setState(() {
-        _profileImageBytes = imageBytes;
-      });
+      final Uint8List imageBytes = _optimizeAvatarImage(
+        await pickedFile.readAsBytes(),
+      );
+      try {
+        await _saveAvatarForCurrentUser(imageBytes);
+        if (!mounted) return;
+        setState(() {
+          _profileImageBytes = imageBytes;
+          _profileAvatarHidden = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avatar saved to your profile.')),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save avatar: $error')),
+        );
+      }
     }
   }
 
@@ -705,7 +914,9 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pop(context);
                     setState(() {
                       _profileImageBytes = null;
+                      _profileAvatarHidden = true;
                     });
+                    unawaited(_removeAvatarForCurrentUser());
                   },
                 ),
             ],
@@ -890,6 +1101,7 @@ class _HomePageState extends State<HomePage> {
       const MessagesTab(),
       ProfileTab(
         profileImageBytes: _profileImageBytes,
+        profileAvatarHidden: _profileAvatarHidden,
         onAvatarTap: _showAvatarOptions,
       ),
     ];
@@ -1314,13 +1526,14 @@ class SavedTab extends StatelessWidget {
                               ],
                             ),
                             trailing: Text(property.price),
-                            onTap: () async {
-                              await _precachePropertyImage(
-                                context,
-                                property,
-                                height: 300,
+                            onTap: () {
+                              unawaited(
+                                _precachePropertyImage(
+                                  context,
+                                  property,
+                                  height: 300,
+                                ),
                               );
-                              if (!context.mounted) return;
                               Navigator.push(
                                 context,
                                 _instantRoute(
@@ -1401,8 +1614,8 @@ class _MessagesTabState extends State<MessagesTab> {
   bool _isLoading = true;
   String? _errorText;
   List<ConversationSummary> _conversations = const [];
-  String? _hoveredConversationButtonId;
-  String? _pressedConversationButtonId;
+  final Map<String, double> _dismissProgressByConversationId =
+      <String, double>{};
   Timer? _inboxClockRefreshTimer;
 
   @override
@@ -1458,17 +1671,24 @@ class _MessagesTabState extends State<MessagesTab> {
     );
   }
 
-  void _setHoveredConversationButton(String? conversationId) {
-    if (_hoveredConversationButtonId == conversationId) return;
-    setState(() {
-      _hoveredConversationButtonId = conversationId;
-    });
-  }
+  void _setConversationDismissProgress(
+    String conversationId,
+    double progress,
+  ) {
+    final double clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+    final double currentProgress =
+        _dismissProgressByConversationId[conversationId] ?? 0;
+    if (clampedProgress <= 0) {
+      if (!_dismissProgressByConversationId.containsKey(conversationId)) return;
+      setState(() {
+        _dismissProgressByConversationId.remove(conversationId);
+      });
+      return;
+    }
 
-  void _setPressedConversationButton(String? conversationId) {
-    if (_pressedConversationButtonId == conversationId) return;
+    if ((currentProgress - clampedProgress).abs() < 0.02) return;
     setState(() {
-      _pressedConversationButtonId = conversationId;
+      _dismissProgressByConversationId[conversationId] = clampedProgress;
     });
   }
 
@@ -1658,21 +1878,32 @@ class _MessagesTabState extends State<MessagesTab> {
     );
     final ImageProvider<Object>? propertyImageProvider =
         _buyerInboxConversationImageProvider(context, conversation);
-    final bool isButtonHovered =
-        _hoveredConversationButtonId == conversation.id;
-    final bool isButtonPressed =
-        _pressedConversationButtonId == conversation.id;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Dismissible(
       key: ValueKey(conversation.id),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirmDeleteConversation(conversation),
+      onUpdate: (details) {
+        _setConversationDismissProgress(conversation.id, details.progress);
+      },
+      confirmDismiss: (_) async {
+        final bool shouldDelete = await _confirmDeleteConversation(
+          conversation,
+        );
+        if (!shouldDelete && mounted) {
+          _setConversationDismissProgress(conversation.id, 0);
+        }
+        return shouldDelete;
+      },
       onDismissed: (_) {
+        _dismissProgressByConversationId.remove(conversation.id);
         _deleteConversation(conversation);
       },
       background: const SizedBox.shrink(),
-      secondaryBackground: const SizedBox.shrink(),
+      secondaryBackground: _buildDeleteSwipeBackground(
+        context,
+        conversation.id,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1684,191 +1915,189 @@ class _MessagesTabState extends State<MessagesTab> {
               borderRadius: BorderRadius.circular(16),
             ),
             clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final double thumbnailWidth = (constraints.maxWidth * 0.28)
-                    .clamp(88.0, 112.0)
-                    .toDouble();
+            child: InkWell(
+              onTap: () => _openConversation(conversation),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final double thumbnailWidth = (constraints.maxWidth * 0.28)
+                      .clamp(88.0, 112.0)
+                      .toDouble();
 
-                return SizedBox(
-                  height: 88,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: thumbnailWidth,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: palette.avatarBackground,
-                          ),
-                          child: propertyImageProvider != null
-                              ? Image(
-                                  image: propertyImageProvider,
-                                  fit: BoxFit.cover,
-                                )
-                              : Center(
-                                  child: Text(
-                                    _messageInitial(displayTitle),
-                                    style: TextStyle(
-                                      color: palette.avatarForeground,
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w700,
+                  return SizedBox(
+                    height: 88,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: thumbnailWidth,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: palette.avatarBackground,
+                            ),
+                            child: propertyImageProvider != null
+                                ? Image(
+                                    image: propertyImageProvider,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      _messageInitial(displayTitle),
+                                      style: TextStyle(
+                                        color: palette.avatarForeground,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                ),
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                displayTitle,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.15,
-                                  fontWeight: conversation.isUnread
-                                      ? FontWeight.w700
-                                      : FontWeight.w600,
-                                ),
-                              ),
-                              MouseRegion(
-                                onEnter: (_) =>
-                                    _setHoveredConversationButton(
-                                      conversation.id,
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        displayTitle,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          height: 1.15,
+                                          fontWeight: conversation.isUnread
+                                              ? FontWeight.w700
+                                              : FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
-                                onExit: (_) {
-                                  _setHoveredConversationButton(null);
-                                  _setPressedConversationButton(null);
-                                },
-                                cursor: SystemMouseCursors.click,
-                                child: Listener(
-                                  onPointerDown: (_) =>
-                                      _setPressedConversationButton(
-                                        conversation.id,
-                                      ),
-                                  onPointerUp: (_) =>
-                                      _setPressedConversationButton(null),
-                                  onPointerCancel: (_) =>
-                                      _setPressedConversationButton(null),
-                                  child: AnimatedScale(
-                                    duration: const Duration(milliseconds: 140),
-                                    curve: Curves.easeOutCubic,
-                                    scale: isButtonPressed
-                                        ? 0.96
-                                        : isButtonHovered
-                                            ? 1.03
-                                            : 1.0,
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 180,
-                                      ),
-                                      curve: Curves.easeOutCubic,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(999),
-                                        boxShadow:
-                                            isButtonHovered || isButtonPressed
-                                                ? [
-                                                    BoxShadow(
-                                                      color: colorScheme.primary
-                                                          .withValues(alpha: 0.14),
-                                                      blurRadius: 14,
-                                                      offset: const Offset(0, 6),
-                                                    ),
-                                                  ]
-                                                : const [],
-                                      ),
-                                      child: OutlinedButton.icon(
-                                        onPressed: () {
-                                          _setPressedConversationButton(null);
-                                          _openConversation(conversation);
-                                        },
-                                        style: OutlinedButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                          minimumSize: const Size(0, 28),
-                                          backgroundColor: isButtonHovered
-                                              ? colorScheme.surfaceContainerHighest
-                                              : colorScheme.surface,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          side: BorderSide(
-                                            color: isButtonHovered
-                                                ? colorScheme.primary.withValues(
-                                                    alpha: 0.32,
-                                                  )
-                                                : colorScheme.outlineVariant,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              999,
+                                    const SizedBox(width: 8),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 1),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (conversation.isUnread) ...[
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: palette.accent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                          ],
+                                          Text(
+                                            _formatInboxTimestamp(
+                                              conversation.lastMessageAt,
+                                            ),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: conversation.isUnread
+                                                  ? palette.accent
+                                                  : colorScheme.onSurfaceVariant,
+                                              fontWeight: conversation.isUnread
+                                                  ? FontWeight.w600
+                                                  : FontWeight.normal,
                                             ),
                                           ),
-                                        ),
-                                        icon: const Icon(
-                                          Icons.chat_bubble_outline_rounded,
-                                          size: 13,
-                                        ),
-                                        label: const Text(
-                                          'Chat Agent',
-                                          style: TextStyle(fontSize: 12),
-                                        ),
+                                        ],
                                       ),
                                     ),
+                                  ],
+                                ),
+                                Text(
+                                  'Chat Agent',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4, right: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                if (conversation.isUnread) ...[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: palette.accent,
-                      shape: BoxShape.circle,
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Text(
-                  _formatInboxTimestamp(conversation.lastMessageAt),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: conversation.isUnread
-                        ? palette.accent
-                        : colorScheme.onSurfaceVariant,
-                    fontWeight: conversation.isUnread
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDeleteSwipeBackground(
+    BuildContext context,
+    String conversationId,
+  ) {
+    const Color lightOrange = Color(0xFFFFE0B2);
+    const Color warmOrange = Color(0xFFFFB74D);
+    const Color iconForeground = Color(0xFF7A3E00);
+    final double progress =
+        (_dismissProgressByConversationId[conversationId] ?? 0)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final double opacity = Curves.easeOutCubic.transform(progress);
+    final double scaleProgress = Curves.easeOutBack
+        .transform(progress)
+        .clamp(0.0, 1.12)
+        .toDouble();
+    final double iconScale = 0.7 + (0.3 * scaleProgress);
+    final double iconRotation = -0.28 + (0.28 * opacity);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              warmOrange.withValues(alpha: 0.7),
+              lightOrange.withValues(alpha: 0.36),
+              lightOrange.withValues(alpha: 0),
+            ],
+            begin: Alignment.centerRight,
+            end: Alignment.centerLeft,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 18),
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.translate(
+              offset: Offset(16 * (1 - progress), 0),
+              child: Transform.scale(
+                scale: iconScale,
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Transform.rotate(
+                    angle: iconRotation,
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: iconForeground,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1878,12 +2107,14 @@ class _BuyerProfileData {
   final String displayName;
   final String email;
   final String phone;
+  final String? avatarUrl;
   final UserSubscription subscription;
 
   const _BuyerProfileData({
     required this.displayName,
     required this.email,
     required this.phone,
+    required this.avatarUrl,
     required this.subscription,
   });
 
@@ -1895,12 +2126,14 @@ class _BuyerProfileData {
     String? displayName,
     String? email,
     String? phone,
+    String? avatarUrl,
     UserSubscription? subscription,
   }) {
     return _BuyerProfileData(
       displayName: displayName ?? this.displayName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       subscription: subscription ?? this.subscription,
     );
   }
@@ -1910,6 +2143,7 @@ const _BuyerProfileData _defaultBuyerProfileData = _BuyerProfileData(
   displayName: 'Buyer',
   email: 'No email available',
   phone: 'No phone available',
+  avatarUrl: null,
   subscription: UserSubscription.free(),
 );
 
@@ -1950,11 +2184,15 @@ Future<_BuyerProfileData> _loadCurrentBuyerProfileData() async {
         : _profileTextValue(user.phone);
     final UserSubscription subscription =
         profile?.subscription ?? localSubscription;
+    final String avatarUrl = _profileTextValue(
+      profile?.avatarUrl ?? user.userMetadata?['avatar_url'],
+    );
 
     return _BuyerProfileData(
       displayName: displayName,
       email: email.isNotEmpty ? email : 'No email available',
       phone: phone.isNotEmpty ? phone : 'No phone available',
+      avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
       subscription: subscription,
     );
   } catch (_) {
@@ -1963,6 +2201,7 @@ Future<_BuyerProfileData> _loadCurrentBuyerProfileData() async {
     );
     final String email = _profileTextValue(user.email);
     final String phone = _profileTextValue(user.phone);
+    final String avatarUrl = _profileTextValue(user.userMetadata?['avatar_url']);
 
     return _BuyerProfileData(
       displayName: metadataName.isNotEmpty
@@ -1974,6 +2213,7 @@ Future<_BuyerProfileData> _loadCurrentBuyerProfileData() async {
           : 'Buyer',
       email: email.isNotEmpty ? email : 'No email available',
       phone: phone.isNotEmpty ? phone : 'No phone available',
+      avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
       subscription: localSubscription,
     );
   }
@@ -2014,11 +2254,13 @@ Future<void> _signOutAndReturnToLogin(BuildContext context) async {
 
 class ProfileTab extends StatefulWidget {
   final Uint8List? profileImageBytes;
+  final bool profileAvatarHidden;
   final VoidCallback onAvatarTap;
 
   const ProfileTab({
     super.key,
     required this.profileImageBytes,
+    required this.profileAvatarHidden,
     required this.onAvatarTap,
   });
 
@@ -2032,7 +2274,21 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = _loadCurrentBuyerProfileData();
+    _profileFuture = _loadProfileAndPrecacheAvatar();
+  }
+
+  Future<_BuyerProfileData> _loadProfileAndPrecacheAvatar() async {
+    final _BuyerProfileData profile = await _loadCurrentBuyerProfileData();
+    final String avatarUrl = (profile.avatarUrl ?? '').trim();
+    if (mounted &&
+        !widget.profileAvatarHidden &&
+        widget.profileImageBytes == null &&
+        avatarUrl.isNotEmpty) {
+      try {
+        await precacheImage(CachedNetworkImageProvider(avatarUrl), context);
+      } catch (_) {}
+    }
+    return profile;
   }
 
   @override
@@ -2048,6 +2304,13 @@ class _ProfileTabState extends State<ProfileTab> {
                 snapshot.data,
                 currentSubscription,
               );
+              final String avatarUrl = (profile.avatarUrl ?? '').trim();
+              final ImageProvider<Object>? avatarImageProvider =
+                  widget.profileImageBytes != null
+                  ? MemoryImage(widget.profileImageBytes!)
+                  : !widget.profileAvatarHidden && avatarUrl.isNotEmpty
+                  ? CachedNetworkImageProvider(avatarUrl)
+                  : null;
 
               return Padding(
                 padding: const EdgeInsets.all(16),
@@ -2064,10 +2327,8 @@ class _ProfileTabState extends State<ProfileTab> {
                             backgroundColor: Theme.of(
                               context,
                             ).colorScheme.primary,
-                            backgroundImage: widget.profileImageBytes != null
-                                ? MemoryImage(widget.profileImageBytes!)
-                                : null,
-                            child: widget.profileImageBytes == null
+                            backgroundImage: avatarImageProvider,
+                            child: avatarImageProvider == null
                                 ? const Icon(
                                     Icons.person,
                                     size: 50,
@@ -2202,7 +2463,13 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> {
-  late final Future<_BuyerProfileData> _profileFuture;
+  late Future<_BuyerProfileData> _profileFuture;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  bool _controllersInitialized = false;
+  bool _isSaving = false;
+  String? _errorText;
 
   @override
   void initState() {
@@ -2211,7 +2478,145 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  String _editableProfileValue(String value, String emptyLabel) {
+    return value == emptyLabel ? '' : value;
+  }
+
+  void _populateControllers(_BuyerProfileData profile) {
+    if (_controllersInitialized) return;
+
+    _nameController.text = profile.displayName == 'Buyer'
+        ? ''
+        : profile.displayName;
+    _emailController.text = _editableProfileValue(
+      profile.email,
+      'No email available',
+    );
+    _phoneController.text = _editableProfileValue(
+      profile.phone,
+      'No phone available',
+    );
+    _controllersInitialized = true;
+  }
+
+  Future<void> _saveAccountProfile() async {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      setState(() {
+        _errorText = 'You need to be signed in to update your account.';
+      });
+      return;
+    }
+
+    final String name = _nameController.text.trim();
+    final String email = _emailController.text.trim();
+    final String phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      setState(() {
+        _errorText = 'Please enter your name.';
+      });
+      return;
+    }
+
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() {
+        _errorText = 'Please enter a valid email address.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorText = null;
+    });
+
+    try {
+      await Supabase.instance.client.from('profiles').upsert({
+        'id': user.id,
+        'full_name': name,
+        'email': email.isEmpty ? null : email,
+        'phone': phone.isEmpty ? null : phone,
+      }, onConflict: 'id');
+
+      if (!mounted) return;
+
+      final _BuyerProfileData savedProfile =
+          await _loadCurrentBuyerProfileData();
+
+      if (!mounted) return;
+
+      setState(() {
+        _profileFuture = Future<_BuyerProfileData>.value(savedProfile);
+        _controllersInitialized = false;
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account details updated.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _errorText = 'Failed to update account details: $error';
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+    final Color fieldFillColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
+        : const Color(0xFFF9FAFB);
+    final Color fieldBorderColor = isDarkMode
+        ? colorScheme.outlineVariant
+        : const Color(0xFFE4E7EC);
+    final Color errorBackgroundColor = isDarkMode
+        ? colorScheme.errorContainer.withValues(alpha: 0.32)
+        : const Color(0xFFFFF1F3);
+    final Color errorBorderColor = isDarkMode
+        ? colorScheme.error.withValues(alpha: 0.50)
+        : const Color(0xFFFDA29B);
+    final Color errorTextColor = isDarkMode
+        ? colorScheme.onErrorContainer
+        : const Color(0xFFB42318);
+
+    InputDecoration accountInputDecoration({
+      required String labelText,
+      required IconData icon,
+    }) {
+      return InputDecoration(
+        labelText: labelText,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: fieldFillColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: fieldBorderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Account'), centerTitle: true),
       body: ValueListenableBuilder<UserSubscription>(
@@ -2220,61 +2625,135 @@ class _AccountPageState extends State<AccountPage> {
           return FutureBuilder<_BuyerProfileData>(
             future: _profileFuture,
             builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
               final _BuyerProfileData profile = _resolveBuyerProfileData(
                 snapshot.data,
                 currentSubscription,
               );
+              _populateControllers(profile);
 
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.person_outline),
-                        title: const Text('Name'),
-                        subtitle: Text(profile.displayName),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.email_outlined),
-                        title: const Text('Email'),
-                        subtitle: Text(profile.email),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.phone_outlined),
-                        title: const Text('Phone'),
-                        subtitle: Text(profile.phone),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.workspace_premium_outlined),
-                        title: const Text('Subscription'),
-                        subtitle: Text(
-                          profile.isPremium
-                              ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
-                              : 'Current plan: ${profile.planName}',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SubscriptionPage(),
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Account Details',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _nameController,
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: accountInputDecoration(
+                              labelText: 'Name',
+                              icon: Icons.person_outline,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.email],
+                            decoration: accountInputDecoration(
+                              labelText: 'Email',
+                              icon: Icons.email_outlined,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) {
+                              if (!_isSaving) _saveAccountProfile();
+                            },
+                            decoration: accountInputDecoration(
+                              labelText: 'Phone',
+                              icon: Icons.phone_outlined,
+                            ),
+                          ),
+                          if (_errorText != null) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: errorBackgroundColor,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: errorBorderColor),
+                              ),
+                              child: Text(
+                                _errorText!,
+                                style: TextStyle(color: errorTextColor),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isSaving
+                                  ? null
+                                  : _saveAccountProfile,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Save Changes'),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.workspace_premium_outlined),
+                      title: const Text('Subscription'),
+                      subtitle: Text(
+                        profile.isPremium
+                            ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
+                            : 'Current plan: ${profile.planName}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SubscriptionPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           );
@@ -2927,6 +3406,10 @@ class _ChatLoadingPlaceholder extends StatelessWidget {
     final Color baseColor = Theme.of(
       context,
     ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.7);
+    final Color highlightColor = Color.alphaBlend(
+      Colors.white.withValues(alpha: 0.35),
+      baseColor,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -2934,19 +3417,23 @@ class _ChatLoadingPlaceholder extends StatelessWidget {
         final bool isOutgoing = index.isOdd;
         return Align(
           alignment: isOutgoing ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: isOutgoing ? 220 : 180,
-            height: 54,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(16).copyWith(
-                bottomRight: isOutgoing
-                    ? const Radius.circular(0)
-                    : const Radius.circular(16),
-                bottomLeft: !isOutgoing
-                    ? const Radius.circular(0)
-                    : const Radius.circular(16),
+          child: Shimmer.fromColors(
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+            child: Container(
+              width: isOutgoing ? 220 : 180,
+              height: 54,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: BorderRadius.circular(16).copyWith(
+                  bottomRight: isOutgoing
+                      ? const Radius.circular(0)
+                      : const Radius.circular(16),
+                  bottomLeft: !isOutgoing
+                      ? const Radius.circular(0)
+                      : const Radius.circular(16),
+                ),
               ),
             ),
           ),
@@ -3287,6 +3774,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             ? ThemeMode.dark
                             : ThemeMode.light;
                       });
+                      unawaited(_persistDarkThemePreference(value));
                     },
                   ),
                 ),
@@ -3457,8 +3945,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _routeByRole(User user) async {
-    appThemeNotifier.value = ThemeMode.light;
-
     final role =
         ((user.appMetadata['role'] ?? user.userMetadata?['role']) as String?)
             ?.toLowerCase() ??
@@ -4312,9 +4798,46 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+    final Color pageBackgroundColor = isDarkMode
+        ? theme.scaffoldBackgroundColor
+        : const Color(0xFFF7F8FA);
+    final Color cardBackgroundColor = isDarkMode
+        ? theme.cardColor
+        : Colors.white;
+    final Color fieldFillColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
+        : const Color(0xFFF9FAFB);
+    final Color fieldBorderColor = isDarkMode
+        ? colorScheme.outlineVariant
+        : const Color(0xFFE4E7EC);
+    final Color headingColor = isDarkMode
+        ? colorScheme.onSurface
+        : const Color(0xFF101828);
+    final Color helperColor = isDarkMode
+        ? colorScheme.onSurfaceVariant
+        : const Color(0xFF667085);
+    final Color errorBackgroundColor = isDarkMode
+        ? colorScheme.errorContainer.withValues(alpha: 0.32)
+        : const Color(0xFFFFF1F3);
+    final Color errorBorderColor = isDarkMode
+        ? colorScheme.error.withValues(alpha: 0.50)
+        : const Color(0xFFFDA29B);
+    final Color errorTextColor = isDarkMode
+        ? colorScheme.onErrorContainer
+        : const Color(0xFFB42318);
+    final Color successBackgroundColor = isDarkMode
+        ? const Color(0xFF052E16)
+        : const Color(0xFFECFDF3);
+    final Color successBorderColor = isDarkMode
+        ? const Color(0xFF22C55E).withValues(alpha: 0.50)
+        : const Color(0xFFABEFC6);
+    final Color successTextColor = isDarkMode
+        ? const Color(0xFF86EFAC)
+        : const Color(0xFF067647);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: pageBackgroundColor,
       appBar: AppBar(title: const Text('Reset Password')),
       body: SafeArea(
         child: ScrollConfiguration(
@@ -4328,11 +4851,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardBackgroundColor,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x12000000),
+                        color: isDarkMode
+                            ? Colors.black.withValues(alpha: 0.24)
+                            : const Color(0x12000000),
                         blurRadius: 24,
                         offset: Offset(0, 12),
                       ),
@@ -4357,9 +4882,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 color: colorScheme.primary,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.lock_outline,
-                                color: Colors.white,
+                                color: colorScheme.onPrimary,
                                 size: 36,
                               ),
                             ),
@@ -4371,14 +4896,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         'Forgot your password?',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF101828),
+                          color: headingColor,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Enter your email and we will send you a secure reset link.',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF667085),
+                          color: helperColor,
                           height: 1.45,
                         ),
                       ),
@@ -4398,16 +4923,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           hintText: 'name@example.com',
                           prefixIcon: const Icon(Icons.email_outlined),
                           filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
+                          fillColor: fieldFillColor,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE4E7EC),
-                            ),
+                            borderSide: BorderSide(color: fieldBorderColor),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
@@ -4424,15 +4947,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1F3),
+                            color: errorBackgroundColor,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: const Color(0xFFFDA29B),
-                            ),
+                            border: Border.all(color: errorBorderColor),
                           ),
                           child: Text(
                             _errorText!,
-                            style: const TextStyle(color: Color(0xFFB42318)),
+                            style: TextStyle(color: errorTextColor),
                           ),
                         ),
                       ],
@@ -4445,20 +4966,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF3),
+                              color: successBackgroundColor,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFABEFC6),
-                              ),
+                              border: Border.all(color: successBorderColor),
                             ),
                             child: Text(
                               _resetCountdown > 0
                                   ? 'Reset link sent. Check your inbox.'
                                   : 'Reset link sent. You can resend now.',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFF067647),
-                              ),
+                              style: TextStyle(color: successTextColor),
                             ),
                           ),
                         ),
@@ -4639,9 +5156,40 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final String helperText = widget.isPasswordRecovery
         ? 'Choose a secure password for your account.'
         : 'Change the password for your current account.';
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+    final Color pageBackgroundColor = isDarkMode
+        ? theme.scaffoldBackgroundColor
+        : const Color(0xFFF7F8FA);
+    final Color cardBackgroundColor = isDarkMode
+        ? theme.cardColor
+        : Colors.white;
+    final Color fieldFillColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
+        : const Color(0xFFF9FAFB);
+    final Color fieldBorderColor = isDarkMode
+        ? colorScheme.outlineVariant
+        : const Color(0xFFE4E7EC);
+    final Color headingColor = isDarkMode
+        ? colorScheme.onSurface
+        : const Color(0xFF101828);
+    final Color helperColor = isDarkMode
+        ? colorScheme.onSurfaceVariant
+        : const Color(0xFF667085);
+    final Color accountTextColor = isDarkMode
+        ? colorScheme.onSurface
+        : const Color(0xFF475467);
+    final Color errorBackgroundColor = isDarkMode
+        ? colorScheme.errorContainer.withValues(alpha: 0.32)
+        : const Color(0xFFFFF1F3);
+    final Color errorBorderColor = isDarkMode
+        ? colorScheme.error.withValues(alpha: 0.50)
+        : const Color(0xFFFDA29B);
+    final Color errorTextColor = isDarkMode
+        ? colorScheme.onErrorContainer
+        : const Color(0xFFB42318);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: pageBackgroundColor,
       appBar: AppBar(title: Text(pageTitle)),
       body: SafeArea(
         child: ScrollConfiguration(
@@ -4655,11 +5203,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardBackgroundColor,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x12000000),
+                        color: isDarkMode
+                            ? Colors.black.withValues(alpha: 0.24)
+                            : const Color(0x12000000),
                         blurRadius: 24,
                         offset: Offset(0, 12),
                       ),
@@ -4684,9 +5234,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                                 color: colorScheme.primary,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.lock_reset_outlined,
-                                color: Colors.white,
+                                color: colorScheme.onPrimary,
                                 size: 36,
                               ),
                             ),
@@ -4698,14 +5248,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         heading,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF101828),
+                          color: headingColor,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         helperText,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF667085),
+                          color: helperColor,
                           height: 1.45,
                         ),
                       ),
@@ -4717,17 +5267,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
+                          color: fieldFillColor,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: const Color(0xFFE4E7EC),
-                          ),
+                          border: Border.all(color: fieldBorderColor),
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.alternate_email,
-                              color: Color(0xFF667085),
+                              color: helperColor,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -4737,7 +5285,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: const Color(0xFF475467),
+                                  color: accountTextColor,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -4767,16 +5315,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             },
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
+                          fillColor: fieldFillColor,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE4E7EC),
-                            ),
+                            borderSide: BorderSide(color: fieldBorderColor),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
@@ -4791,7 +5337,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       Text(
                         'Use 8+ characters with uppercase, lowercase, number, and symbol.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF667085),
+                          color: helperColor,
                           height: 1.35,
                         ),
                       ),
@@ -4821,16 +5367,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             },
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
+                          fillColor: fieldFillColor,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE4E7EC),
-                            ),
+                            borderSide: BorderSide(color: fieldBorderColor),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
@@ -4847,15 +5391,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1F3),
+                            color: errorBackgroundColor,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: const Color(0xFFFDA29B),
-                            ),
+                            border: Border.all(color: errorBorderColor),
                           ),
                           child: Text(
                             _errorText!,
-                            style: const TextStyle(color: Color(0xFFB42318)),
+                            style: TextStyle(color: errorTextColor),
                           ),
                         ),
                       ],
@@ -5386,6 +5928,7 @@ class _RecommendedPropertiesCarousel extends StatefulWidget {
 class _RecommendedPropertiesCarouselState
     extends State<_RecommendedPropertiesCarousel> {
   late final CarouselController _carouselController;
+  final Set<String> _warmedDetailImageIds = <String>{};
   int _currentPage = 0;
   static const List<int> _carouselWeights = <int>[1];
   static const double _activeCardHeight = 265;
@@ -5396,6 +5939,21 @@ class _RecommendedPropertiesCarouselState
     super.initState();
     _carouselController = CarouselController();
     _carouselController.addListener(_handleCarouselScroll);
+    _warmRecommendedDetailImages();
+  }
+
+  void _warmRecommendedDetailImages() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      for (final Property property in widget.properties.take(
+        _initialPropertyImagePrefetchCount,
+      )) {
+        if (_warmedDetailImageIds.add(property.id)) {
+          unawaited(_precachePropertyImage(context, property, height: 300));
+        }
+      }
+    });
   }
 
   void _handleCarouselScroll() {
@@ -5428,6 +5986,7 @@ class _RecommendedPropertiesCarouselState
   @override
   void didUpdateWidget(covariant _RecommendedPropertiesCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _warmRecommendedDetailImages();
 
     if (widget.properties.isEmpty) {
       _currentPage = 0;
@@ -5536,10 +6095,8 @@ class _RecommendedPropertyCard extends StatelessWidget {
     required this.onToggleSave,
   });
 
-  Future<void> _openDetails(BuildContext context) async {
-    await _precachePropertyImage(context, property, height: 300);
-    if (!context.mounted) return;
-
+  void _openDetails(BuildContext context) {
+    unawaited(_precachePropertyImage(context, property, height: 300));
     Navigator.push(
       context,
       _instantRoute(
@@ -5559,7 +6116,7 @@ class _RecommendedPropertyCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => unawaited(_openDetails(context)),
+        onTap: () => _openDetails(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -5656,10 +6213,8 @@ class _PropertyTile extends StatelessWidget {
     required this.onToggleSave,
   });
 
-  Future<void> _openDetails(BuildContext context) async {
-    await _precachePropertyImage(context, property, height: 300);
-    if (!context.mounted) return;
-
+  void _openDetails(BuildContext context) {
+    unawaited(_precachePropertyImage(context, property, height: 300));
     Navigator.push(
       context,
       _instantRoute(
@@ -5714,7 +6269,7 @@ class _PropertyTile extends StatelessWidget {
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       child: InkWell(
-        onTap: () => unawaited(_openDetails(context)),
+        onTap: () => _openDetails(context),
         child: SizedBox(
           height: 118,
           child: LayoutBuilder(
@@ -6698,74 +7253,209 @@ class _PinCodePageState extends State<PinCodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+    final Color cardBackgroundColor = isDarkMode
+        ? theme.cardColor
+        : Colors.white;
+    final Color fieldFillColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
+        : const Color(0xFFF9FAFB);
+    final Color fieldBorderColor = isDarkMode
+        ? colorScheme.outlineVariant
+        : const Color(0xFFE4E7EC);
+    final Color helperColor = colorScheme.onSurfaceVariant;
+    final Color errorBackgroundColor = isDarkMode
+        ? colorScheme.errorContainer.withValues(alpha: 0.32)
+        : const Color(0xFFFFF1F3);
+    final Color errorBorderColor = isDarkMode
+        ? colorScheme.error.withValues(alpha: 0.50)
+        : const Color(0xFFFDA29B);
+    final Color errorTextColor = isDarkMode
+        ? colorScheme.onErrorContainer
+        : const Color(0xFFB42318);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('PIN Code'), centerTitle: true),
-      body: Center(
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                decoration: InputDecoration(
-                  hintText: 'Enter 4-digit PIN',
-                  prefixIcon: const Icon(Icons.pin_outlined),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(title: const Text('PIN Code')),
+      body: SafeArea(
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDarkMode
+                          ? Colors.black.withValues(alpha: 0.24)
+                          : const Color(0x12000000),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        height: 78,
+                        width: 78,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Container(
+                            height: 56,
+                            width: 56,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.pin_outlined,
+                              color: colorScheme.onPrimary,
+                              size: 30,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Secure access',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Set a 4-digit PIN to protect quick access to your account.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: helperColor,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    TextField(
+                      controller: _pinController,
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      maxLength: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Enter 4-digit PIN',
+                        prefixIcon: const Icon(Icons.pin_outlined),
+                        filled: true,
+                        fillColor: fieldFillColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: fieldBorderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmPinController,
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      maxLength: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Confirm PIN',
+                        prefixIcon: const Icon(Icons.verified_user_outlined),
+                        filled: true,
+                        fillColor: fieldFillColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: fieldBorderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: errorBackgroundColor,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: errorBorderColor),
+                        ),
+                        child: Text(
+                          _errorText!,
+                          style: TextStyle(color: errorTextColor),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _savePinCode,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text('Save PIN'),
+                      ),
+                    ),
+                    if (appPinCodeNotifier.value != null) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _clearPinCode,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text('Remove PIN'),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _confirmPinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                decoration: InputDecoration(
-                  hintText: 'Confirm PIN',
-                  prefixIcon: const Icon(Icons.verified_user_outlined),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              if (_errorText != null) ...[
-                const SizedBox(height: 12),
-                Text(_errorText!, style: const TextStyle(color: Colors.red)),
               ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _savePinCode,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Save PIN'),
-                ),
-              ),
-              if (appPinCodeNotifier.value != null) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _clearPinCode,
-                    child: const Text('Remove PIN'),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
