@@ -1310,7 +1310,7 @@ class HomeTab extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final Property property = properties[index];
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: _PropertyTile(
                         property: property,
                         isSaved: savedProperties.contains(property),
@@ -6082,6 +6082,36 @@ class _RecommendedPropertiesCarouselState
   }
 }
 
+String _propertyAvailabilityLabel(Property property) {
+  final String tag = property.tag.trim().toLowerCase();
+  if (tag.contains('sold')) return 'Sold';
+  if (tag.contains('auction')) return 'For Auction';
+  return 'Available';
+}
+
+IconData _propertyAvailabilityIcon(String label) {
+  switch (label) {
+    case 'Sold':
+      return Icons.task_alt_rounded;
+    case 'For Auction':
+      return Icons.gavel_rounded;
+    default:
+      return Icons.check_circle_outline_rounded;
+  }
+}
+
+Color _propertyAvailabilityColor(BuildContext context, String label) {
+  final ColorScheme colorScheme = Theme.of(context).colorScheme;
+  switch (label) {
+    case 'Sold':
+      return colorScheme.error;
+    case 'For Auction':
+      return const Color(0xFFF59E0B);
+    default:
+      return colorScheme.primary;
+  }
+}
+
 class _RecommendedPropertyCard extends StatelessWidget {
   final Property property;
   final bool isSaved;
@@ -6230,6 +6260,11 @@ class _PropertyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final String availabilityLabel = _propertyAvailabilityLabel(property);
+    final Color availabilityColor = _propertyAvailabilityColor(
+      context,
+      availabilityLabel,
+    );
 
     Widget metaChip(IconData icon, String label) {
       return Container(
@@ -6260,6 +6295,39 @@ class _PropertyTile extends StatelessWidget {
       );
     }
 
+    Widget availabilityChip() {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: availabilityColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _propertyAvailabilityIcon(availabilityLabel),
+              size: 14,
+              color: availabilityColor,
+            ),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 82),
+              child: Text(
+                availabilityLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: availabilityColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 0,
@@ -6274,7 +6342,7 @@ class _PropertyTile extends StatelessWidget {
           height: 118,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final double thumbnailWidth = constraints.maxWidth / 3;
+              final double thumbnailWidth = constraints.maxWidth * 0.30;
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 1),
@@ -6334,15 +6402,15 @@ class _PropertyTile extends StatelessWidget {
                                   foregroundColor: isSaved
                                       ? Colors.red
                                       : theme.iconTheme.color,
-                                  fixedSize: const Size(36, 36),
-                                  minimumSize: const Size(36, 36),
+                                  fixedSize: const Size(28, 28),
+                                  minimumSize: const Size(28, 28),
                                   padding: EdgeInsets.zero,
                                 ),
                                 icon: Icon(
                                   isSaved
                                       ? Icons.favorite
                                       : Icons.favorite_border_rounded,
-                                  size: 20,
+                                  size: 16,
                                 ),
                               ),
                             ],
@@ -6382,6 +6450,8 @@ class _PropertyTile extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 6),
+                              availabilityChip(),
                               const SizedBox(width: 6),
                               metaChip(
                                 Icons.square_foot_outlined,
