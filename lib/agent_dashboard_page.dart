@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'messaging_service.dart';
+import 'negros_places.dart';
 import 'shared_properties.dart';
 
 String _formatInboxTime(DateTime? value) {
@@ -821,6 +822,100 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
+  Map<String, List<NegrosPlace>> _groupNegrosPlacesByProvince(
+    List<NegrosPlace> places,
+  ) {
+    final Map<String, List<NegrosPlace>> groupedPlaces =
+        <String, List<NegrosPlace>>{};
+
+    for (final NegrosPlace place in places) {
+      final String province = place.province.trim().isEmpty
+          ? 'Other Areas'
+          : place.province.trim();
+      groupedPlaces.putIfAbsent(province, () => <NegrosPlace>[]).add(place);
+    }
+
+    for (final List<NegrosPlace> provincePlaces in groupedPlaces.values) {
+      provincePlaces.sort(
+        (first, second) => first.placeName.compareTo(second.placeName),
+      );
+    }
+
+    return groupedPlaces;
+  }
+
+  Future<void> _pickNegrosPlaceForLocation() async {
+    final List<NegrosPlace> places = List<NegrosPlace>.from(
+      appNegrosPlacesNotifier.value,
+    );
+    if (places.isEmpty) return;
+
+    final Map<String, List<NegrosPlace>> groupedPlaces =
+        _groupNegrosPlacesByProvince(places);
+
+    final NegrosPlace? selectedPlace = await showModalBottomSheet<NegrosPlace>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final ThemeData theme = Theme.of(sheetContext);
+
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.72,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              children: [
+                Text(
+                  'Pick Negros Place',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose a place to fill this listing location with map coordinates.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...groupedPlaces.entries.map((entry) {
+                  final List<NegrosPlace> provincePlaces = entry.value;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      leading: const Icon(Icons.location_city_outlined),
+                      title: Text(entry.key),
+                      subtitle: Text('${provincePlaces.length} places'),
+                      children: provincePlaces.map((place) {
+                        return ListTile(
+                          dense: true,
+                          title: Text(place.placeName),
+                          subtitle: Text(place.location),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => Navigator.of(sheetContext).pop(place),
+                        );
+                      }).toList(growable: false),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedPlace == null) return;
+
+    setState(() {
+      _locationController.text = selectedPlace.location;
+    });
+  }
+
   Widget _buildPreviewCard(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ImageProvider<Object>? imageProvider = _previewImageProvider;
@@ -1310,6 +1405,15 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickNegrosPlaceForLocation,
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('Pick from Negros places'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildCompactFieldRow(

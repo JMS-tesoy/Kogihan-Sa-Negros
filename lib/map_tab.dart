@@ -1,7 +1,8 @@
 part of 'main.dart';
 
-const int _initialMapAnnotationBatchSize = 12;
-const int _mapAnnotationBatchSize = 24;
+const int _initialMapAnnotationBatchSize = 8;
+const int _mapAnnotationBatchSize = 12;
+const int _maxMapPrecachedThumbnails = 4;
 const String _mapboxAccessTokenFallback = String.fromEnvironment(
   'ACCESS_TOKEN',
 );
@@ -149,7 +150,9 @@ class _MapTabState extends State<MapTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      for (final _MappableProperty item in properties) {
+      for (final _MappableProperty item in properties.take(
+        _maxMapPrecachedThumbnails,
+      )) {
         if (_warmedMapPropertyImageIds.add(item.property.id)) {
           _warmPropertyImage(context, item.property, useThumbnail: true);
         }
@@ -161,22 +164,32 @@ class _MapTabState extends State<MapTab> {
     return MapboxStyles.STANDARD;
   }
 
+  Future<void> _setStandardStyleConfig(
+    MapboxMap mapboxMap,
+    String name,
+    Object value,
+  ) async {
+    try {
+      await mapboxMap.style.setStyleImportConfigProperty(
+        'basemap',
+        name,
+        value,
+      );
+    } catch (_) {
+      // Some Mapbox SDK/style versions do not expose every standard config.
+    }
+  }
+
   Future<void> _applyStandardStyleConfiguration(MapboxMap mapboxMap) async {
-    await mapboxMap.style.setStyleImportConfigProperty(
-      'basemap',
-      'theme',
-      'monochrome',
-    );
-    await mapboxMap.style.setStyleImportConfigProperty(
-      'basemap',
+    await _setStandardStyleConfig(mapboxMap, 'theme', 'monochrome');
+    await _setStandardStyleConfig(
+      mapboxMap,
       'lightPreset',
       _selectedLightPreset.name,
     );
-    await mapboxMap.style.setStyleImportConfigProperty(
-      'basemap',
-      'show3dObjects',
-      false,
-    );
+    await _setStandardStyleConfig(mapboxMap, 'show3dObjects', false);
+    await _setStandardStyleConfig(mapboxMap, 'showPointOfInterestLabels', false);
+    await _setStandardStyleConfig(mapboxMap, 'showTransitLabels', false);
   }
 
   Future<void> _setLightPreset(_MapLightPreset preset) async {
@@ -200,6 +213,24 @@ class _MapTabState extends State<MapTab> {
           ),
         )
         .toList(growable: false);
+  }
+
+  Map<String, List<NegrosPlace>> _groupNegrosPlacesByProvince() {
+    final Map<String, List<NegrosPlace>> groupedPlaces =
+        <String, List<NegrosPlace>>{};
+
+    for (final NegrosPlace place in _negrosPlaces) {
+      final String province = place.province.trim().isEmpty
+          ? 'Other Areas'
+          : place.province.trim();
+      groupedPlaces.putIfAbsent(province, () => <NegrosPlace>[]).add(place);
+    }
+
+    for (final List<NegrosPlace> places in groupedPlaces.values) {
+      places.sort((first, second) => first.placeName.compareTo(second.placeName));
+    }
+
+    return groupedPlaces;
   }
 
   Future<void> _focusOnNegrosPlace(NegrosPlace place) async {
@@ -236,24 +267,60 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _openNegrosPlacesSheet() async {
+    final Map<String, List<NegrosPlace>> groupedPlaces =
+        _groupNegrosPlacesByProvince();
+
     final NegrosPlace? selectedPlace = await showModalBottomSheet<NegrosPlace>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) {
+        final ThemeData theme = Theme.of(context);
+
         return SafeArea(
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: _negrosPlaces.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final NegrosPlace place = _negrosPlaces[index];
-              return ListTile(
-                title: Text(place.placeName),
-                subtitle: Text(place.province),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.of(context).pop(place),
-              );
-            },
+          child: FractionallySizedBox(
+            heightFactor: 0.72,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              children: [
+                Text(
+                  'Negros Places',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose a province or district group, then select a place.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...groupedPlaces.entries.map((entry) {
+                  final List<NegrosPlace> places = entry.value;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      leading: const Icon(Icons.location_city_outlined),
+                      title: Text(entry.key),
+                      subtitle: Text('${places.length} places'),
+                      children: places.map((place) {
+                        return ListTile(
+                          dense: true,
+                          title: Text(place.placeName),
+                          subtitle: Text(place.location),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => Navigator.of(context).pop(place),
+                        );
+                      }).toList(growable: false),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         );
       },
@@ -309,9 +376,9 @@ class _MapTabState extends State<MapTab> {
     return CircleAnnotationOptions(
       geometry: item.point,
       circleColor: item.property.imageColor.toARGB32(),
-      circleRadius: 8,
+      circleRadius: 6,
       circleStrokeColor: Colors.white.toARGB32(),
-      circleStrokeWidth: 3,
+      circleStrokeWidth: 2,
       circleOpacity: 0.95,
       customData: <String, Object>{'propertyId': item.property.id},
     );
@@ -319,6 +386,7 @@ class _MapTabState extends State<MapTab> {
 
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
+    await mapboxMap.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
     await mapboxMap.gestures.updateSettings(
       GesturesSettings(
         pinchToZoomEnabled: true,
@@ -455,7 +523,7 @@ class _MapTabState extends State<MapTab> {
       start < properties.length;
       start += _mapAnnotationBatchSize
     ) {
-      await Future<void>.delayed(const Duration(milliseconds: 24));
+      await Future<void>.delayed(const Duration(milliseconds: 40));
       if (!mounted || syncVersion != _annotationSyncVersion) return;
 
       final int end = start + _mapAnnotationBatchSize > properties.length
@@ -469,7 +537,6 @@ class _MapTabState extends State<MapTab> {
             .toList(growable: false),
       );
       if (!mounted || syncVersion != _annotationSyncVersion) return;
-      _warmMapPropertyImages(properties.sublist(start, end));
     }
 
   }
