@@ -3508,11 +3508,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.landscape_rounded,
-                    size: 80,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                  const _KsnHeaderLogo(size: 88),
                   const SizedBox(height: 12),
                   Text(
                     'Kogihan Sa Negros',
@@ -3621,7 +3617,7 @@ class _LoginPageState extends State<LoginPage> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Icon(Icons.g_mobiledata),
+                                  : const _GoogleLogoIcon(),
                               label: const Text('Continue with Google'),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -3634,28 +3630,33 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SignUpPage(),
-                                ),
-                              );
-                            },
-                            child: const Text('Create an account'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ForgotPasswordPage(),
-                                ),
-                              );
-                            },
-                            child: const Text('Forgot password?'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const SignUpPage(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Sign up'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ForgotPasswordPage(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Recover access'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -3666,6 +3667,72 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GoogleLogoIcon extends StatelessWidget {
+  const _GoogleLogoIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 24,
+      width: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            'G',
+            style: TextStyle(
+              color: const Color(0xFF4285F4),
+              fontSize: 23,
+              fontWeight: FontWeight.w800,
+              height: 1,
+              fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+            ),
+          ),
+          Positioned(
+            right: 1,
+            bottom: 5,
+            child: Container(
+              height: 5,
+              width: 10,
+              decoration: const BoxDecoration(
+                color: Color(0xFF34A853),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  bottomLeft: Radius.circular(5),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 2,
+            bottom: 3,
+            child: Transform.rotate(
+              angle: -0.55,
+              child: Container(
+                height: 5,
+                width: 10,
+                color: const Color(0xFFFBBC05),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 2,
+            top: 4,
+            child: Transform.rotate(
+              angle: 0.55,
+              child: Container(
+                height: 5,
+                width: 10,
+                color: const Color(0xFFEA4335),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3692,6 +3759,30 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  String? _validatePasswordComplexity(String password) {
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Password must include at least one uppercase letter.';
+    }
+
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return 'Password must include at least one lowercase letter.';
+    }
+
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return 'Password must include at least one number.';
+    }
+
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
+      return 'Password must include at least one symbol.';
+    }
+
+    return null;
+  }
+
   Future<void> _signUp() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -3699,6 +3790,14 @@ class _SignUpPageState extends State<SignUpPage> {
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         _errorText = 'Please enter email and password.';
+      });
+      return;
+    }
+
+    final passwordError = _validatePasswordComplexity(password);
+    if (passwordError != null) {
+      setState(() {
+        _errorText = passwordError;
       });
       return;
     }
@@ -3745,77 +3844,204 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Account')),
-      body: Center(
+      backgroundColor: const Color(0xFFF7F8FA),
+      appBar: AppBar(title: const Text('Sign Up')),
+      body: SafeArea(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'Email',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x12000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+                    ],
                   ),
-                ),
-                if (_errorText != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signUp,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign Up'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          height: 86,
+                          width: 86,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Container(
+                              height: 64,
+                              width: 64,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.person_add_alt_1_outlined,
+                                color: Colors.white,
+                                size: 34,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Create your account',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF101828),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sign up to save lots, contact agents, and manage your property search.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF667085),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        decoration: InputDecoration(
+                          labelText: 'Email address',
+                          hintText: 'name@example.com',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E7EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.newPassword],
+                        onSubmitted: (_) {
+                          if (!_isLoading) _signUp();
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E7EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Use 8+ characters with uppercase, lowercase, number, and symbol.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF667085),
+                          height: 1.35,
+                        ),
+                      ),
+                      if (_errorText != null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F3),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFFDA29B),
+                            ),
+                          ),
+                          child: Text(
+                            _errorText!,
+                            style: const TextStyle(color: Color(0xFFB42318)),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _signUp,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Sign Up'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -3836,16 +4062,49 @@ class ForgotPasswordPage extends StatefulWidget {
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
+  Timer? _resetCountdownTimer;
   bool _isLoading = false;
+  bool _emailSent = false;
+  int _resetCountdown = 0;
   String? _errorText;
 
   @override
   void dispose() {
+    _resetCountdownTimer?.cancel();
     _emailController.dispose();
     super.dispose();
   }
 
+  void _startResetCountdown() {
+    _resetCountdownTimer?.cancel();
+    setState(() {
+      _emailSent = true;
+      _resetCountdown = 60;
+    });
+
+    _resetCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_resetCountdown <= 1) {
+        timer.cancel();
+        setState(() {
+          _resetCountdown = 0;
+        });
+        return;
+      }
+
+      setState(() {
+        _resetCountdown--;
+      });
+    });
+  }
+
   Future<void> _sendResetEmail() async {
+    if (_resetCountdown > 0) return;
+
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       setState(() {
@@ -3870,7 +4129,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           content: Text('Password reset email sent. Check your inbox.'),
         ),
       );
-      Navigator.pop(context);
+      _startResetCountdown();
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -3907,39 +4166,172 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'Email',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x12000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
                   ),
-                ),
-                if (_errorText != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _sendResetEmail,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Send Reset Email'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          height: 86,
+                          width: 86,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Container(
+                              height: 64,
+                              width: 64,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.lock_outline,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Forgot your password?',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF101828),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter your email and we will send you a secure reset link.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF667085),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.email],
+                        onSubmitted: (_) {
+                          if (!_isLoading && _resetCountdown == 0) {
+                            _sendResetEmail();
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Email address',
+                          hintText: 'name@example.com',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E7EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_errorText != null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F3),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFFDA29B),
+                            ),
+                          ),
+                          child: Text(
+                            _errorText!,
+                            style: const TextStyle(color: Color(0xFFB42318)),
+                          ),
+                        ),
+                      ],
+                      if (_emailSent && _errorText == null) ...[
+                        const SizedBox(height: 14),
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF3),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFABEFC6),
+                              ),
+                            ),
+                            child: Text(
+                              _resetCountdown > 0
+                                  ? 'Reset link sent. Check your inbox.'
+                                  : 'Reset link sent. You can resend now.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF067647),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isLoading || _resetCountdown > 0
+                              ? null
+                              : _sendResetEmail,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : _resetCountdown > 0
+                              ? Text('Resend in ${_resetCountdown}s')
+                              : const Text('Send Reset Email'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -3979,6 +4371,30 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     super.dispose();
   }
 
+  String? _validatePasswordComplexity(String password) {
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Password must include at least one uppercase letter.';
+    }
+
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return 'Password must include at least one lowercase letter.';
+    }
+
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return 'Password must include at least one number.';
+    }
+
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
+      return 'Password must include at least one symbol.';
+    }
+
+    return null;
+  }
+
   Future<void> _changePassword() async {
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -3990,9 +4406,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       return;
     }
 
-    if (newPassword.length < 6) {
+    final passwordError = _validatePasswordComplexity(newPassword);
+    if (passwordError != null) {
       setState(() {
-        _errorText = 'Password must be at least 6 characters.';
+        _errorText = passwordError;
       });
       return;
     }
@@ -4052,113 +4469,261 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
     final user = Supabase.instance.client.auth.currentUser;
+    final String pageTitle =
+        widget.isPasswordRecovery ? 'Create New Password' : 'Reset Password';
+    final String heading = widget.isPasswordRecovery
+        ? 'Create a new password'
+        : 'Update your password';
+    final String helperText = widget.isPasswordRecovery
+        ? 'Choose a secure password for your account.'
+        : 'Change the password for your current account.';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.isPasswordRecovery ? 'Create New Password' : 'Reset Password',
-        ),
-      ),
-      body: Center(
+      backgroundColor: const Color(0xFFF7F8FA),
+      appBar: AppBar(title: Text(pageTitle)),
+      body: SafeArea(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  user?.email ?? 'Logged in account',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.isPasswordRecovery
-                      ? 'Create a new password for your account.'
-                      : 'Change the password for your current account.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _newPasswordController,
-                  obscureText: _obscureNewPassword,
-                  decoration: InputDecoration(
-                    hintText: 'New Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureNewPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x12000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureNewPassword = !_obscureNewPassword;
-                        });
-                      },
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    hintText: 'Confirm New Password',
-                    prefixIcon: const Icon(Icons.verified_user_outlined),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          height: 86,
+                          width: 86,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Container(
+                              height: 64,
+                              width: 64,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.lock_reset_outlined,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                if (_errorText != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_errorText!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _changePassword,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Update Password'),
+                      const SizedBox(height: 20),
+                      Text(
+                        heading,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF101828),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        helperText,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF667085),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFFE4E7EC),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.alternate_email,
+                              color: Color(0xFF667085),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                user?.email ?? 'Logged in account',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: const Color(0xFF475467),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _newPasswordController,
+                        obscureText: _obscureNewPassword,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.newPassword],
+                        decoration: InputDecoration(
+                          labelText: 'New password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureNewPassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureNewPassword = !_obscureNewPassword;
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E7EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Use 8+ characters with uppercase, lowercase, number, and symbol.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF667085),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _confirmPasswordController,
+                        obscureText: _obscureConfirmPassword,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.newPassword],
+                        onSubmitted: (_) {
+                          if (!_isLoading) _changePassword();
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Confirm new password',
+                          prefixIcon: const Icon(Icons.verified_user_outlined),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E7EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_errorText != null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F3),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFFDA29B),
+                            ),
+                          ),
+                          child: Text(
+                            _errorText!,
+                            style: const TextStyle(color: Color(0xFFB42318)),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _changePassword,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Update Password'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -4171,20 +4736,20 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 }
 
 class _KsnHeaderLogo extends StatelessWidget {
-  const _KsnHeaderLogo();
+  final double size;
+
+  const _KsnHeaderLogo({this.size = 48});
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isLightTheme = theme.brightness == Brightness.light;
-    const double logoSize = 48;
-
     return Container(
-      width: logoSize,
-      height: logoSize,
+      width: size,
+      height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(size * 0.29),
         boxShadow: [
           BoxShadow(
             color: isLightTheme
