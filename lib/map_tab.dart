@@ -169,19 +169,22 @@ class _MapTabState extends State<MapTab> {
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _circleAnnotationManager;
   PolygonAnnotationManager? _boundaryAnnotationManager;
+  PolylineAnnotationManager? _routeAnnotationManager;
   Cancelable? _annotationTapCancelable;
 
   int _annotationSyncVersion = 0;
   int _elevationRequestVersion = 0;
   bool _hasFittedCamera = false;
   bool _isLoadingElevation = false;
+  bool _isPropertyPickerVisible = false;
   bool _isSelectedCardVisible = true;
   bool _shouldShowCardAfterUserZoom = false;
   double _selectedCardScale = 1.0;
   double? _selectedElevationMeters;
   String? _selectedPropertyId;
-  _MapStyleMode _selectedMapStyleMode = _MapStyleMode.monochrome;
-  String _currentStyleUri = MapboxStyles.STANDARD;
+  ViewportState? _mapViewport;
+  _MapStyleMode _selectedMapStyleMode = _MapStyleMode.satellite;
+  String _currentStyleUri = MapboxStyles.STANDARD_SATELLITE;
   _MapLightPreset _selectedLightPreset = _MapLightPreset.day;
 
   // NEW: price label annotation manager and location puck toggle
@@ -244,6 +247,13 @@ class _MapTabState extends State<MapTab> {
         ),
       );
     }
+    final PolylineAnnotationManager? routeAnnotationManager =
+        _routeAnnotationManager;
+    if (mapboxMap != null && routeAnnotationManager != null) {
+      unawaited(
+        mapboxMap.annotations.removeAnnotationManager(routeAnnotationManager),
+      );
+    }
     // NEW: clean up label annotation manager
     final PointAnnotationManager? labelAnnotationManager =
         _labelAnnotationManager;
@@ -260,15 +270,15 @@ class _MapTabState extends State<MapTab> {
     final List<_MappableProperty> nextProperties = _extractMappableProperties(
       appPropertiesNotifier.value,
     );
+    final bool selectedPropertyRemoved =
+        _selectedPropertyId != null &&
+        nextProperties.every((item) => item.property.id != _selectedPropertyId);
 
     if (!mounted) return;
 
     setState(() {
       _mappableProperties = nextProperties;
-      final bool hasSelectedProperty = nextProperties.any(
-        (item) => item.property.id == _selectedPropertyId,
-      );
-      if (!hasSelectedProperty) {
+      if (selectedPropertyRemoved) {
         _selectedPropertyId = null;
         _isSelectedCardVisible = true;
         _selectedCardScale = 1.0;
@@ -283,6 +293,9 @@ class _MapTabState extends State<MapTab> {
     );
     unawaited(_syncSelectedBoundary());
     unawaited(_syncSelectedLabel()); // NEW
+    if (selectedPropertyRemoved) {
+      unawaited(_clearRoutePolyline());
+    }
     unawaited(_syncAnnotations(resetCamera: false));
   }
 
@@ -322,6 +335,7 @@ class _MapTabState extends State<MapTab> {
     _mapboxMap = null;
     _circleAnnotationManager = null;
     _boundaryAnnotationManager = null;
+    _routeAnnotationManager = null;
     _labelAnnotationManager = null; // NEW: reset label manager on style change
     _hasFittedCamera = false;
     _currentStyleUri = nextStyleUri;
@@ -481,21 +495,321 @@ class _MapTabState extends State<MapTab> {
     );
   }
 
-  // NEW: toggles Mapbox built-in GPS location puck on/off
+  Future<void> _clearRoutePolyline() async {
+    final PolylineAnnotationManager? routeManager = _routeAnnotationManager;
+    if (routeManager == null) return;
+
+    await routeManager.deleteAll();
+  }
+
+  void _showMapMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _promptEnableGpsLocation() async {
+    if (!mounted) return;
+
+    final bool? shouldOpenSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Enable GPS location'),
+          content: const Text(
+            'Turn on device location to show your position on the map.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Open settings'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldOpenSettings == true) {
+      await geo.Geolocator.openLocationSettings();
+    }
+  }
+
+  Future<void> _promptOpenLocationPermissionSettings() async {
+    if (!mounted) return;
+
+    final bool? shouldOpenSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Allow location access'),
+          content: const Text(
+            'Location permission is needed to show your position on the map.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Open settings'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldOpenSettings == true) {
+      await geo.Geolocator.openAppSettings();
+    }
+  }
+
+  Future<bool> _ensureGpsLocationReady() async {
+    final bool isServiceEnabled =
+        await geo.Geolocator.isLocationServiceEnabled();
+    if (!isServiceEnabled) {
+      await _promptEnableGpsLocation();
+      return false;
+    }
+
+    geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+    }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+      await _promptOpenLocationPermissionSettings();
+      return false;
+    }
+
+    if (permission == geo.LocationPermission.denied) {
+      _showMapMessage('Location permission is needed to show your position.');
+      return false;
+    }
+
+    return true;
+  }
+
+  // NEW: gets device GPS, centers the map, and enables Mapbox location puck
   Future<void> _toggleMyLocation() async {
     final MapboxMap? mapboxMap = _mapboxMap;
     if (mapboxMap == null) return;
+    final int pulsingColor = Theme.of(context).colorScheme.primary.toARGB32();
 
-    final bool next = !_isLocationEnabled;
+    final bool isLocationReady = await _ensureGpsLocationReady();
+    if (!isLocationReady) return;
+
+    final geo.Position position;
+    try {
+      position = await geo.Geolocator.getCurrentPosition(
+        locationSettings: const geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+        ),
+      );
+    } catch (_) {
+      _showMapMessage('Unable to get your current location.');
+      return;
+    }
+
     await mapboxMap.location.updateSettings(
       LocationComponentSettings(
-        enabled: next,
-        pulsingEnabled: next,
-        pulsingColor: Theme.of(context).colorScheme.primary.toARGB32(),
+        enabled: true,
+        pulsingEnabled: true,
+        pulsingColor: pulsingColor,
+        puckBearingEnabled: true,
+        puckBearing: PuckBearing.HEADING,
       ),
     );
+    await mapboxMap.easeTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(position.longitude, position.latitude),
+        ),
+        zoom: 16.0,
+        pitch: 0,
+      ),
+      MapAnimationOptions(duration: 700),
+    );
+
     if (!mounted) return;
-    setState(() => _isLocationEnabled = next);
+    setState(() {
+      _isLocationEnabled = true;
+      _mapViewport = FollowPuckViewportState(
+        zoom: 16.0,
+        pitch: 0,
+        bearing: const FollowPuckViewportStateBearingHeading(),
+        padding: MbxEdgeInsets(top: 80, left: 0, bottom: 120, right: 0),
+      );
+    });
+  }
+
+  Future<List<Position>?> _fetchRoutePositions({
+    required geo.Position origin,
+    required _MappableProperty destination,
+  }) async {
+    final Uri uri = Uri.https(
+      'api.mapbox.com',
+      '/directions/v5/mapbox/driving/'
+          '${origin.longitude},${origin.latitude};'
+          '${destination.longitude},${destination.latitude}',
+      <String, String>{
+        'alternatives': 'false',
+        'geometries': 'geojson',
+        'overview': 'full',
+        'steps': 'false',
+        'access_token': _mapboxAccessToken,
+      },
+    );
+
+    final HttpClient client = HttpClient();
+    try {
+      final HttpClientRequest request = await client.getUrl(uri);
+      final HttpClientResponse response = await request.close();
+      if (response.statusCode != HttpStatus.ok) return null;
+
+      final String body = await utf8.decodeStream(response);
+      final Object? decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      final Object? routesValue = decoded['routes'];
+      if (routesValue is! List || routesValue.isEmpty) return null;
+
+      final Object? routeValue = routesValue.first;
+      if (routeValue is! Map<String, dynamic>) return null;
+
+      final Object? geometryValue = routeValue['geometry'];
+      if (geometryValue is! Map<String, dynamic>) return null;
+
+      final Object? coordinatesValue = geometryValue['coordinates'];
+      if (coordinatesValue is! List) return null;
+
+      final List<Position> positions = <Position>[];
+      for (final Object? coordinate in coordinatesValue) {
+        if (coordinate is! List || coordinate.length < 2) continue;
+
+        final Object? longitudeValue = coordinate[0];
+        final Object? latitudeValue = coordinate[1];
+        if (longitudeValue is! num || latitudeValue is! num) continue;
+
+        positions.add(
+          Position(longitudeValue.toDouble(), latitudeValue.toDouble()),
+        );
+      }
+
+      return positions.length >= 2 ? positions : null;
+    } catch (error, stackTrace) {
+      developer.log(
+        'Unable to fetch Mapbox route',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> _showRouteToSelectedProperty() async {
+    final MapboxMap? mapboxMap = _mapboxMap;
+    if (mapboxMap == null) return;
+
+    final _MappableProperty? selected = _selectedMappedProperty;
+    if (selected == null) {
+      _showMapMessage('Select a property first.');
+      return;
+    }
+
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final int pulsingColor = colorScheme.primary.toARGB32();
+    final int routeColor = colorScheme.primary.toARGB32();
+    final int routeBorderColor = Colors.white
+        .withValues(alpha: 0.84)
+        .toARGB32();
+
+    final bool isLocationReady = await _ensureGpsLocationReady();
+    if (!isLocationReady) return;
+
+    final geo.Position position;
+    try {
+      position = await geo.Geolocator.getCurrentPosition(
+        locationSettings: const geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+        ),
+      );
+    } catch (_) {
+      _showMapMessage('Unable to get your current location.');
+      return;
+    }
+
+    final List<Position>? routePositions = await _fetchRoutePositions(
+      origin: position,
+      destination: selected,
+    );
+    if (routePositions == null) {
+      _showMapMessage('Unable to find a route to this property.');
+      return;
+    }
+
+    if (!mounted ||
+        _mapboxMap != mapboxMap ||
+        _selectedPropertyId != selected.property.id) {
+      return;
+    }
+
+    await mapboxMap.location.updateSettings(
+      LocationComponentSettings(
+        enabled: true,
+        pulsingEnabled: true,
+        pulsingColor: pulsingColor,
+        puckBearingEnabled: true,
+        puckBearing: PuckBearing.HEADING,
+      ),
+    );
+
+    PolylineAnnotationManager? routeManager = _routeAnnotationManager;
+    if (routeManager == null) {
+      routeManager = await mapboxMap.annotations.createPolylineAnnotationManager(
+        id: 'property-route',
+        below: _circleAnnotationManager == null ? null : 'property-markers',
+      );
+      _routeAnnotationManager = routeManager;
+    }
+
+    await routeManager.deleteAll();
+    await routeManager.create(
+      PolylineAnnotationOptions(
+        geometry: LineString(coordinates: routePositions),
+        lineBorderColor: routeBorderColor,
+        lineBorderWidth: 2.0,
+        lineColor: routeColor,
+        lineJoin: LineJoin.ROUND,
+        lineOpacity: 0.95,
+        lineWidth: 6.0,
+      ),
+    );
+
+    final List<Point> cameraPoints = routePositions
+        .map((position) => Point(coordinates: position))
+        .toList(growable: false);
+    final CameraOptions camera = await mapboxMap.cameraForCoordinatesPadding(
+      cameraPoints,
+      CameraOptions(),
+      MbxEdgeInsets(top: 96, left: 36, bottom: 132, right: 36),
+      16.5,
+      null,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isLocationEnabled = true;
+      _mapViewport = null;
+    });
+    await mapboxMap.easeTo(camera, MapAnimationOptions(duration: 700));
   }
 
   // NEW: fits camera to show all listed property markers at once
@@ -520,6 +834,36 @@ class _MapTabState extends State<MapTab> {
       null,
     );
     await mapboxMap.easeTo(camera, MapAnimationOptions(duration: 700));
+  }
+
+  void _togglePropertyPickerFromBadge() {
+    if (_mappableProperties.isEmpty) return;
+
+    setState(() {
+      _isPropertyPickerVisible = !_isPropertyPickerVisible;
+    });
+  }
+
+  void _selectAvailablePropertyFromBadge(_MappableProperty selected) {
+    final bool selectedPropertyChanged =
+        _selectedPropertyId != selected.property.id;
+
+    setState(() {
+      _selectedPropertyId = selected.property.id;
+      _isPropertyPickerVisible = false;
+      _isSelectedCardVisible = true;
+      _selectedCardScale = 1.0;
+    });
+
+    _warmMapPropertyImages([selected]);
+    if (selectedPropertyChanged) {
+      unawaited(_clearRoutePolyline());
+    }
+    unawaited(_syncSelectedBoundary());
+    unawaited(_syncSelectedLabel());
+    unawaited(_syncAnnotations(resetCamera: false));
+    unawaited(_focusOnSelectedPropertyBoundary(selected));
+    unawaited(_updateSelectedElevation(selected));
   }
 
   void _clearSelectedElevation() {
@@ -611,6 +955,7 @@ class _MapTabState extends State<MapTab> {
       });
     }
     unawaited(_syncSelectedBoundary());
+    unawaited(_clearRoutePolyline());
 
     await mapboxMap.easeTo(
       CameraOptions(
@@ -650,67 +995,138 @@ class _MapTabState extends State<MapTab> {
   Future<void> _openNegrosPlacesSheet() async {
     final Map<String, List<NegrosPlace>> groupedPlaces =
         _groupNegrosPlacesByProvince();
+    final TextEditingController searchController = TextEditingController();
 
-    final NegrosPlace? selectedPlace = await showModalBottomSheet<NegrosPlace>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        final ThemeData theme = Theme.of(context);
+    try {
+      final NegrosPlace? selectedPlace =
+          await showModalBottomSheet<NegrosPlace>(
+            context: context,
+            showDragHandle: true,
+            isScrollControlled: true,
+            builder: (context) {
+              final ThemeData theme = Theme.of(context);
+              String searchQuery = '';
 
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.72,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              children: [
-                Text(
-                  'Negros Places',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Choose a province or district group, then select a place.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...groupedPlaces.entries.map((entry) {
-                  final List<NegrosPlace> places = entry.value;
+              return StatefulBuilder(
+                builder: (context, setSheetState) {
+                  final String normalizedQuery = searchQuery
+                      .trim()
+                      .toLowerCase();
+                  final visibleEntries = groupedPlaces.entries
+                      .map((entry) {
+                        if (normalizedQuery.isEmpty) return entry;
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    clipBehavior: Clip.antiAlias,
-                    child: ExpansionTile(
-                      leading: const Icon(Icons.location_city_outlined),
-                      title: Text(entry.key),
-                      subtitle: Text('${places.length} places'),
-                      children: places
-                          .map((place) {
-                            return ListTile(
-                              dense: true,
-                              title: Text(place.placeName),
-                              subtitle: Text(place.location),
-                              trailing: const Icon(Icons.chevron_right_rounded),
-                              onTap: () => Navigator.of(context).pop(place),
-                            );
-                          })
-                          .toList(growable: false),
+                        final List<NegrosPlace> matchingPlaces = entry.value
+                            .where((place) {
+                              final String searchableText =
+                                  '${place.placeName} ${place.province} '
+                                          '${place.location}'
+                                      .toLowerCase();
+                              return searchableText.contains(normalizedQuery);
+                            })
+                            .toList(growable: false);
+
+                        return MapEntry<String, List<NegrosPlace>>(
+                          entry.key,
+                          matchingPlaces,
+                        );
+                      })
+                      .where((entry) => entry.value.isNotEmpty)
+                      .toList(growable: false);
+
+                  return SafeArea(
+                    child: FractionallySizedBox(
+                      heightFactor: 0.72,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                        children: [
+                          TextField(
+                            controller: searchController,
+                            autofocus: true,
+                            textInputAction: TextInputAction.search,
+                            onChanged: (value) {
+                              setSheetState(() {
+                                searchQuery = value;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search Negros places',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              suffixIcon: searchQuery.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      icon: const Icon(Icons.close_rounded),
+                                      onPressed: () {
+                                        searchController.clear();
+                                        setSheetState(() {
+                                          searchQuery = '';
+                                        });
+                                      },
+                                    ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (visibleEntries.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                'No places found',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          else
+                            ...visibleEntries.map((entry) {
+                              final List<NegrosPlace> places = entry.value;
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                clipBehavior: Clip.antiAlias,
+                                child: ExpansionTile(
+                                  initiallyExpanded:
+                                      normalizedQuery.isNotEmpty,
+                                  leading: const Icon(
+                                    Icons.location_city_outlined,
+                                  ),
+                                  title: Text(entry.key),
+                                  subtitle: Text('${places.length} places'),
+                                  children: places
+                                      .map((place) {
+                                        return ListTile(
+                                          dense: true,
+                                          title: Text(place.placeName),
+                                          subtitle: Text(place.location),
+                                          trailing: const Icon(
+                                            Icons.chevron_right_rounded,
+                                          ),
+                                          onTap: () =>
+                                              Navigator.of(context).pop(place),
+                                        );
+                                      })
+                                      .toList(growable: false),
+                                ),
+                              );
+                            }),
+                        ],
+                      ),
                     ),
                   );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+                },
+              );
+            },
+          );
 
-    if (selectedPlace == null) return;
-    await _focusOnNegrosPlace(selectedPlace);
+      if (selectedPlace == null) return;
+      await _focusOnNegrosPlace(selectedPlace);
+    } finally {
+      searchController.dispose();
+    }
   }
 
   Future<void> _zoomIn() async {
@@ -833,6 +1249,7 @@ class _MapTabState extends State<MapTab> {
     final bool hasBoundary =
         _boundaryPositionsFromText(selected.property.boundaryCoordinates) !=
         null;
+    final bool selectedPropertyChanged = _selectedPropertyId != propertyId;
     setState(() {
       _selectedPropertyId = propertyId;
       _isSelectedCardVisible = !hasBoundary;
@@ -840,6 +1257,9 @@ class _MapTabState extends State<MapTab> {
     });
 
     _warmMapPropertyImages([selected]);
+    if (selectedPropertyChanged) {
+      unawaited(_clearRoutePolyline());
+    }
     unawaited(_syncSelectedBoundary());
     unawaited(_syncSelectedLabel()); // NEW
     unawaited(_syncAnnotations(resetCamera: false));
@@ -938,6 +1358,7 @@ class _MapTabState extends State<MapTab> {
     });
     if (selectedPropertyChanged) {
       _warmMapPropertyImages([selectedProperty]);
+      unawaited(_clearRoutePolyline());
       unawaited(_syncSelectedBoundary());
       unawaited(_syncSelectedLabel()); // NEW
       unawaited(_syncAnnotations(resetCamera: false));
@@ -964,6 +1385,7 @@ class _MapTabState extends State<MapTab> {
       });
       unawaited(_syncSelectedBoundary());
       unawaited(_syncSelectedLabel()); // NEW
+      unawaited(_clearRoutePolyline());
     }
 
     await annotationManager.deleteAll();
@@ -1076,6 +1498,7 @@ class _MapTabState extends State<MapTab> {
                 center: _negrosIslandCenter,
                 zoom: _negrosIslandInitialZoom,
               ),
+              viewport: _mapViewport,
               onMapCreated: _onMapCreated,
               onStyleLoadedListener: _onStyleLoaded,
               onMapIdleListener: (_) {
@@ -1088,6 +1511,7 @@ class _MapTabState extends State<MapTab> {
               },
               onTapListener: (_) {
                 if (_selectedPropertyId == null) return;
+                bool shouldClearRoute = false;
                 setState(() {
                   if (_isSelectedCardVisible) {
                     _isSelectedCardVisible = false;
@@ -1096,8 +1520,12 @@ class _MapTabState extends State<MapTab> {
                     _isSelectedCardVisible = true;
                     _selectedCardScale = 1.0;
                     _clearSelectedElevation();
+                    shouldClearRoute = true;
                   }
                 });
+                if (shouldClearRoute) {
+                  unawaited(_clearRoutePolyline());
+                }
                 unawaited(_syncSelectedBoundary());
                 unawaited(_syncSelectedLabel()); // NEW
                 unawaited(_syncAnnotations(resetCamera: false));
@@ -1108,16 +1536,9 @@ class _MapTabState extends State<MapTab> {
             Positioned(
               top: 16,
               left: 16,
-              child: FilledButton.icon(
-                onPressed: _openNegrosPlacesSheet,
-                icon: const Icon(Icons.explore_outlined),
-                label: const Text('Negros places'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+              right: 96,
+              child: _MapPlacesSearchBar(
+                onTap: _openNegrosPlacesSheet,
               ),
             ),
           Positioned(
@@ -1138,9 +1559,30 @@ class _MapTabState extends State<MapTab> {
           // NEW: "X lots available" badge at bottom-left
           if (_mappableProperties.isNotEmpty)
             Positioned(
-              bottom: 16,
+              bottom: 48,
               left: 16,
-              child: _MapPropertyCountBadge(count: _mappableProperties.length),
+              child: _MapPropertyCountBadge(
+                count: _mappableProperties.length,
+                onTap: _togglePropertyPickerFromBadge,
+              ),
+            ),
+          if (_mappableProperties.isNotEmpty)
+            Positioned(
+              bottom: 48,
+              right: 16,
+              child: _MapDirectionFloatingButton(
+                onTap: _showRouteToSelectedProperty,
+              ),
+            ),
+          if (_isPropertyPickerVisible && _mappableProperties.isNotEmpty)
+            Positioned(
+              bottom: 96,
+              left: 16,
+              child: _MapPropertyPicker(
+                properties: _mappableProperties,
+                selectedPropertyId: _selectedPropertyId,
+                onSelected: _selectAvailablePropertyFromBadge,
+              ),
             ),
           if (selectedProperty != null && _isSelectedCardVisible)
             Center(
@@ -1203,53 +1645,72 @@ class _MapZoomControl extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            blurRadius: 14,
+            blurRadius: 38,
+            offset: Offset(0, 22),
+            color: Color(0x42000000),
+          ),
+          BoxShadow(
+            blurRadius: 10,
             offset: Offset(0, 6),
-            color: Color(0x1A000000),
+            color: Color(0x24000000),
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _MapIconButton(icon: Icons.add, onTap: onZoomIn),
-          _MapDivider(color: theme.dividerColor),
-          _MapIconButton(icon: Icons.remove, onTap: onZoomOut),
-          _MapDivider(color: theme.dividerColor),
-          _MapIconButton(
-            icon: selectedMapStyleMode == _MapStyleMode.satellite
-                ? Icons.public_rounded
-                : Icons.layers_outlined,
-            iconSize: 20,
-            onTap: onToggleMapStyle,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.32),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MapIconButton(icon: Icons.add, onTap: onZoomIn),
+                _MapDivider(color: theme.dividerColor),
+                _MapIconButton(icon: Icons.remove, onTap: onZoomOut),
+                _MapDivider(color: theme.dividerColor),
+                _MapIconButton(
+                  icon: selectedMapStyleMode == _MapStyleMode.satellite
+                      ? Icons.public_rounded
+                      : Icons.layers_outlined,
+                  iconSize: 20,
+                  onTap: onToggleMapStyle,
+                ),
+                _MapDivider(color: theme.dividerColor),
+                _MapIconButton(
+                  icon: Icons.navigation,
+                  iconSize: 18,
+                  onTap: onResetNorth,
+                ),
+                _MapDivider(color: theme.dividerColor),
+                // NEW: fit all listed properties into view
+                _MapIconButton(
+                  icon: Icons.fit_screen_rounded,
+                  iconSize: 20,
+                  onTap: onFitAll,
+                ),
+                _MapDivider(color: theme.dividerColor),
+                // NEW: toggle GPS location puck; icon changes when active
+                _MapIconButton(
+                  icon: isLocationEnabled
+                      ? Icons.my_location_rounded
+                      : Icons.location_searching_rounded,
+                  iconSize: 20,
+                  onTap: onMyLocation,
+                ),
+              ],
+            ),
           ),
-          _MapDivider(color: theme.dividerColor),
-          _MapIconButton(
-            icon: Icons.navigation,
-            iconSize: 18,
-            onTap: onResetNorth,
-          ),
-          _MapDivider(color: theme.dividerColor),
-          // NEW: fit all listed properties into view
-          _MapIconButton(
-            icon: Icons.fit_screen_rounded,
-            iconSize: 20,
-            onTap: onFitAll,
-          ),
-          _MapDivider(color: theme.dividerColor),
-          // NEW: toggle GPS location puck; icon changes when active
-          _MapIconButton(
-            icon: isLocationEnabled
-                ? Icons.my_location_rounded
-                : Icons.location_searching_rounded,
-            iconSize: 20,
-            onTap: onMyLocation,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1268,11 +1729,20 @@ class _MapIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const List<Shadow> iconShadows = [
+      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
+      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
+    ];
+
     return InkWell(
       onTap: () {
         unawaited(onTap());
       },
-      child: SizedBox(width: 40, height: 40, child: Icon(icon, size: iconSize)),
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Icon(icon, size: iconSize, shadows: iconShadows),
+      ),
     );
   }
 }
@@ -1510,11 +1980,10 @@ class _MapPropertyInfoChip extends StatelessWidget {
   }
 }
 
-// NEW: badge widget showing total listed lots available on the map
-class _MapPropertyCountBadge extends StatelessWidget {
-  final int count;
+class _MapPlacesSearchBar extends StatelessWidget {
+  final VoidCallback onTap;
 
-  const _MapPropertyCountBadge({required this.count});
+  const _MapPlacesSearchBar({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1522,16 +1991,80 @@ class _MapPropertyCountBadge extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
-            blurRadius: 10,
-            offset: Offset(0, 4),
-            color: Color(0x1A000000),
+            blurRadius: 28,
+            spreadRadius: -6,
+            offset: Offset(0, 14),
+            color: Color(0x4D000000),
+          ),
+          BoxShadow(
+            blurRadius: 8,
+            offset: Offset(0, 3),
+            color: Color(0x26000000),
           ),
         ],
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Material(
+            color: theme.colorScheme.surface.withValues(alpha: 0.46),
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                height: 48,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search_rounded,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Search Negros places',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// NEW: badge widget showing total listed lots available on the map
+class _MapPropertyCountBadge extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _MapPropertyCountBadge({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    const List<Shadow> floatingShadows = [
+      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
+      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
+    ];
+
+    return GestureDetector(
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
@@ -1541,16 +2074,195 @@ class _MapPropertyCountBadge extends StatelessWidget {
               Icons.landscape_rounded,
               size: 16,
               color: theme.colorScheme.primary,
+              shadows: floatingShadows,
             ),
             const SizedBox(width: 6),
             Text(
               '$count lot${count == 1 ? '' : 's'} available',
               style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                shadows: floatingShadows,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapDirectionFloatingButton extends StatelessWidget {
+  final Future<void> Function() onTap;
+
+  const _MapDirectionFloatingButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const List<Shadow> iconShadows = [
+      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
+      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 30,
+            spreadRadius: -5,
+            offset: Offset(0, 16),
+            color: Color(0x44000000),
+          ),
+          BoxShadow(
+            blurRadius: 8,
+            offset: Offset(0, 4),
+            color: Color(0x26000000),
+          ),
+        ],
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => unawaited(onTap()),
+            borderRadius: BorderRadius.circular(18),
+            child: const SizedBox(
+              width: 56,
+              height: 56,
+              child: Icon(
+                Icons.directions_rounded,
+                size: 32,
+                color: Colors.white,
+                shadows: iconShadows,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapPropertyPicker extends StatelessWidget {
+  final List<_MappableProperty> properties;
+  final String? selectedPropertyId;
+  final ValueChanged<_MappableProperty> onSelected;
+
+  const _MapPropertyPicker({
+    required this.properties,
+    required this.selectedPropertyId,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final _MappableProperty item in properties) ...[
+          _MapPropertyPickerButton(
+            item: item,
+            isSelected: item.property.id == selectedPropertyId,
+            onTap: () => onSelected(item),
+          ),
+          if (item != properties.last) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _MapPropertyPickerButton extends StatelessWidget {
+  final _MappableProperty item;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _MapPropertyPickerButton({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    const List<Shadow> childShadows = [
+      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
+      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 26,
+            spreadRadius: -8,
+            offset: Offset(0, 14),
+            color: Color(0x38000000),
+          ),
+          BoxShadow(
+            blurRadius: 12,
+            spreadRadius: -6,
+            offset: Offset(0, 4),
+            color: Color(0x22000000),
+          ),
+        ],
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              width: 230,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.property.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: isSelected
+                            ? theme.colorScheme.primary
+                            : Colors.white,
+                        fontWeight: FontWeight.w800,
+                        shadows: childShadows,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.property.price,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w700,
+                        shadows: childShadows,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

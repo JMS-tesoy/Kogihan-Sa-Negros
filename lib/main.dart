@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
@@ -29,6 +33,7 @@ final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
 const String _followSystemThemePrefsKey = 'follow_system_theme_enabled';
+const String _preferredThemeModePrefsKey = 'preferred_theme_mode';
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
 const int _initialPropertyImagePrefetchCount = 4;
 const String _profileAvatarsBucket = 'profile-avatars';
@@ -38,6 +43,14 @@ const String _authRedirectUrl =
 Future<void> _persistFollowSystemThemePreference(bool enabled) async {
   final SharedPreferences preferences = await SharedPreferences.getInstance();
   await preferences.setBool(_followSystemThemePrefsKey, enabled);
+}
+
+Future<void> _persistPreferredThemeMode(ThemeMode themeMode) async {
+  final SharedPreferences preferences = await SharedPreferences.getInstance();
+  await preferences.setString(
+    _preferredThemeModePrefsKey,
+    themeMode == ThemeMode.dark ? 'dark' : 'light',
+  );
 }
 
 String _messageInitial(String value) {
@@ -502,10 +515,14 @@ void main() async {
 
   await SubscriptionService.initialize();
   final SharedPreferences preferences = await SharedPreferences.getInstance();
-  appThemeNotifier.value =
-      preferences.getBool(_followSystemThemePrefsKey) == false
-          ? ThemeMode.light
-          : ThemeMode.system;
+  final bool followSystemTheme =
+      preferences.getBool(_followSystemThemePrefsKey) ?? true;
+  final String? preferredThemeMode = preferences.getString(
+    _preferredThemeModePrefsKey,
+  );
+  appThemeNotifier.value = followSystemTheme
+      ? ThemeMode.system
+      : (preferredThemeMode == 'dark' ? ThemeMode.dark : ThemeMode.light);
 
   runApp(const RealEstateApp());
 }
@@ -3493,6 +3510,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
   late bool _followSystemTheme;
+  late ThemeMode _preferredThemeMode;
   bool _notifyNewProperties = true;
   bool _notifyPriceDrops = true;
   bool _notifyMessages = true;
@@ -3501,8 +3519,35 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    final Brightness systemBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _followSystemTheme = appThemeNotifier.value == ThemeMode.system;
+    final bool shouldUseDarkPreference =
+        appThemeNotifier.value == ThemeMode.dark ||
+        (appThemeNotifier.value == ThemeMode.system &&
+            systemBrightness == Brightness.dark);
+    _preferredThemeMode = shouldUseDarkPreference
+        ? ThemeMode.dark
+        : ThemeMode.light;
     _currentFontSizeScale = appFontScaleNotifier.value;
+    unawaited(_loadPreferredThemeMode());
+  }
+
+  Future<void> _loadPreferredThemeMode() async {
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final String? preferredThemeMode = preferences.getString(
+      _preferredThemeModePrefsKey,
+    );
+    if (!mounted || preferredThemeMode == null) return;
+
+    setState(() {
+      _preferredThemeMode = preferredThemeMode == 'dark'
+          ? ThemeMode.dark
+          : ThemeMode.light;
+      if (!_followSystemTheme) {
+        appThemeNotifier.value = _preferredThemeMode;
+      }
+    });
   }
 
   Widget _buildCompactSwitchTile({
@@ -3527,6 +3572,49 @@ class _SettingsPageState extends State<SettingsPage> {
       onChanged: onChanged,
       activeThumbColor: activeSwitchColor,
       controlAffinity: ListTileControlAffinity.trailing,
+    );
+  }
+
+  Widget _buildAppearanceSwitchTile({
+    required String title,
+    String? subtitle,
+    required bool value,
+    ValueChanged<bool>? onChanged,
+    bool isChild = false,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final bool isEnabled = onChanged != null;
+    final Color activeSwitchColor = isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : Theme.of(context).colorScheme.primary;
+
+    return ListTile(
+      enabled: isEnabled,
+      dense: isChild,
+      title: Text(
+        title,
+        style: isChild ? theme.textTheme.bodyMedium : null,
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle,
+              style: isChild ? theme.textTheme.bodySmall : null,
+            ),
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      onTap: isEnabled ? () => onChanged?.call(!value) : null,
+      trailing: Transform.scale(
+        scale: 0.76,
+        alignment: Alignment.centerRight,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: activeSwitchColor,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
     );
   }
 
@@ -3771,7 +3859,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(
-                    left: 72,
+                    left: 16,
                     right: 20,
                   ),
                   child: Slider(
@@ -3799,24 +3887,58 @@ class _SettingsPageState extends State<SettingsPage> {
                     textScaler: TextScaler.linear(_currentFontSizeScale),
                   ),
                 ),
+              ],
+            ),
+            _buildSectionCard(
+              title: 'Dark Mode',
+              children: [
+                _buildAppearanceSwitchTile(
+                  title: 'Follow System Theme',
+                  subtitle: 'Match your phone display mode',
+                  value: _followSystemTheme,
+                  isChild: true,
+                  onChanged: (value) {
+                    setState(() {
+                      _followSystemTheme = value;
+                      if (value) {
+                        _preferredThemeMode = ThemeMode.light;
+                        appThemeNotifier.value = ThemeMode.system;
+                      } else {
+                        appThemeNotifier.value = _preferredThemeMode;
+                      }
+                    });
+                    unawaited(_persistFollowSystemThemePreference(value));
+                    if (value) {
+                      unawaited(_persistPreferredThemeMode(ThemeMode.light));
+                    } else {
+                      unawaited(
+                        _persistPreferredThemeMode(_preferredThemeMode),
+                      );
+                    }
+                  },
+                ),
                 _settingsDivider(),
-                Transform.scale(
-                  scale: 0.76,
-                  alignment: Alignment.centerRight,
-                  child: _buildCompactSwitchTile(
-                    title: 'Follow System Theme',
-                    subtitle: 'Match your phone display mode',
-                    value: _followSystemTheme,
-                    onChanged: (value) {
-                      setState(() {
-                        _followSystemTheme = value;
-                        appThemeNotifier.value = value
-                            ? ThemeMode.system
-                            : ThemeMode.light;
-                      });
-                      unawaited(_persistFollowSystemThemePreference(value));
-                    },
-                  ),
+                _buildAppearanceSwitchTile(
+                  title: 'Use Dark Theme',
+                  subtitle: 'Use your preferred app theme',
+                  value:
+                      !_followSystemTheme &&
+                      _preferredThemeMode == ThemeMode.dark,
+                  isChild: true,
+                  onChanged: _followSystemTheme
+                      ? null
+                      : (value) {
+                          final ThemeMode selectedThemeMode = value
+                              ? ThemeMode.dark
+                              : ThemeMode.light;
+                          setState(() {
+                            _preferredThemeMode = selectedThemeMode;
+                            appThemeNotifier.value = selectedThemeMode;
+                          });
+                          unawaited(
+                            _persistPreferredThemeMode(selectedThemeMode),
+                          );
+                        },
                 ),
               ],
             ),
