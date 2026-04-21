@@ -3604,7 +3604,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
       visualDensity: VisualDensity.compact,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      onTap: isEnabled ? () => onChanged?.call(!value) : null,
+      onTap: isEnabled ? () => onChanged(!value) : null,
       trailing: Transform.scale(
         scale: 0.76,
         alignment: Alignment.centerRight,
