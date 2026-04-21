@@ -16,6 +16,7 @@ class Property {
   final Color imageColor;
   final String? imageUrl;
   final String? thumbnailUrl;
+  final String? boundaryCoordinates;
 
   const Property({
     required this.id,
@@ -32,6 +33,7 @@ class Property {
     required this.imageColor,
     this.imageUrl,
     this.thumbnailUrl,
+    this.boundaryCoordinates,
   });
 
   Property copyWith({
@@ -49,6 +51,7 @@ class Property {
     Color? imageColor,
     String? imageUrl,
     String? thumbnailUrl,
+    String? boundaryCoordinates,
   }) {
     return Property(
       id: id ?? this.id,
@@ -65,6 +68,7 @@ class Property {
       imageColor: imageColor ?? this.imageColor,
       imageUrl: imageUrl ?? this.imageUrl,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      boundaryCoordinates: boundaryCoordinates ?? this.boundaryCoordinates,
     );
   }
 
@@ -91,11 +95,12 @@ class Property {
       imageColor: Color(_toInt(map['image_color'])),
       imageUrl: _toNullableString(map['image_url']),
       thumbnailUrl: _toNullableString(map['thumbnail_url']),
+      boundaryCoordinates: _toNullableString(map['boundary_coordinates']),
     );
   }
 
   Map<String, dynamic> toInsertMap() {
-    return {
+    final Map<String, dynamic> data = {
       'reference_code': referenceCode,
       'title': title,
       'location': location,
@@ -109,11 +114,13 @@ class Property {
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
+      'boundary_coordinates': _toNullableString(boundaryCoordinates),
     };
+    return data;
   }
 
   Map<String, dynamic> toUpdateMap() {
-    return {
+    final Map<String, dynamic> data = {
       'reference_code': referenceCode,
       'title': title,
       'location': location,
@@ -127,7 +134,9 @@ class Property {
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
+      'boundary_coordinates': _toNullableString(boundaryCoordinates),
     };
+    return data;
   }
 
   static String? _toNullableString(dynamic value) {
@@ -146,10 +155,7 @@ class Property {
   }
 }
 
-String _optimizedPropertyImageUrl(
-  String imageUrl, {
-  required int targetWidth,
-}) {
+String _optimizedPropertyImageUrl(String imageUrl, {required int targetWidth}) {
   final Uri? uri = Uri.tryParse(imageUrl);
   if (uri == null) return imageUrl;
 
@@ -189,93 +195,7 @@ String? resolvePropertyImageUrl(
   return normalized;
 }
 
-const List<Property> _fallbackProperties = [
-  Property(
-    id: 'property-1',
-    referenceCode: 'LF-000120008',
-    title: 'Prime Residential Lot',
-    location: '9.3077, 123.3054',
-    price: '₱1,200,000',
-    priceValue: 1200000,
-    size: '500 sqm',
-    sizeValue: 500,
-    tag: 'Featured',
-    titleStatus: 'Clean Title',
-    description:
-        'A clean residential lot ideal for a primary home build. Easy road access, stable neighborhood demand, and ready for site viewing.',
-    imageColor: Color(0xFF9CCC65),
-    imageUrl:
-        'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
-  ),
-  Property(
-    id: 'property-2',
-    referenceCode: 'LF-000120009',
-    title: 'Mountain View Land',
-    location: '9.2516, 123.2400',
-    price: '₱2,450,000',
-    priceValue: 2450000,
-    size: '1,200 sqm',
-    sizeValue: 1200,
-    tag: 'Hot Deal',
-    titleStatus: 'Transfer Certificate of Title',
-    description:
-        'Elevated land parcel with open mountain views and strong long-term value for vacation home or subdivision planning.',
-    imageColor: Color(0xFFA1887F),
-    imageUrl:
-        'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-  ),
-  Property(
-    id: 'property-3',
-    referenceCode: 'LF-000120010',
-    title: 'Farm Lot Investment',
-    location: '10.3370, 123.8980',
-    price: '₱3,100,000',
-    priceValue: 3100000,
-    size: '2,000 sqm',
-    sizeValue: 2000,
-    tag: 'New',
-    titleStatus: 'Tax Declaration',
-    description:
-        'Spacious agricultural lot suited for farming, agri-tourism, or long-term land banking with room for future expansion.',
-    imageColor: Color(0xFF64B5F6),
-    imageUrl:
-        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80',
-  ),
-  Property(
-    id: 'property-4',
-    referenceCode: 'LF-000120011',
-    title: 'Highway Frontage Lot',
-    location: '9.3580, 123.2851',
-    price: '₱4,800,000',
-    priceValue: 4800000,
-    size: '1,500 sqm',
-    sizeValue: 1500,
-    tag: 'Premium',
-    titleStatus: 'Mother Title',
-    description:
-        'High-visibility lot with direct highway exposure, suitable for commercial development, showroom use, or mixed-use investment.',
-    imageColor: Color(0xFFBA68C8),
-    imageUrl:
-        'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=80',
-  ),
-  Property(
-    id: 'property-5',
-    referenceCode: 'LF-000120012',
-    title: 'Affordable Starter Lot',
-    location: '9.3647, 122.8044',
-    price: '₱900,000',
-    priceValue: 900000,
-    size: '300 sqm',
-    sizeValue: 300,
-    tag: 'Budget',
-    titleStatus: 'Clean Title',
-    description:
-        'Entry-level lot for first-time buyers seeking an accessible parcel for a modest home build or initial lot investment.',
-    imageColor: Color(0xFFFFB74D),
-    imageUrl:
-        'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
-  ),
-];
+const List<Property> _fallbackProperties = [];
 
 final ValueNotifier<List<Property>> appPropertiesNotifier =
     ValueNotifier<List<Property>>(List<Property>.from(_fallbackProperties));
@@ -356,10 +276,14 @@ Future<Property> createProperty(Property property) async {
       .select()
       .single();
 
-  final Property createdProperty =
-      Property.fromMap(Map<String, dynamic>.from(response));
+  final Property createdProperty = Property.fromMap(
+    Map<String, dynamic>.from(response),
+  );
 
-  appPropertiesNotifier.value = [createdProperty, ...appPropertiesNotifier.value];
+  appPropertiesNotifier.value = [
+    createdProperty,
+    ...appPropertiesNotifier.value,
+  ];
   return createdProperty;
 }
 
@@ -371,12 +295,15 @@ Future<Property> updateProperty(Property property) async {
       .select()
       .single();
 
-  final Property updatedProperty =
-      Property.fromMap(Map<String, dynamic>.from(response));
-  final List<Property> updatedProperties =
-      List<Property>.from(appPropertiesNotifier.value);
-  final int index =
-      updatedProperties.indexWhere((item) => item.id == updatedProperty.id);
+  final Property updatedProperty = Property.fromMap(
+    Map<String, dynamic>.from(response),
+  );
+  final List<Property> updatedProperties = List<Property>.from(
+    appPropertiesNotifier.value,
+  );
+  final int index = updatedProperties.indexWhere(
+    (item) => item.id == updatedProperty.id,
+  );
 
   if (index != -1) {
     updatedProperties[index] = updatedProperty;
@@ -387,7 +314,10 @@ Future<Property> updateProperty(Property property) async {
 }
 
 Future<void> deleteProperty(String propertyId) async {
-  await Supabase.instance.client.from('properties').delete().eq('id', propertyId);
+  await Supabase.instance.client
+      .from('properties')
+      .delete()
+      .eq('id', propertyId);
 
   appPropertiesNotifier.value = appPropertiesNotifier.value
       .where((property) => property.id != propertyId)

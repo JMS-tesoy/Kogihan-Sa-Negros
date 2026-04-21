@@ -325,10 +325,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     await Navigator.push(
       context,
       _instantRoute(
-        AgentInboxPage(
-          inquiries: _inquiries,
-          onMarkAsRead: _markInquiryAsRead,
-        ),
+        AgentInboxPage(inquiries: _inquiries, onMarkAsRead: _markInquiryAsRead),
       ),
     );
 
@@ -639,6 +636,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _imageUrlController;
   late final TextEditingController _thumbnailUrlController;
+  late final TextEditingController _boundaryCoordinatesController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
@@ -787,6 +785,34 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
+  Widget _buildBoundaryGuidelines(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.info_outline_rounded,
+          size: 18,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Start at any land corner, then enter the next corner beside it. '
+            'You may paste the corners in any order, then tap Auto-arrange. '
+            'The app sorts simple lot shapes around the center before saving. '
+            'The map marker uses the boundary center when these points are added.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSelectionField({
     required BuildContext context,
     required String label,
@@ -890,15 +916,18 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                       leading: const Icon(Icons.location_city_outlined),
                       title: Text(entry.key),
                       subtitle: Text('${provincePlaces.length} places'),
-                      children: provincePlaces.map((place) {
-                        return ListTile(
-                          dense: true,
-                          title: Text(place.placeName),
-                          subtitle: Text(place.location),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () => Navigator.of(sheetContext).pop(place),
-                        );
-                      }).toList(growable: false),
+                      children: provincePlaces
+                          .map((place) {
+                            return ListTile(
+                              dense: true,
+                              title: Text(place.placeName),
+                              subtitle: Text(place.location),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () =>
+                                  Navigator.of(sheetContext).pop(place),
+                            );
+                          })
+                          .toList(growable: false),
                     ),
                   );
                 }),
@@ -1114,7 +1143,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
 
     return _OptimizedPropertyImages(
-      detailBytes: Uint8List.fromList(img.encodeJpg(orientedImage, quality: 72)),
+      detailBytes: Uint8List.fromList(
+        img.encodeJpg(orientedImage, quality: 72),
+      ),
       thumbnailBytes: Uint8List.fromList(
         img.encodeJpg(thumbnailImage, quality: 64),
       ),
@@ -1147,8 +1178,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     try {
       final Uint8List bytes = await pickedFile.readAsBytes();
-      final _OptimizedPropertyImages optimizedImages =
-          _optimizePropertyImages(bytes);
+      final _OptimizedPropertyImages optimizedImages = _optimizePropertyImages(
+        bytes,
+      );
       final int uploadTimestamp = DateTime.now().millisecondsSinceEpoch;
       final String detailFilePath = '${user.id}/$uploadTimestamp-detail.jpg';
       final String thumbnailFilePath = '${user.id}/$uploadTimestamp-thumb.jpg';
@@ -1248,6 +1280,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _thumbnailUrlController = TextEditingController(
       text: widget.initialProperty?.thumbnailUrl ?? '',
     );
+    _boundaryCoordinatesController = TextEditingController(
+      text: widget.initialProperty?.boundaryCoordinates ?? '',
+    );
   }
 
   @override
@@ -1261,6 +1296,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _descriptionController.dispose();
     _imageUrlController.dispose();
     _thumbnailUrlController.dispose();
+    _boundaryCoordinatesController.dispose();
     super.dispose();
   }
 
@@ -1269,6 +1305,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     final int parsedPriceValue = _extractNumber(_priceController.text);
     final int parsedSizeValue = _extractNumber(_sizeController.text);
+    final String? arrangedBoundaryCoordinates =
+        _arrangedBoundaryCoordinatesText();
 
     final Property property = Property(
       id:
@@ -1291,9 +1329,227 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       thumbnailUrl: _thumbnailUrlController.text.trim().isEmpty
           ? null
           : _thumbnailUrlController.text.trim(),
+      boundaryCoordinates: arrangedBoundaryCoordinates,
     );
 
     Navigator.pop(context, property);
+  }
+
+  List<List<double>> _parseCoordinatePairs(String value) {
+    final String normalized = value.trim().toUpperCase();
+    if (normalized.isEmpty) return const <List<double>>[];
+
+    if (RegExp(r'''['"′″]''').hasMatch(normalized)) {
+      return const <List<double>>[];
+    }
+
+    final List<RegExpMatch> matches = RegExp(
+      r'([-+]?\d+(?:\.\d+)?)\s*°?\s*([NSEW])?',
+    ).allMatches(normalized).toList(growable: false);
+    if (matches.length < 2) return const <List<double>>[];
+
+    final List<List<double>> coordinatePairs = <List<double>>[];
+    for (int index = 0; index + 1 < matches.length; index += 2) {
+      double? latitude = double.tryParse(matches[index].group(1)!);
+      double? longitude = double.tryParse(matches[index + 1].group(1)!);
+      if (latitude == null || longitude == null) continue;
+
+      final String? latitudeDirection = matches[index].group(2);
+      final String? longitudeDirection = matches[index + 1].group(2);
+      if (latitudeDirection == 'S') latitude = -latitude.abs();
+      if (longitudeDirection == 'W') longitude = -longitude.abs();
+
+      if (latitude < -90 || latitude > 90) continue;
+      if (longitude < -180 || longitude > 180) continue;
+
+      coordinatePairs.add(<double>[latitude, longitude]);
+    }
+
+    return coordinatePairs;
+  }
+
+  List<Offset> _boundaryPointsFromText(String value) {
+    final List<Offset> parsedPoints = _parseCoordinatePairs(
+      value,
+    ).map((pair) => Offset(pair[1], pair[0])).toList(growable: true);
+
+    if (parsedPoints.length > 1 &&
+        _sameBoundaryPoint(parsedPoints.first, parsedPoints.last)) {
+      parsedPoints.removeLast();
+    }
+
+    final List<Offset> uniquePoints = <Offset>[];
+    for (final Offset point in parsedPoints) {
+      if (!uniquePoints.any((item) => _sameBoundaryPoint(item, point))) {
+        uniquePoints.add(point);
+      }
+    }
+
+    return uniquePoints;
+  }
+
+  bool _sameBoundaryPoint(Offset first, Offset second) {
+    const double tolerance = 0.0000001;
+    return (first.dx - second.dx).abs() < tolerance &&
+        (first.dy - second.dy).abs() < tolerance;
+  }
+
+  double _boundaryTurn(Offset first, Offset second, Offset third) {
+    return (second.dx - first.dx) * (third.dy - first.dy) -
+        (second.dy - first.dy) * (third.dx - first.dx);
+  }
+
+  bool _pointIsOnBoundarySegment(Offset point, Offset start, Offset end) {
+    const double tolerance = 0.0000001;
+    return point.dx >= min(start.dx, end.dx) - tolerance &&
+        point.dx <= max(start.dx, end.dx) + tolerance &&
+        point.dy >= min(start.dy, end.dy) - tolerance &&
+        point.dy <= max(start.dy, end.dy) + tolerance &&
+        _boundaryTurn(start, end, point).abs() < tolerance;
+  }
+
+  bool _boundarySegmentsIntersect(
+    Offset firstStart,
+    Offset firstEnd,
+    Offset secondStart,
+    Offset secondEnd,
+  ) {
+    const double tolerance = 0.0000001;
+    final double turnOne = _boundaryTurn(firstStart, firstEnd, secondStart);
+    final double turnTwo = _boundaryTurn(firstStart, firstEnd, secondEnd);
+    final double turnThree = _boundaryTurn(secondStart, secondEnd, firstStart);
+    final double turnFour = _boundaryTurn(secondStart, secondEnd, firstEnd);
+
+    if (turnOne.abs() < tolerance &&
+        _pointIsOnBoundarySegment(secondStart, firstStart, firstEnd)) {
+      return true;
+    }
+    if (turnTwo.abs() < tolerance &&
+        _pointIsOnBoundarySegment(secondEnd, firstStart, firstEnd)) {
+      return true;
+    }
+    if (turnThree.abs() < tolerance &&
+        _pointIsOnBoundarySegment(firstStart, secondStart, secondEnd)) {
+      return true;
+    }
+    if (turnFour.abs() < tolerance &&
+        _pointIsOnBoundarySegment(firstEnd, secondStart, secondEnd)) {
+      return true;
+    }
+
+    return (turnOne > 0) != (turnTwo > 0) && (turnThree > 0) != (turnFour > 0);
+  }
+
+  bool _boundaryHasCrossingLines(List<Offset> points) {
+    for (int firstIndex = 0; firstIndex < points.length; firstIndex++) {
+      final int firstNextIndex = (firstIndex + 1) % points.length;
+      final Offset firstStart = points[firstIndex];
+      final Offset firstEnd = points[firstNextIndex];
+
+      for (
+        int secondIndex = firstIndex + 1;
+        secondIndex < points.length;
+        secondIndex++
+      ) {
+        final int secondNextIndex = (secondIndex + 1) % points.length;
+        final bool sharesCorner =
+            firstIndex == secondIndex ||
+            firstIndex == secondNextIndex ||
+            firstNextIndex == secondIndex ||
+            firstNextIndex == secondNextIndex;
+        if (sharesCorner) continue;
+
+        if (_boundarySegmentsIntersect(
+          firstStart,
+          firstEnd,
+          points[secondIndex],
+          points[secondNextIndex],
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  List<Offset> _autoArrangeBoundaryPoints(List<Offset> points) {
+    if (points.length < 3) return points;
+
+    double longitudeTotal = 0;
+    double latitudeTotal = 0;
+    for (final Offset point in points) {
+      longitudeTotal += point.dx;
+      latitudeTotal += point.dy;
+    }
+
+    final Offset center = Offset(
+      longitudeTotal / points.length,
+      latitudeTotal / points.length,
+    );
+    final List<Offset> arrangedPoints = List<Offset>.from(points);
+    arrangedPoints.sort((first, second) {
+      final double firstAngle = atan2(
+        first.dy - center.dy,
+        first.dx - center.dx,
+      );
+      final double secondAngle = atan2(
+        second.dy - center.dy,
+        second.dx - center.dx,
+      );
+      return firstAngle.compareTo(secondAngle);
+    });
+
+    return arrangedPoints;
+  }
+
+  String _formatBoundaryCoordinate(double value) {
+    return value
+        .toStringAsFixed(7)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  String _boundaryTextFromPoints(List<Offset> points) {
+    return points
+        .map(
+          (point) =>
+              '${_formatBoundaryCoordinate(point.dy)}, ${_formatBoundaryCoordinate(point.dx)}',
+        )
+        .join('\n');
+  }
+
+  String? _arrangedBoundaryCoordinatesText() {
+    final String normalized = _boundaryCoordinatesController.text.trim();
+    if (normalized.isEmpty) return null;
+
+    final List<Offset> points = _boundaryPointsFromText(normalized);
+    if (points.length < 3) return normalized;
+
+    return _boundaryTextFromPoints(_autoArrangeBoundaryPoints(points));
+  }
+
+  void _autoArrangeBoundaryCoordinates() {
+    final String? arrangedText = _arrangedBoundaryCoordinatesText();
+    if (arrangedText == null) return;
+
+    _boundaryCoordinatesController.text = arrangedText;
+    setState(() {});
+    _formKey.currentState?.validate();
+  }
+
+  String? _validateBoundaryCoordinates(String? value) {
+    final String normalized = (value ?? '').trim();
+    if (normalized.isEmpty) return null;
+
+    final List<Offset> points = _boundaryPointsFromText(normalized);
+    if (points.length < 3) {
+      return 'Add at least 3 valid latitude, longitude points.';
+    }
+    final List<Offset> arrangedPoints = _autoArrangeBoundaryPoints(points);
+    if (_boundaryHasCrossingLines(arrangedPoints)) {
+      return 'Auto-arrange could not fix this shape. Check the corner points.';
+    }
+    return null;
   }
 
   int _extractNumber(String input) {
@@ -1498,6 +1754,38 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             const SizedBox(height: 12),
             _buildSectionCard(
               context: context,
+              title: 'Map Boundary',
+              subtitle:
+                  'Optional. Add surveyed lot corners so buyers can see the land outline on the map.',
+              children: [
+                _buildBoundaryGuidelines(context),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _boundaryCoordinatesController,
+                  label: 'Boundary coordinates',
+                  hintText:
+                      '9.3077, 123.3054\n9.3078, 123.3060\n9.3071, 123.3061\n9.3070, 123.3055',
+                  icon: Icons.polyline_outlined,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 4,
+                  helperText:
+                      'At least 3 points. One corner per line. The first point is closed automatically.',
+                  validator: _validateBoundaryCoordinates,
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _autoArrangeBoundaryCoordinates,
+                    icon: const Icon(Icons.reorder_rounded),
+                    label: const Text('Auto-arrange points'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildSectionCard(
+              context: context,
               title: 'Media',
               subtitle:
                   'Attach an image URL to make the listing preview more complete.',
@@ -1632,8 +1920,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
 
   Widget _buildManagePropertyCard(BuildContext context, Property property) {
     final ThemeData theme = Theme.of(context);
-    final ImageProvider<Object>? imageProvider =
-        _managePropertyImageProvider(property);
+    final ImageProvider<Object>? imageProvider = _managePropertyImageProvider(
+      property,
+    );
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -2527,9 +2816,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                         children: [
                                           Text(
                                             message.body,
-                                            style: TextStyle(
-                                              color: textColor,
-                                            ),
+                                            style: TextStyle(color: textColor),
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
@@ -2543,9 +2830,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodySmall
-                                                ?.copyWith(
-                                                  color: metaColor,
-                                                ),
+                                                ?.copyWith(color: metaColor),
                                           ),
                                         ],
                                       ),

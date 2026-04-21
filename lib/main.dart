@@ -203,6 +203,40 @@ Route<T> _instantRoute<T>(Widget child) {
   );
 }
 
+class _InlinePropertyDetailsState {
+  final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
+
+  const _InlinePropertyDetailsState({
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+}
+
+final ValueNotifier<_InlinePropertyDetailsState?>
+    _appInlinePropertyDetailsNotifier =
+    ValueNotifier<_InlinePropertyDetailsState?>(null);
+
+void _showInlinePropertyDetails({
+  required BuildContext context,
+  required Property property,
+  required bool isSaved,
+  required VoidCallback onToggleSave,
+}) {
+  unawaited(_precachePropertyImage(context, property, height: 300));
+  _appInlinePropertyDetailsNotifier.value = _InlinePropertyDetailsState(
+    property: property,
+    isSaved: isSaved,
+    onToggleSave: onToggleSave,
+  );
+}
+
+void _hideInlinePropertyDetails() {
+  _appInlinePropertyDetailsNotifier.value = null;
+}
+
 Widget _buildPropertyImage({
   required BuildContext context,
   required Property property,
@@ -1092,7 +1126,10 @@ class _HomePageState extends State<HomePage> {
         },
         onResetFilters: _resetFilters,
       ),
-      const MapTab(),
+      MapTab(
+        savedProperties: _savedProperties,
+        onToggleSave: _toggleSavedProperty,
+      ),
       SavedTab(
         savedProperties: _savedProperties.toList(),
         onToggleSave: _toggleSavedProperty,
@@ -1107,43 +1144,56 @@ class _HomePageState extends State<HomePage> {
       ),
     ];
 
-    return Scaffold(
-      body: pages[_currentIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+    return ValueListenableBuilder<_InlinePropertyDetailsState?>(
+      valueListenable: _appInlinePropertyDetailsNotifier,
+      builder: (context, inlineDetails, child) {
+        return Scaffold(
+          body: inlineDetails == null
+              ? pages[_currentIndex]
+              : PropertyDetailsInlineView(
+                  property: inlineDetails.property,
+                  isSaved: inlineDetails.isSaved,
+                  onToggleSave: inlineDetails.onToggleSave,
+                  onBack: _hideInlinePropertyDetails,
+                ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              _hideInlinePropertyDetails();
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map),
+                label: 'Map',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.favorite_border),
+                selectedIcon: Icon(Icons.favorite),
+                label: 'Saved',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.mail_outline),
+                selectedIcon: Icon(Icons.mail),
+                label: 'Inbox',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_border),
-            selectedIcon: Icon(Icons.favorite),
-            label: 'Saved',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.mail_outline),
-            selectedIcon: Icon(Icons.mail),
-            label: 'Inbox',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1528,22 +1578,11 @@ class SavedTab extends StatelessWidget {
                             ),
                             trailing: Text(property.price),
                             onTap: () {
-                              unawaited(
-                                _precachePropertyImage(
-                                  context,
-                                  property,
-                                  height: 300,
-                                ),
-                              );
-                              Navigator.push(
-                                context,
-                                _instantRoute(
-                                  PropertyDetailsPage(
-                                    property: property,
-                                    isSaved: true,
-                                    onToggleSave: () => onToggleSave(property),
-                                  ),
-                                ),
+                              _showInlinePropertyDetails(
+                                context: context,
+                                property: property,
+                                isSaved: true,
+                                onToggleSave: () => onToggleSave(property),
                               );
                             },
                           ),
@@ -6127,16 +6166,11 @@ class _RecommendedPropertyCard extends StatelessWidget {
   });
 
   void _openDetails(BuildContext context) {
-    unawaited(_precachePropertyImage(context, property, height: 300));
-    Navigator.push(
-      context,
-      _instantRoute(
-        PropertyDetailsPage(
-          property: property,
-          isSaved: isSaved,
-          onToggleSave: onToggleSave,
-        ),
-      ),
+    _showInlinePropertyDetails(
+      context: context,
+      property: property,
+      isSaved: isSaved,
+      onToggleSave: onToggleSave,
     );
   }
 
@@ -6245,16 +6279,11 @@ class _PropertyTile extends StatelessWidget {
   });
 
   void _openDetails(BuildContext context) {
-    unawaited(_precachePropertyImage(context, property, height: 300));
-    Navigator.push(
-      context,
-      _instantRoute(
-        PropertyDetailsPage(
-          property: property,
-          isSaved: isSaved,
-          onToggleSave: onToggleSave,
-        ),
-      ),
+    _showInlinePropertyDetails(
+      context: context,
+      property: property,
+      isSaved: isSaved,
+      onToggleSave: onToggleSave,
     );
   }
 
@@ -6707,19 +6736,11 @@ class PropertyCard extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      unawaited(
-                        _precachePropertyImage(context, property, height: 300),
-                      );
-                      if (!context.mounted) return;
-                      Navigator.push(
-                        context,
-                        _instantRoute(
-                          PropertyDetailsPage(
-                            property: property,
-                            isSaved: isSaved,
-                            onToggleSave: onToggleSave,
-                          ),
-                        ),
+                      _showInlinePropertyDetails(
+                        context: context,
+                        property: property,
+                        isSaved: isSaved,
+                        onToggleSave: onToggleSave,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -6744,23 +6765,26 @@ class PropertyCard extends StatelessWidget {
   }
 }
 
-class PropertyDetailsPage extends StatefulWidget {
+class PropertyDetailsInlineView extends StatefulWidget {
   final Property property;
   final bool isSaved;
   final VoidCallback onToggleSave;
+  final VoidCallback onBack;
 
-  const PropertyDetailsPage({
+  const PropertyDetailsInlineView({
     super.key,
     required this.property,
     required this.isSaved,
     required this.onToggleSave,
+    required this.onBack,
   });
 
   @override
-  State<PropertyDetailsPage> createState() => _PropertyDetailsPageState();
+  State<PropertyDetailsInlineView> createState() =>
+      _PropertyDetailsInlineViewState();
 }
 
-class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
+class _PropertyDetailsInlineViewState extends State<PropertyDetailsInlineView> {
   late bool _isSaved;
 
   @override
@@ -6778,252 +6802,302 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lot Details'),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPropertyImage(
-              context: context,
-              property: widget.property,
-              height: 300,
-              fallbackChild: const Center(
-                child: Icon(
-                  Icons.landscape_rounded,
-                  size: 100,
-                  color: Colors.white,
+    final ThemeData theme = Theme.of(context);
+    final String description = widget.property.description.trim().isEmpty
+        ? 'No description available for this lot yet.'
+        : widget.property.description;
+    final String tagLabel = widget.property.tag.trim().isEmpty
+        ? 'Available'
+        : widget.property.tag.trim();
+
+    return Column(
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: widget.onBack,
+                  icon: const Icon(Icons.arrow_back),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Text(
-                          widget.property.tag,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _handleToggleSave,
-                        icon: Icon(
-                          _isSaved
-                              ? Icons.favorite
-                              : Icons.favorite_border_rounded,
-                          size: 28,
-                          color: _isSaved
-                              ? Colors.red
-                              : Theme.of(context).iconTheme.color,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.pin_outlined,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.property.referenceCode,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.property.title,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    'Lot Details',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.property.location,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.verified_outlined,
-                              size: 18,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              widget.property.titleStatus,
-                              style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Price',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.property.price,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Lot Size',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.property.size,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Description',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    widget.property.description.trim().isEmpty
-                        ? 'No description available for this lot yet.'
-                        : widget.property.description,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(context).colorScheme.onSurface,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ContactAgentPage(property: widget.property),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: const Text(
-              'Contact Agent',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                IconButton(
+                  onPressed: _handleToggleSave,
+                  icon: Icon(
+                    _isSaved
+                        ? Icons.favorite
+                        : Icons.favorite_border_rounded,
+                    size: 28,
+                    color: _isSaved ? Colors.red : theme.iconTheme.color,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPropertyImage(
+                  context: context,
+                  property: widget.property,
+                  height: 300,
+                  fallbackChild: const Center(
+                    child: Icon(
+                      Icons.landscape_rounded,
+                      size: 100,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Text(
+                              tagLabel,
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.pin_outlined,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                widget.property.referenceCode,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        widget.property.title,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.property.location,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.verified_outlined,
+                                  size: 18,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  widget.property.titleStatus,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Price',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.property.price,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Lot Size',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.property.size,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: theme.colorScheme.onSurface,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ContactAgentPage(property: widget.property),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const SizedBox(
+                width: double.infinity,
+                child: Center(
+                  child: Text(
+                    'Contact Agent',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class PropertyDetailsPage extends StatelessWidget {
+  final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
+
+  const PropertyDetailsPage({
+    super.key,
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PropertyDetailsInlineView(
+        property: property,
+        isSaved: isSaved,
+        onToggleSave: onToggleSave,
+        onBack: () => Navigator.pop(context),
       ),
     );
   }

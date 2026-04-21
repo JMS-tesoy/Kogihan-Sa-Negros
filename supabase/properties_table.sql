@@ -15,6 +15,9 @@ create table if not exists public.properties (
 alter table public.properties
 add column if not exists thumbnail_url text;
 
+alter table public.properties
+add column if not exists boundary_coordinates text;
+
 create or replace function public.set_properties_updated_at()
 returns trigger
 language plpgsql
