@@ -24,20 +24,20 @@ import 'subscription_screen.dart';
 part 'map_tab.dart';
 
 final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
-  ThemeMode.light,
+  ThemeMode.system,
 );
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
-const String _darkThemePrefsKey = 'dark_theme_enabled';
+const String _followSystemThemePrefsKey = 'follow_system_theme_enabled';
 const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
 const int _initialPropertyImagePrefetchCount = 4;
 const String _profileAvatarsBucket = 'profile-avatars';
 const String _authRedirectUrl =
     'com.example.flutterapplication1://login-callback/';
 
-Future<void> _persistDarkThemePreference(bool enabled) async {
+Future<void> _persistFollowSystemThemePreference(bool enabled) async {
   final SharedPreferences preferences = await SharedPreferences.getInstance();
-  await preferences.setBool(_darkThemePrefsKey, enabled);
+  await preferences.setBool(_followSystemThemePrefsKey, enabled);
 }
 
 String _messageInitial(String value) {
@@ -468,9 +468,10 @@ void main() async {
 
   await SubscriptionService.initialize();
   final SharedPreferences preferences = await SharedPreferences.getInstance();
-  appThemeNotifier.value = preferences.getBool(_darkThemePrefsKey) == true
-      ? ThemeMode.dark
-      : ThemeMode.light;
+  appThemeNotifier.value =
+      preferences.getBool(_followSystemThemePrefsKey) == false
+          ? ThemeMode.light
+          : ThemeMode.system;
 
   runApp(const RealEstateApp());
 }
@@ -3452,7 +3453,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
-  late bool _darkModeEnabled;
+  late bool _followSystemTheme;
   bool _notifyNewProperties = true;
   bool _notifyPriceDrops = true;
   bool _notifyMessages = true;
@@ -3461,7 +3462,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _darkModeEnabled = appThemeNotifier.value == ThemeMode.dark;
+    _followSystemTheme = appThemeNotifier.value == ThemeMode.system;
     _currentFontSizeScale = appFontScaleNotifier.value;
   }
 
@@ -3764,17 +3765,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   scale: 0.76,
                   alignment: Alignment.centerRight,
                   child: _buildCompactSwitchTile(
-                    title: 'Dark Mode',
-                    subtitle: 'Switch to a darker theme',
-                    value: _darkModeEnabled,
+                    title: 'Follow System Theme',
+                    subtitle: 'Match your phone display mode',
+                    value: _followSystemTheme,
                     onChanged: (value) {
                       setState(() {
-                        _darkModeEnabled = value;
+                        _followSystemTheme = value;
                         appThemeNotifier.value = value
-                            ? ThemeMode.dark
+                            ? ThemeMode.system
                             : ThemeMode.light;
                       });
-                      unawaited(_persistDarkThemePreference(value));
+                      unawaited(_persistFollowSystemThemePreference(value));
                     },
                   ),
                 ),
