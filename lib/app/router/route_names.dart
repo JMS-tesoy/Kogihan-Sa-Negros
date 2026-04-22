@@ -1,0 +1,31 @@
+abstract final class RouteNames {
+  static const splash = '/';
+  static const onboarding = '/onboarding';
+  static const roleSelection = '/role-selection';
+  static const login = '/login';
+  static const register = '/register';
+  static const forgotPassword = '/forgot-password';
+  static const home = '/home';
+  static const properties = '/properties';
+  static const propertyDetails = '/property-details';
+  static const propertyGallery = '/property-gallery';
+  static const propertyFilter = '/property-filter';
+  static const propertySearch = '/property-search';
+  static const map = '/map';
+  static const search = '/search';
+  static const favorites = '/favorites';
+  static const inquiries = '/inquiries';
+  static const inbox = '/inbox';
+  static const chat = '/chat';
+  static const agentDashboard = '/agent-dashboard';
+  static const manageListings = '/manage-listings';
+  static const createListing = '/create-listing';
+  static const editListing = '/edit-listing';
+  static const profile = '/profile';
+  static const editProfile = '/edit-profile';
+  static const subscription = '/subscription';
+  static const plans = '/plans';
+  static const notifications = '/notifications';
+  static const adminDashboard = '/admin-dashboard';
+  static const moderation = '/moderation';
+}

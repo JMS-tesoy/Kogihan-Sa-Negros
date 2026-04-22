@@ -1,0 +1,4 @@
+enum ListingType {
+  sale,
+  rent,
+}
