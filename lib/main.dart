@@ -1,10 +1,5 @@
-import 'package:flutter/material.dart';
+import 'app/legacy/main.dart' as legacy;
 
-import 'app/bootstrap/app_bootstrap.dart';
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  final app = await AppBootstrap.createApp();
-  runApp(app);
+Future<void> main() {
+  return legacy.main();
 }
