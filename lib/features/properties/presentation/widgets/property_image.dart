@@ -63,6 +63,23 @@ void warmPropertyImage(
   unawaited(precacheImage(imageProvider, context));
 }
 
+void scheduleInitialPropertyImageWarmup({
+  required BuildContext context,
+  required Iterable<Property> properties,
+  required Set<String> warmedPropertyImageIds,
+  required int count,
+}) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+
+    for (final Property property in properties.take(count)) {
+      if (warmedPropertyImageIds.add(property.id)) {
+        warmPropertyImage(context, property, useThumbnail: true);
+      }
+    }
+  });
+}
+
 Future<void> precachePropertyImage(
   BuildContext context,
   Property property, {

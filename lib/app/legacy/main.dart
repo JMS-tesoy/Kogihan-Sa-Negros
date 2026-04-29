@@ -32,10 +32,12 @@ import '../../features/profile/data/services/buyer_profile_service.dart';
 import '../../features/profile/presentation/screens/profile_tab.dart'
     as profile_screens;
 import '../../features/profile/presentation/widgets/profile_formatters.dart';
+import '../../features/profile/presentation/widgets/avatar_options_sheet.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
 import '../../features/properties/data/services/saved_property_storage_service.dart';
 import '../../features/properties/presentation/screens/property_details_inline_screen.dart';
 import '../../features/properties/presentation/widgets/property_image.dart';
+import '../../features/properties/presentation/widgets/saved_properties_upgrade_sheet.dart';
 import '../../features/home/presentation/screens/home_tab.dart';
 import '../../features/properties/presentation/screens/saved_tab.dart';
 import '../../features/subscription/presentation/screens/subscription_screen.dart';
@@ -170,7 +172,7 @@ class _HomePageState extends State<HomePage> {
     appPropertiesNotifier.addListener(_syncAvailableProperties);
     appNegrosPlacesNotifier.addListener(_syncNegrosPlaces);
     appSubscriptionNotifier.addListener(_handleSubscriptionChanged);
-    _warmInitialPropertyCardImages(_availableProperties);
+    _scheduleInitialPropertyCardImageWarmup(_availableProperties);
     unawaited(_restoreSavedProperties());
     unawaited(syncSubscriptionFromCurrentProfile());
     unawaited(_warmCurrentUserAvatar());
@@ -197,7 +199,7 @@ class _HomePageState extends State<HomePage> {
           ),
         );
     });
-    _warmInitialPropertyCardImages(_availableProperties);
+    _scheduleInitialPropertyCardImageWarmup(_availableProperties);
   }
 
   void _handleSubscriptionChanged() {
@@ -231,18 +233,13 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  void _warmInitialPropertyCardImages(List<Property> properties) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      for (final Property property in properties.take(
-        AppConfig.initialPropertyImagePrefetchCount,
-      )) {
-        if (_warmedPropertyImageIds.add(property.id)) {
-          warmPropertyImage(context, property, useThumbnail: true);
-        }
-      }
-    });
+  void _scheduleInitialPropertyCardImageWarmup(List<Property> properties) {
+    scheduleInitialPropertyImageWarmup(
+      context: context,
+      properties: properties,
+      warmedPropertyImageIds: _warmedPropertyImageIds,
+      count: AppConfig.initialPropertyImagePrefetchCount,
+    );
   }
 
   Future<void> _restoreSavedProperties() async {
@@ -282,48 +279,8 @@ class _HomePageState extends State<HomePage> {
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Premium feature',
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Free users can save up to $freeSavedPropertiesLimit lots. Upgrade to premium for unlimited saved listings.',
-                  style: TextStyle(
-                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _openSubscriptionPage();
-                    },
-                    child: const Text('View Plans'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(sheetContext),
-                    child: const Text('Not Now'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return SavedPropertiesUpgradeSheet(
+          onViewPlans: _openSubscriptionPage,
         );
       },
     );
@@ -378,45 +335,17 @@ class _HomePageState extends State<HomePage> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose from Gallery'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickAvatarFromGallery();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
-                title: const Text('Take a Photo'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickAvatarFromCamera();
-                },
-              ),
-              if (_profileImageBytes != null)
-                ListTile(
-                  leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text(
-                    'Remove Avatar',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _profileImageBytes = null;
-                      _profileAvatarHidden = true;
-                    });
-                    unawaited(
-                      ProfileAvatarService.removeAvatarForCurrentUser(),
-                    );
-                  },
-                ),
-            ],
-          ),
+        return AvatarOptionsSheet(
+          canRemoveAvatar: _profileImageBytes != null,
+          onChooseFromGallery: _pickAvatarFromGallery,
+          onTakePhoto: _pickAvatarFromCamera,
+          onRemoveAvatar: () {
+            setState(() {
+              _profileImageBytes = null;
+              _profileAvatarHidden = true;
+            });
+            unawaited(ProfileAvatarService.removeAvatarForCurrentUser());
+          },
         );
       },
     );
