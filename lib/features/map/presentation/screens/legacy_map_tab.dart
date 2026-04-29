@@ -1783,7 +1783,7 @@ class _SelectedMapPropertyCard extends StatelessWidget {
     unawaited(precachePropertyImage(context, property, height: 300));
     Navigator.push(
       context,
-      _instantRoute(
+      instantRoute(
         PropertyDetailsPage(
           property: property,
           isSaved: isSaved,

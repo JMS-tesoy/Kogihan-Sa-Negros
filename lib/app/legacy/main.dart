@@ -22,6 +22,7 @@ import '../../core/widgets/app_section_header.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
 import '../../features/auth/presentation/screens/change_password_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_page.dart';
+import '../../features/auth/presentation/screens/sign_up_page.dart';
 import '../../features/location/data/datasources/negros_places_datasource.dart';
 import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../../features/home/presentation/widgets/active_filter_chip.dart';
@@ -34,6 +35,7 @@ import '../../features/messaging/presentation/widgets/inbox_conversation_helpers
 import '../../features/messaging/presentation/widgets/message_palettes.dart';
 import '../../features/profile/data/services/buyer_profile_service.dart';
 import '../../features/profile/data/models/profile_model.dart';
+import '../../features/profile/presentation/screens/account_page.dart';
 import '../../features/profile/presentation/screens/pin_code_screen.dart';
 import '../../features/profile/presentation/widgets/profile_formatters.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
@@ -47,40 +49,16 @@ import '../../core/constants/storage_constants.dart';
 import '../config/app_config.dart';
 import '../config/auth_config.dart';
 import '../config/supabase_config.dart';
+import '../router/instant_route.dart';
 import '../state/app_display_preferences.dart' as app_display_preferences;
 import '../state/app_display_preferences.dart'
     show appFontScaleNotifier, appThemeNotifier;
+import '../state/inline_property_details_controller.dart';
 import '../state/app_pin_code.dart';
 import '../state/inline_property_details_state.dart';
 import '../theme/legacy_app_theme.dart';
 
 part '../../features/map/presentation/screens/legacy_map_tab.dart';
-
-Route<T> _instantRoute<T>(Widget child) {
-  return PageRouteBuilder<T>(
-    transitionDuration: Duration.zero,
-    reverseTransitionDuration: Duration.zero,
-    pageBuilder: (context, animation, secondaryAnimation) => child,
-  );
-}
-
-void _showInlinePropertyDetails({
-  required BuildContext context,
-  required Property property,
-  required bool isSaved,
-  required VoidCallback onToggleSave,
-}) {
-  unawaited(precachePropertyImage(context, property, height: 300));
-  appInlinePropertyDetailsNotifier.value = InlinePropertyDetailsState(
-    property: property,
-    isSaved: isSaved,
-    onToggleSave: onToggleSave,
-  );
-}
-
-void _hideInlinePropertyDetails() {
-  appInlinePropertyDetailsNotifier.value = null;
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -772,12 +750,12 @@ class _HomePageState extends State<HomePage> {
                   property: inlineDetails.property,
                   isSaved: inlineDetails.isSaved,
                   onToggleSave: inlineDetails.onToggleSave,
-                  onBack: _hideInlinePropertyDetails,
+                  onBack: hideInlinePropertyDetails,
                 ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _currentIndex,
             onDestinationSelected: (index) {
-              _hideInlinePropertyDetails();
+              hideInlinePropertyDetails();
               setState(() {
                 _currentIndex = index;
               });
@@ -958,7 +936,7 @@ class HomeTab extends StatelessWidget {
                     savedProperties: savedProperties,
                     onToggleSave: onToggleSave,
                     onOpenDetails: (property) {
-                      _showInlinePropertyDetails(
+                      showInlinePropertyDetails(
                         context: context,
                         property: property,
                         isSaved: savedProperties.contains(property),
@@ -998,7 +976,7 @@ class HomeTab extends StatelessWidget {
                         isSaved: savedProperties.contains(property),
                         onToggleSave: () => onToggleSave(property),
                         onOpenDetails: () {
-                          _showInlinePropertyDetails(
+                          showInlinePropertyDetails(
                             context: context,
                             property: property,
                             isSaved: savedProperties.contains(property),
@@ -1143,7 +1121,7 @@ class SavedTab extends StatelessWidget {
                             ),
                             trailing: Text(property.price),
                             onTap: () {
-                              _showInlinePropertyDetails(
+                              showInlinePropertyDetails(
                                 context: context,
                                 property: property,
                                 isSaved: true,
@@ -1291,7 +1269,7 @@ class _MessagesTabState extends State<MessagesTab> {
 
     await Navigator.push(
       context,
-      _instantRoute(
+      instantRoute(
         ChatPage(
           conversationId: conversation.id,
           senderName: conversation.otherParticipantName,
@@ -1873,314 +1851,6 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ],
                 ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class AccountPage extends StatefulWidget {
-  const AccountPage({super.key});
-
-  @override
-  State<AccountPage> createState() => _AccountPageState();
-}
-
-class _AccountPageState extends State<AccountPage> {
-  late Future<BuyerProfileData> _profileFuture;
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  bool _controllersInitialized = false;
-  bool _isSaving = false;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileFuture = loadCurrentBuyerProfileData();
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  String _editableProfileValue(String value, String emptyLabel) {
-    return value == emptyLabel ? '' : value;
-  }
-
-  void _populateControllers(BuyerProfileData profile) {
-    if (_controllersInitialized) return;
-
-    _nameController.text = profile.displayName == 'Buyer'
-        ? ''
-        : profile.displayName;
-    _emailController.text = _editableProfileValue(
-      profile.email,
-      'No email available',
-    );
-    _phoneController.text = _editableProfileValue(
-      profile.phone,
-      'No phone available',
-    );
-    _controllersInitialized = true;
-  }
-
-  Future<void> _saveAccountProfile() async {
-    final User? user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
-      setState(() {
-        _errorText = 'You need to be signed in to update your account.';
-      });
-      return;
-    }
-
-    final String name = _nameController.text.trim();
-    final String email = _emailController.text.trim();
-    final String phone = _phoneController.text.trim();
-
-    if (name.isEmpty) {
-      setState(() {
-        _errorText = 'Please enter your name.';
-      });
-      return;
-    }
-
-    if (email.isNotEmpty &&
-        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() {
-        _errorText = 'Please enter a valid email address.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _errorText = null;
-    });
-
-    try {
-      await Supabase.instance.client.from('profiles').upsert({
-        'id': user.id,
-        'full_name': name,
-        'email': email.isEmpty ? null : email,
-        'phone': phone.isEmpty ? null : phone,
-      }, onConflict: 'id');
-
-      if (!mounted) return;
-
-      final BuyerProfileData savedProfile =
-          await loadCurrentBuyerProfileData();
-
-      if (!mounted) return;
-
-      setState(() {
-        _profileFuture = Future<BuyerProfileData>.value(savedProfile);
-        _controllersInitialized = false;
-        _isSaving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account details updated.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _isSaving = false;
-        _errorText = 'Failed to update account details: $error';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final bool isDarkMode = theme.brightness == Brightness.dark;
-    final Color fieldFillColor = isDarkMode
-        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
-        : const Color(0xFFF9FAFB);
-    final Color fieldBorderColor = isDarkMode
-        ? colorScheme.outlineVariant
-        : const Color(0xFFE4E7EC);
-    final Color errorBackgroundColor = isDarkMode
-        ? colorScheme.errorContainer.withValues(alpha: 0.32)
-        : const Color(0xFFFFF1F3);
-    final Color errorBorderColor = isDarkMode
-        ? colorScheme.error.withValues(alpha: 0.50)
-        : const Color(0xFFFDA29B);
-    final Color errorTextColor = isDarkMode
-        ? colorScheme.onErrorContainer
-        : const Color(0xFFB42318);
-
-    InputDecoration accountInputDecoration({
-      required String labelText,
-      required IconData icon,
-    }) {
-      return InputDecoration(
-        labelText: labelText,
-        prefixIcon: Icon(icon),
-        filled: true,
-        fillColor: fieldFillColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: fieldBorderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Account'), centerTitle: true),
-      body: ValueListenableBuilder<UserSubscription>(
-        valueListenable: appSubscriptionNotifier,
-        builder: (context, currentSubscription, child) {
-          return FutureBuilder<BuyerProfileData>(
-            future: _profileFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final BuyerProfileData profile = resolveBuyerProfileData(
-                snapshot.data,
-                currentSubscription,
-              );
-              _populateControllers(profile);
-
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Account Details',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: _nameController,
-                            textInputAction: TextInputAction.next,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: accountInputDecoration(
-                              labelText: 'Name',
-                              icon: Icons.person_outline,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.email],
-                            decoration: accountInputDecoration(
-                              labelText: 'Email',
-                              icon: Icons.email_outlined,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) {
-                              if (!_isSaving) _saveAccountProfile();
-                            },
-                            decoration: accountInputDecoration(
-                              labelText: 'Phone',
-                              icon: Icons.phone_outlined,
-                            ),
-                          ),
-                          if (_errorText != null) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: errorBackgroundColor,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: errorBorderColor),
-                              ),
-                              child: Text(
-                                _errorText!,
-                                style: TextStyle(color: errorTextColor),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _isSaving
-                                  ? null
-                                  : _saveAccountProfile,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isSaving
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Save Changes'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.workspace_premium_outlined),
-                      title: const Text('Subscription'),
-                      subtitle: Text(
-                        profile.isPremium
-                            ? '${profile.planName} until ${formatSubscriptionDate(profile.expiresAt)}'
-                            : 'Current plan: ${profile.planName}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SubscriptionPage(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
               );
             },
           );
@@ -3814,318 +3484,4 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class SignUpPage extends StatefulWidget {
-  const SignUpPage({super.key});
-
-  @override
-  State<SignUpPage> createState() => _SignUpPageState();
-}
-
-class _SignUpPageState extends State<SignUpPage> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  String? _validatePasswordComplexity(String password) {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters.';
-    }
-
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password must include at least one uppercase letter.';
-    }
-
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password must include at least one lowercase letter.';
-    }
-
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      return 'Password must include at least one number.';
-    }
-
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
-      return 'Password must include at least one symbol.';
-    }
-
-    return null;
-  }
-
-  Future<void> _signUp() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorText = 'Please enter email and password.';
-      });
-      return;
-    }
-
-    final passwordError = _validatePasswordComplexity(password);
-    if (passwordError != null) {
-      setState(() {
-        _errorText = passwordError;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _errorText = null;
-    });
-
-    try {
-      await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: password,
-        data: const {'role': 'user'},
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Account created. Please verify your email before logging in.',
-          ),
-        ),
-      );
-      Navigator.pop(context);
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = 'Sign up failed. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(title: const Text('Sign Up')),
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          height: 86,
-                          width: 86,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary.withValues(alpha: 0.10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Container(
-                              height: 64,
-                              width: 64,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.person_add_alt_1_outlined,
-                                color: Colors.white,
-                                size: 34,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Create your account',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF101828),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Sign up to save lots, contact agents, and manage your property search.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF667085),
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.email],
-                        decoration: InputDecoration(
-                          labelText: 'Email address',
-                          hintText: 'name@example.com',
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE4E7EC),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.newPassword],
-                        onSubmitted: (_) {
-                          if (!_isLoading) _signUp();
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE4E7EC),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Use 8+ characters with uppercase, lowercase, number, and symbol.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF667085),
-                          height: 1.35,
-                        ),
-                      ),
-                      if (_errorText != null) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1F3),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: const Color(0xFFFDA29B),
-                            ),
-                          ),
-                          child: Text(
-                            _errorText!,
-                            style: const TextStyle(color: Color(0xFFB42318)),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _signUp,
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Sign Up'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
