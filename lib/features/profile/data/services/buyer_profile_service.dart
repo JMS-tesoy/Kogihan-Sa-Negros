@@ -96,3 +96,18 @@ BuyerProfileData resolveBuyerProfileData(
         : baseProfile.subscription,
   );
 }
+
+Future<void> syncSubscriptionFromCurrentProfile() async {
+  final UserSubscription currentSubscription = appSubscriptionNotifier.value;
+  final bool hasLocalSubscriptionData =
+      currentSubscription.tier != SubscriptionTier.free ||
+      currentSubscription.expiresAt != null;
+  if (hasLocalSubscriptionData) return;
+
+  try {
+    final MessagingProfile? profile =
+        await MessagingService.fetchCurrentProfile();
+    if (profile?.subscription == null) return;
+    appSubscriptionNotifier.value = profile!.subscription!;
+  } catch (_) {}
+}

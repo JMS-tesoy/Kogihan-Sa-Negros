@@ -4,14 +4,12 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart' as geo;
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
@@ -24,16 +22,18 @@ import '../../features/auth/presentation/screens/sign_up_page.dart';
 import '../../features/location/data/datasources/negros_places_datasource.dart';
 import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../../features/home/presentation/widgets/top_header.dart';
+import '../../features/home/presentation/helpers/home_filter_helpers.dart';
 import '../../features/messaging/data/services/messaging_service.dart';
-import '../../features/messaging/presentation/widgets/chat_loading_placeholder.dart';
-import '../../features/messaging/presentation/widgets/inbox_conversation_helpers.dart';
-import '../../features/messaging/presentation/widgets/message_palettes.dart';
+import '../../features/messaging/presentation/screens/messages_tab.dart'
+    as messaging_screens;
+import '../../features/profile/data/services/avatar_image_optimizer.dart';
+import '../../features/profile/data/services/profile_avatar_service.dart';
 import '../../features/profile/data/services/buyer_profile_service.dart';
-import '../../features/profile/data/models/profile_model.dart';
-import '../../features/profile/presentation/screens/account_page.dart';
-import '../../features/settings/presentation/screens/settings_page.dart';
+import '../../features/profile/presentation/screens/profile_tab.dart'
+    as profile_screens;
 import '../../features/profile/presentation/widgets/profile_formatters.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
+import '../../features/properties/data/services/saved_property_storage_service.dart';
 import '../../features/properties/presentation/screens/property_details_inline_screen.dart';
 import '../../features/properties/presentation/widgets/property_image.dart';
 import '../../features/home/presentation/screens/home_tab.dart';
@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
     appSubscriptionNotifier.addListener(_handleSubscriptionChanged);
     _warmInitialPropertyCardImages(_availableProperties);
     unawaited(_restoreSavedProperties());
-    unawaited(_syncSubscriptionFromProfile());
+    unawaited(syncSubscriptionFromCurrentProfile());
     unawaited(_warmCurrentUserAvatar());
   }
 
@@ -212,55 +212,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  List<double>? _parseCoordinates(String value) {
-    final List<String> parts = value.split(',');
-    if (parts.length < 2) return null;
-
-    final double? latitude = double.tryParse(parts[0].trim());
-    final double? longitude = double.tryParse(parts[1].trim());
-    if (latitude == null || longitude == null) return null;
-
-    return <double>[latitude, longitude];
-  }
-
-  double _distanceInKm({
-    required double startLatitude,
-    required double startLongitude,
-    required double endLatitude,
-    required double endLongitude,
-  }) {
-    const double earthRadiusKm = 6371;
-    final double latitudeDelta = _degreesToRadians(endLatitude - startLatitude);
-    final double longitudeDelta = _degreesToRadians(
-      endLongitude - startLongitude,
-    );
-    final double a =
-        math.sin(latitudeDelta / 2) * math.sin(latitudeDelta / 2) +
-        math.cos(_degreesToRadians(startLatitude)) *
-            math.cos(_degreesToRadians(endLatitude)) *
-            math.sin(longitudeDelta / 2) *
-            math.sin(longitudeDelta / 2);
-    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadiusKm * c;
-  }
-
-  double _degreesToRadians(double degrees) => degrees * (math.pi / 180);
-
-  Future<void> _syncSubscriptionFromProfile() async {
-    final UserSubscription currentSubscription = appSubscriptionNotifier.value;
-    final bool hasLocalSubscriptionData =
-        currentSubscription.tier != SubscriptionTier.free ||
-        currentSubscription.expiresAt != null;
-    if (hasLocalSubscriptionData) return;
-
-    try {
-      final MessagingProfile? profile =
-          await MessagingService.fetchCurrentProfile();
-      if (profile?.subscription == null) return;
-      appSubscriptionNotifier.value = profile!.subscription!;
-    } catch (_) {}
-  }
-
   Future<void> _warmCurrentUserAvatar() async {
     try {
       final MessagingProfile? profile =
@@ -294,19 +245,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  String _normalizeSearchText(String value) {
-    return value.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  String _digitsOnly(String value) {
-    return value.replaceAll(RegExp(r'[^0-9]'), '');
-  }
-
   Future<void> _restoreSavedProperties() async {
-    final SharedPreferences preferences = await SharedPreferences.getInstance();
     final Set<String> savedIds =
-        preferences.getStringList(StorageConstants.savedPropertyIds)?.toSet() ??
-        <String>{};
+        await SavedPropertyStorageService.loadSavedPropertyIds();
 
     if (!mounted || savedIds.isEmpty) return;
 
@@ -325,11 +266,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _persistSavedProperties() async {
-    final SharedPreferences preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(
-      StorageConstants.savedPropertyIds,
-      _savedPropertyIds.toList(),
-    );
+    await SavedPropertyStorageService.saveSavedPropertyIds(_savedPropertyIds);
   }
 
   Future<void> _openSubscriptionPage() async {
@@ -392,73 +329,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Uint8List _optimizeAvatarImage(Uint8List bytes) {
-    final img.Image? decodedImage = img.decodeImage(bytes);
-    if (decodedImage == null) return bytes;
-
-    final img.Image orientedImage = img.bakeOrientation(decodedImage);
-    final int cropSize = math.min(orientedImage.width, orientedImage.height);
-    final int cropX = ((orientedImage.width - cropSize) / 2).floor();
-    final int cropY = ((orientedImage.height - cropSize) / 2).floor();
-    final img.Image squareImage = img.copyCrop(
-      orientedImage,
-      x: cropX,
-      y: cropY,
-      width: cropSize,
-      height: cropSize,
-    );
-    final int avatarSize = squareImage.width > 512 ? 512 : squareImage.width;
-    final img.Image avatarImage = img.copyResize(
-      squareImage,
-      width: avatarSize,
-      height: avatarSize,
-      interpolation: img.Interpolation.average,
-    );
-
-    return Uint8List.fromList(img.encodeJpg(avatarImage, quality: 70));
-  }
-
-  Future<void> _saveAvatarForCurrentUser(Uint8List imageBytes) async {
-    final User? user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
-      throw StateError('Please sign in again before uploading your avatar.');
-    }
-
-    final String avatarPath =
-        '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    await Supabase.instance.client.storage
-        .from(SupabaseConfig.profileAvatarsBucket)
-        .uploadBinary(
-          avatarPath,
-          imageBytes,
-          fileOptions: const FileOptions(
-            cacheControl: '604800',
-            upsert: true,
-            contentType: 'image/jpeg',
-          ),
-        );
-
-    final String avatarUrl = Supabase.instance.client.storage
-        .from(SupabaseConfig.profileAvatarsBucket)
-        .getPublicUrl(avatarPath);
-
-    await Supabase.instance.client.from('profiles').upsert({
-      'id': user.id,
-      'avatar_url': avatarUrl,
-    }, onConflict: 'id');
-  }
-
-  Future<void> _removeAvatarForCurrentUser() async {
-    final User? user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    await Supabase.instance.client
-        .from('profiles')
-        .update({'avatar_url': null})
-        .eq('id', user.id);
-  }
-
   Future<void> _pickAvatarFromGallery() async {
     final XFile? pickedFile = await _imagePicker.pickImage(
       source: ImageSource.gallery,
@@ -468,11 +338,11 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (pickedFile != null) {
-      final Uint8List imageBytes = _optimizeAvatarImage(
+      final Uint8List imageBytes = optimizeAvatarImage(
         await pickedFile.readAsBytes(),
       );
       try {
-        await _saveAvatarForCurrentUser(imageBytes);
+        await ProfileAvatarService.saveAvatarForCurrentUser(imageBytes);
         if (!mounted) return;
         setState(() {
           _profileImageBytes = imageBytes;
@@ -540,7 +410,9 @@ class _HomePageState extends State<HomePage> {
                       _profileImageBytes = null;
                       _profileAvatarHidden = true;
                     });
-                    unawaited(_removeAvatarForCurrentUser());
+                    unawaited(
+                      ProfileAvatarService.removeAvatarForCurrentUser(),
+                    );
                   },
                 ),
             ],
@@ -551,8 +423,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Property> get _filteredProperties {
-    final String normalizedQuery = _normalizeSearchText(_searchQuery);
-    final String numericQuery = _digitsOnly(_searchQuery);
+    final String normalizedQuery = normalizeSearchText(_searchQuery);
+    final String numericQuery = digitsOnly(_searchQuery);
     final bool hasSearchQuery =
         normalizedQuery.isNotEmpty || numericQuery.isNotEmpty;
     final bool hasLocationFilter = _selectedLocation != null;
@@ -575,7 +447,7 @@ class _HomePageState extends State<HomePage> {
             );
 
             if (selectedPlace != null) {
-              final List<double>? propertyCoordinates = _parseCoordinates(
+              final List<double>? propertyCoordinates = parsePropertyCoordinates(
                 property.location,
               );
               final double? placeLatitude = selectedPlace.latitude;
@@ -587,14 +459,14 @@ class _HomePageState extends State<HomePage> {
                 return false;
               }
 
-              final double distanceInKm = _distanceInKm(
+              final double propertyDistanceInKm = distanceInKm(
                 startLatitude: propertyCoordinates[0],
                 startLongitude: propertyCoordinates[1],
                 endLatitude: placeLatitude,
                 endLongitude: placeLongitude,
               );
 
-              if (distanceInKm > 25) return false;
+              if (propertyDistanceInKm > 25) return false;
             } else if (property.location != _selectedLocation) {
               return false;
             }
@@ -627,11 +499,11 @@ class _HomePageState extends State<HomePage> {
 
           if (!hasSearchQuery) return true;
 
-          final String normalizedTitle = _normalizeSearchText(property.title);
-          final String normalizedLocation = _normalizeSearchText(
+          final String normalizedTitle = normalizeSearchText(property.title);
+          final String normalizedLocation = normalizeSearchText(
             property.location,
           );
-          final String normalizedPrice = _normalizeSearchText(property.price);
+          final String normalizedPrice = normalizeSearchText(property.price);
 
           if (normalizedTitle.contains(normalizedQuery) ||
               normalizedLocation.contains(normalizedQuery) ||
@@ -641,7 +513,7 @@ class _HomePageState extends State<HomePage> {
 
           if (numericQuery.isEmpty) return false;
 
-          final String numericPrice = _digitsOnly(property.price);
+          final String numericPrice = digitsOnly(property.price);
           return numericPrice.contains(numericQuery);
         })
         .toList(growable: false);
@@ -725,11 +597,12 @@ class _HomePageState extends State<HomePage> {
         subscription: appSubscriptionNotifier.value,
         onOpenSubscription: _openSubscriptionPage,
       ),
-      const MessagesTab(),
-      ProfileTab(
+      const messaging_screens.MessagesTab(),
+      profile_screens.ProfileTab(
         profileImageBytes: _profileImageBytes,
         profileAvatarHidden: _profileAvatarHidden,
         onAvatarTap: _showAvatarOptions,
+        onLogout: _signOutAndReturnToLogin,
       ),
     ];
 
@@ -791,505 +664,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-class MessagesTab extends StatefulWidget {
-  const MessagesTab({super.key});
-
-  @override
-  State<MessagesTab> createState() => _MessagesTabState();
-}
-
-class _MessagesTabState extends State<MessagesTab> {
-  bool _isLoading = true;
-  String? _errorText;
-  List<ConversationSummary> _conversations = const [];
-  final Map<String, double> _dismissProgressByConversationId =
-      <String, double>{};
-  Timer? _inboxClockRefreshTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    final List<ConversationSummary> cachedConversations =
-        MessagingService.getCachedConversationSummaries();
-    if (cachedConversations.isNotEmpty) {
-      _conversations = cachedConversations;
-      _isLoading = false;
-    }
-    _scheduleInboxClockRefresh();
-    unawaited(_loadConversations(showLoader: cachedConversations.isEmpty));
-  }
-
-  @override
-  void dispose() {
-    _inboxClockRefreshTimer?.cancel();
-    super.dispose();
-  }
-
-  void _scheduleInboxClockRefresh() {
-    _inboxClockRefreshTimer?.cancel();
-
-    final DateTime now = DateTime.now();
-    final Duration delay = Duration(
-      minutes: 1,
-    ) -
-    Duration(
-      seconds: now.second,
-      milliseconds: now.millisecond,
-      microseconds: now.microsecond,
-    );
-
-    _inboxClockRefreshTimer = Timer(delay, () {
-      if (!mounted) return;
-      setState(() {});
-      _scheduleInboxClockRefresh();
-    });
-  }
-
-  InboxCardPalette _paletteForConversation(
-    BuildContext context,
-    ConversationSummary conversation,
-  ) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return InboxCardPalette(
-      background: colorScheme.surface,
-      border: colorScheme.outlineVariant,
-      accent: colorScheme.primary,
-      avatarBackground: colorScheme.surfaceContainerHighest,
-      avatarForeground: colorScheme.onSurface,
-    );
-  }
-
-  void _setConversationDismissProgress(
-    String conversationId,
-    double progress,
-  ) {
-    final double clampedProgress = progress.clamp(0.0, 1.0).toDouble();
-    final double currentProgress =
-        _dismissProgressByConversationId[conversationId] ?? 0;
-    if (clampedProgress <= 0) {
-      if (!_dismissProgressByConversationId.containsKey(conversationId)) return;
-      setState(() {
-        _dismissProgressByConversationId.remove(conversationId);
-      });
-      return;
-    }
-
-    if ((currentProgress - clampedProgress).abs() < 0.02) return;
-    setState(() {
-      _dismissProgressByConversationId[conversationId] = clampedProgress;
-    });
-  }
-
-  Future<void> _loadConversations({bool showLoader = true}) async {
-    if (showLoader && mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorText = null;
-      });
-    }
-
-    try {
-      final List<ConversationSummary> conversations =
-          await MessagingService.fetchMyConversationSummaries();
-
-      if (!mounted) return;
-      setState(() {
-        _conversations = conversations;
-        _isLoading = false;
-        _errorText = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorText = 'Failed to load inbox.';
-      });
-    }
-  }
-
-  Future<void> _openConversation(ConversationSummary conversation) async {
-    final int index = _conversations.indexWhere(
-      (item) => item.id == conversation.id,
-    );
-    if (index != -1 && _conversations[index].isUnread) {
-      setState(() {
-        _conversations[index] = _conversations[index].copyWith(isUnread: false);
-      });
-      unawaited(MessagingService.markConversationAsRead(conversation.id));
-    }
-
-    await Navigator.push(
-      context,
-      instantRoute(
-        ChatPage(
-          conversationId: conversation.id,
-          senderName: conversation.otherParticipantName,
-          initialMessages: MessagingService.getCachedConversationMessages(
-            conversation.id,
-            limit: MessagingService.initialMessagePageSize,
-          ),
-        ),
-      ),
-    );
-
-    await _loadConversations(showLoader: false);
-  }
-
-  Future<bool> _confirmDeleteConversation(
-    ConversationSummary conversation,
-  ) async {
-    final String displayTitle = buyerInboxConversationTitle(conversation);
-    final bool? shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete conversation'),
-          content: Text(
-            'Delete your conversation for "$displayTitle"? This will also remove its messages.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return mounted && shouldDelete == true;
-  }
-
-  Future<void> _deleteConversation(ConversationSummary conversation) async {
-    try {
-      await MessagingService.deleteConversation(conversation.id);
-      if (!mounted) return;
-
-      setState(() {
-        _conversations = _conversations
-            .where((item) => item.id != conversation.id)
-            .toList();
-      });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Conversation deleted.')));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete conversation: $error')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Inbox',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => _loadConversations(showLoader: false),
-                child: Builder(
-                  builder: (context) {
-                    if (_isLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (_errorText != null) {
-                      return ListView(
-                        children: [
-                          const SizedBox(height: 120),
-                          Center(
-                            child: Text(
-                              _errorText!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    if (_conversations.isEmpty) {
-                      return ListView(
-                        children: const [
-                          SizedBox(height: 120),
-                          Center(child: Text('No messages yet.')),
-                        ],
-                      );
-                    }
-
-                    return ListView.separated(
-                      itemCount: _conversations.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final ConversationSummary conversation =
-                            _conversations[index];
-                        return _buildMessageTile(context, conversation);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageTile(
-    BuildContext context,
-    ConversationSummary conversation,
-  ) {
-    final String displayTitle = buyerInboxConversationTitle(conversation);
-    final InboxCardPalette palette = _paletteForConversation(
-      context,
-      conversation,
-    );
-    final ImageProvider<Object>? propertyImageProvider =
-        buyerInboxConversationImageProvider(context, conversation);
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    return Dismissible(
-      key: ValueKey(conversation.id),
-      direction: DismissDirection.endToStart,
-      onUpdate: (details) {
-        _setConversationDismissProgress(conversation.id, details.progress);
-      },
-      confirmDismiss: (_) async {
-        final bool shouldDelete = await _confirmDeleteConversation(
-          conversation,
-        );
-        if (!shouldDelete && mounted) {
-          _setConversationDismissProgress(conversation.id, 0);
-        }
-        return shouldDelete;
-      },
-      onDismissed: (_) {
-        _dismissProgressByConversationId.remove(conversation.id);
-        _deleteConversation(conversation);
-      },
-      background: const SizedBox.shrink(),
-      secondaryBackground: _buildDeleteSwipeBackground(
-        context,
-        conversation.id,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            color: palette.background,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: palette.border),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => _openConversation(conversation),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final double thumbnailWidth = (constraints.maxWidth * 0.28)
-                      .clamp(88.0, 112.0)
-                      .toDouble();
-
-                  return SizedBox(
-                    height: 88,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          width: thumbnailWidth,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: palette.avatarBackground,
-                            ),
-                            child: propertyImageProvider != null
-                                ? Image(
-                                    image: propertyImageProvider,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Center(
-                                    child: Text(
-                                      messageInitial(displayTitle),
-                                      style: TextStyle(
-                                        color: palette.avatarForeground,
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        displayTitle,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          height: 1.15,
-                                          fontWeight: conversation.isUnread
-                                              ? FontWeight.w700
-                                              : FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 1),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (conversation.isUnread) ...[
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: BoxDecoration(
-                                                color: palette.accent,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                          ],
-                                          Text(
-                                            formatInboxTimestamp(
-                                              conversation.lastMessageAt,
-                                            ),
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: conversation.isUnread
-                                                  ? palette.accent
-                                                  : colorScheme.onSurfaceVariant,
-                                              fontWeight: conversation.isUnread
-                                                  ? FontWeight.w600
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  'Chat Agent',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeleteSwipeBackground(
-    BuildContext context,
-    String conversationId,
-  ) {
-    const Color lightOrange = Color(0xFFFFE0B2);
-    const Color warmOrange = Color(0xFFFFB74D);
-    const Color iconForeground = Color(0xFF7A3E00);
-    final double progress =
-        (_dismissProgressByConversationId[conversationId] ?? 0)
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final double opacity = Curves.easeOutCubic.transform(progress);
-    final double scaleProgress = Curves.easeOutBack
-        .transform(progress)
-        .clamp(0.0, 1.12)
-        .toDouble();
-    final double iconScale = 0.7 + (0.3 * scaleProgress);
-    final double iconRotation = -0.28 + (0.28 * opacity);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              warmOrange.withValues(alpha: 0.7),
-              lightOrange.withValues(alpha: 0.36),
-              lightOrange.withValues(alpha: 0),
-            ],
-            begin: Alignment.centerRight,
-            end: Alignment.centerLeft,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 18),
-          child: Opacity(
-            opacity: opacity,
-            child: Transform.translate(
-              offset: Offset(16 * (1 - progress), 0),
-              child: Transform.scale(
-                scale: iconScale,
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Transform.rotate(
-                    angle: iconRotation,
-                    child: Icon(
-                      Icons.delete_outline_rounded,
-                      color: iconForeground,
-                      size: 32,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 Future<void> _signOutAndReturnToLogin(BuildContext context) async {
   try {
@@ -1307,846 +681,6 @@ Future<void> _signOutAndReturnToLogin(BuildContext context) async {
     );
   }
 }
-
-class ProfileTab extends StatefulWidget {
-  final Uint8List? profileImageBytes;
-  final bool profileAvatarHidden;
-  final VoidCallback onAvatarTap;
-
-  const ProfileTab({
-    super.key,
-    required this.profileImageBytes,
-    required this.profileAvatarHidden,
-    required this.onAvatarTap,
-  });
-
-  @override
-  State<ProfileTab> createState() => _ProfileTabState();
-}
-
-class _ProfileTabState extends State<ProfileTab> {
-  late final Future<BuyerProfileData> _profileFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileFuture = _loadProfileAndPrecacheAvatar();
-  }
-
-  Future<BuyerProfileData> _loadProfileAndPrecacheAvatar() async {
-    final BuyerProfileData profile = await loadCurrentBuyerProfileData();
-    final String avatarUrl = (profile.avatarUrl ?? '').trim();
-    if (mounted &&
-        !widget.profileAvatarHidden &&
-        widget.profileImageBytes == null &&
-        avatarUrl.isNotEmpty) {
-      try {
-        await precacheImage(CachedNetworkImageProvider(avatarUrl), context);
-      } catch (_) {}
-    }
-    return profile;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: ValueListenableBuilder<UserSubscription>(
-        valueListenable: appSubscriptionNotifier,
-        builder: (context, currentSubscription, child) {
-          return FutureBuilder<BuyerProfileData>(
-            future: _profileFuture,
-            builder: (context, snapshot) {
-              final BuyerProfileData profile = resolveBuyerProfileData(
-                snapshot.data,
-                currentSubscription,
-              );
-              final String avatarUrl = (profile.avatarUrl ?? '').trim();
-              final ImageProvider<Object>? avatarImageProvider =
-                  widget.profileImageBytes != null
-                  ? MemoryImage(widget.profileImageBytes!)
-                  : !widget.profileAvatarHidden && avatarUrl.isNotEmpty
-                  ? CachedNetworkImageProvider(avatarUrl)
-                  : null;
-
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        GestureDetector(
-                          onTap: widget.onAvatarTap,
-                          child: CircleAvatar(
-                            radius: 48,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            backgroundImage: avatarImageProvider,
-                            child: avatarImageProvider == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                        ),
-                        Positioned(
-                          right: -2,
-                          bottom: -2,
-                          child: GestureDetector(
-                            onTap: widget.onAvatarTap,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Theme.of(
-                                    context,
-                                  ).scaffoldBackgroundColor,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      profile.displayName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Real Estate Buyer Profile',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.person_outline),
-                        title: const Text('Account'),
-                        subtitle: const Text('Personal contact details'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AccountPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.workspace_premium_outlined),
-                        title: const Text('Subscription'),
-                        subtitle: Text(
-                          profile.isPremium
-                              ? '${profile.planName} until ${formatSubscriptionDate(profile.expiresAt)}'
-                              : 'Current plan: ${profile.planName}',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SubscriptionPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.settings_outlined),
-                        title: const Text('Settings'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.logout, color: Colors.red),
-                        title: const Text('Log Out'),
-                        textColor: Colors.red,
-                        onTap: () async {
-                          await _signOutAndReturnToLogin(context);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class ChatPage extends StatefulWidget {
-  final String conversationId;
-  final String senderName;
-  final List<ConversationMessage> initialMessages;
-
-  const ChatPage({
-    super.key,
-    required this.conversationId,
-    required this.senderName,
-    this.initialMessages = const [],
-  });
-
-  @override
-  State<ChatPage> createState() => _ChatPageState();
-}
-
-class _ChatPageState extends State<ChatPage> {
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _messagesScrollController = ScrollController();
-  bool _isLoading = true;
-  bool _isSending = false;
-  bool _isLoadingMore = false;
-  bool _hasMoreMessages = true;
-  String? _errorText;
-  List<ConversationMessage> _messages = const [];
-  RealtimeChannel? _messagesChannel;
-
-  String get _currentUserId =>
-      Supabase.instance.client.auth.currentUser?.id ?? '';
-
-  ChatColorPalette _chatPalette(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-
-    return ChatColorPalette(
-      scaffoldBackground: theme.scaffoldBackgroundColor,
-      appBarBackground:
-          theme.appBarTheme.backgroundColor ?? colorScheme.surface,
-      appBarForeground:
-          theme.appBarTheme.foregroundColor ?? colorScheme.onSurface,
-      avatarBackground: colorScheme.primaryContainer,
-      avatarForeground: colorScheme.onPrimaryContainer,
-      outgoingBubble: colorScheme.primaryContainer,
-      outgoingText: colorScheme.onPrimaryContainer,
-      incomingBubble: colorScheme.surfaceContainerHighest,
-      incomingText: colorScheme.onSurface,
-      composerFill: theme.cardColor,
-      sendButtonBackground: colorScheme.primary,
-      sendButtonForeground: colorScheme.onPrimary,
-    );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messages = List<ConversationMessage>.from(widget.initialMessages);
-    _isLoading = _messages.isEmpty;
-    _hasMoreMessages =
-        _messages.length >= MessagingService.initialMessagePageSize;
-    _messagesScrollController.addListener(_handleMessagesScroll);
-    _subscribeToMessageUpdates();
-    if (_messages.isNotEmpty) {
-      _jumpToBottom();
-    }
-    unawaited(MessagingService.markConversationAsRead(widget.conversationId));
-    unawaited(
-      _loadMessages(showLoader: _messages.isEmpty, scrollToBottom: true),
-    );
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _messagesScrollController.dispose();
-    if (_messagesChannel != null) {
-      unawaited(Supabase.instance.client.removeChannel(_messagesChannel!));
-    }
-    super.dispose();
-  }
-
-  void _subscribeToMessageUpdates() {
-    _messagesChannel = Supabase.instance.client
-        .channel('buyer-chat-${widget.conversationId}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'conversation_id',
-            value: widget.conversationId,
-          ),
-          callback: (_) {
-            if (!mounted) return;
-            unawaited(
-              MessagingService.markConversationAsRead(widget.conversationId),
-            );
-            unawaited(_loadMessages(showLoader: false, scrollToBottom: true));
-          },
-        )
-        .subscribe();
-  }
-
-  void _handleMessagesScroll() {
-    if (!_messagesScrollController.hasClients ||
-        _isLoadingMore ||
-        !_hasMoreMessages ||
-        _messages.isEmpty) {
-      return;
-    }
-
-    if (_messagesScrollController.position.pixels <= 120) {
-      unawaited(_loadOlderMessages());
-    }
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_messagesScrollController.hasClients) return;
-      _messagesScrollController.animateTo(
-        _messagesScrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  void _jumpToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_messagesScrollController.hasClients) return;
-      _messagesScrollController.jumpTo(
-        _messagesScrollController.position.maxScrollExtent,
-      );
-    });
-  }
-
-  List<ConversationMessage> _mergeMessages(
-    Iterable<ConversationMessage> existing,
-    Iterable<ConversationMessage> incoming,
-  ) {
-    final Map<String, ConversationMessage> byId =
-        <String, ConversationMessage>{};
-    for (final ConversationMessage message in existing) {
-      byId[message.id] = message;
-    }
-    for (final ConversationMessage message in incoming) {
-      byId[message.id] = message;
-    }
-
-    final List<ConversationMessage> merged = byId.values.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    return merged;
-  }
-
-  Future<void> _loadMessages({
-    bool showLoader = true,
-    bool scrollToBottom = false,
-  }) async {
-    if (showLoader && mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorText = null;
-      });
-    }
-
-    try {
-      final List<ConversationMessage> messages =
-          await MessagingService.fetchConversationMessages(
-            widget.conversationId,
-            limit: MessagingService.initialMessagePageSize,
-          );
-      final int previousCount = _messages.length;
-      final List<ConversationMessage> mergedMessages = _mergeMessages(
-        _messages,
-        messages,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _messages = mergedMessages;
-        _isLoading = false;
-        _errorText = null;
-        _isSending = false;
-        _hasMoreMessages =
-            messages.length >= MessagingService.initialMessagePageSize;
-      });
-      if (scrollToBottom || mergedMessages.length > previousCount) {
-        if (previousCount == 0) {
-          _jumpToBottom();
-        } else {
-          _scrollToBottom();
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _isSending = false;
-        _errorText = 'Failed to load messages.';
-      });
-    }
-  }
-
-  Future<void> _loadOlderMessages() async {
-    if (_isLoadingMore || !_hasMoreMessages || _messages.isEmpty) return;
-
-    final DateTime before = _messages.first.createdAt;
-    final double previousOffset = _messagesScrollController.hasClients
-        ? _messagesScrollController.offset
-        : 0;
-    final double previousMaxExtent = _messagesScrollController.hasClients
-        ? _messagesScrollController.position.maxScrollExtent
-        : 0;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final List<ConversationMessage> olderMessages =
-          await MessagingService.fetchConversationMessages(
-            widget.conversationId,
-            limit: MessagingService.initialMessagePageSize,
-            before: before,
-          );
-      final List<ConversationMessage> mergedMessages = _mergeMessages(
-        _messages,
-        olderMessages,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _messages = mergedMessages;
-        _isLoadingMore = false;
-        _hasMoreMessages =
-            olderMessages.length >= MessagingService.initialMessagePageSize;
-      });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_messagesScrollController.hasClients) return;
-        final double delta =
-            _messagesScrollController.position.maxScrollExtent -
-            previousMaxExtent;
-        _messagesScrollController.jumpTo(previousOffset + delta);
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingMore = false;
-      });
-    }
-  }
-
-  Future<void> _sendMessage() async {
-    final String text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
-
-    final ConversationMessage optimisticMessage = ConversationMessage(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-      conversationId: widget.conversationId,
-      senderId: _currentUserId,
-      body: text,
-      createdAt: DateTime.now(),
-      readAt: null,
-    );
-
-    setState(() {
-      _isSending = true;
-      _errorText = null;
-      _messages = [..._messages, optimisticMessage];
-    });
-
-    _messageController.clear();
-    _scrollToBottom();
-
-    try {
-      final ConversationMessage sentMessage =
-          await MessagingService.sendMessage(
-            conversationId: widget.conversationId,
-            body: text,
-          );
-      if (!mounted) return;
-      final List<ConversationMessage> currentMessages = _messages
-          .where((message) => message.id != optimisticMessage.id)
-          .toList();
-      setState(() {
-        _isSending = false;
-        _messages = _mergeMessages(currentMessages, [sentMessage]);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isSending = false;
-        _errorText = 'Failed to send message.';
-        _messages = _messages
-            .where((message) => message.id != optimisticMessage.id)
-            .toList();
-        _messageController.text = text;
-      });
-    }
-  }
-
-  Future<void> _showMessageActions(ConversationMessage message) async {
-    final String? action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Edit message'),
-                onTap: () => Navigator.pop(context, 'edit'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text(
-                  'Delete message',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (!mounted || action == null) return;
-
-    if (action == 'edit') {
-      await _editMessage(message);
-    } else if (action == 'delete') {
-      await _deleteMessage(message);
-    }
-  }
-
-  Future<void> _editMessage(ConversationMessage message) async {
-    final TextEditingController controller = TextEditingController(
-      text: message.body,
-    );
-
-    final String? updatedText = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit message'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 4,
-            decoration: const InputDecoration(hintText: 'Update your message'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (!mounted || updatedText == null || updatedText.isEmpty) return;
-    if (updatedText == message.body.trim()) return;
-
-    try {
-      await MessagingService.updateMessage(
-        messageId: message.id,
-        body: updatedText,
-      );
-      await _loadMessages(showLoader: false, scrollToBottom: true);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
-    }
-  }
-
-  Future<void> _deleteMessage(ConversationMessage message) async {
-    final bool shouldDelete =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('Delete message'),
-              content: const Text(
-                'This message will be removed from the chat.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Delete'),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-
-    if (!mounted || !shouldDelete) return;
-
-    try {
-      await MessagingService.deleteMessage(message.id);
-      await _loadMessages(showLoader: false, scrollToBottom: true);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ChatColorPalette palette = _chatPalette(context);
-
-    return Scaffold(
-      backgroundColor: palette.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: palette.appBarBackground,
-        foregroundColor: palette.appBarForeground,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: palette.avatarBackground,
-              foregroundColor: palette.avatarForeground,
-              child: Text(
-                widget.senderName[0],
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(widget.senderName, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
-        titleSpacing: 0,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                if (_isLoading && _messages.isEmpty) {
-                  return const ChatLoadingPlaceholder();
-                }
-
-                if (_errorText != null && _messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _errorText!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  );
-                }
-
-                if (_messages.isEmpty) {
-                  return ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: const [
-                      SizedBox(height: 80),
-                      Center(child: Text('No messages yet.')),
-                    ],
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _messagesScrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_isLoadingMore && index == 0) {
-                      return const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final int messageIndex = _isLoadingMore ? index - 1 : index;
-                    final ConversationMessage msg = _messages[messageIndex];
-                    final bool isMe = msg.isFrom(_currentUserId);
-                    final Color bubbleColor = isMe
-                        ? palette.outgoingBubble
-                        : palette.incomingBubble;
-                    final Color textColor = isMe
-                        ? palette.outgoingText
-                        : palette.incomingText;
-                    return Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: GestureDetector(
-                        onLongPress: isMe && !msg.isPending
-                            ? () => _showMessageActions(msg)
-                            : null,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: bubbleColor,
-                            borderRadius: BorderRadius.circular(16).copyWith(
-                              bottomRight: isMe
-                                  ? const Radius.circular(0)
-                                  : const Radius.circular(16),
-                              bottomLeft: !isMe
-                                  ? const Radius.circular(0)
-                                  : const Radius.circular(16),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                msg.body,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              if (isMe) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  msg.isPending ? 'Sending...' : 'Sent',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: textColor.withValues(alpha: 0.85),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          if (_errorText != null && _messages.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                _errorText!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        filled: true,
-                        fillColor: palette.composerFill,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: palette.sendButtonBackground,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      child: _isSending
-                          ? SizedBox(
-                              key: const ValueKey('sending'),
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  palette.sendButtonForeground,
-                                ),
-                              ),
-                            )
-                          : IconButton(
-                              key: const ValueKey('send'),
-                              icon: Icon(
-                                Icons.send_rounded,
-                                color: palette.sendButtonForeground,
-                              ),
-                              onPressed: _sendMessage,
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
