@@ -2,19 +2,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../features/auth/data/services/auth_session_service.dart';
+import '../../features/auth/domain/helpers/auth_user_role.dart';
 import '../../features/auth/presentation/navigation/auth_navigation.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
-import '../../features/auth/presentation/screens/change_password_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_page.dart';
 import '../../features/auth/presentation/screens/sign_up_page.dart';
 import '../../features/location/data/datasources/negros_places_datasource.dart';
@@ -438,21 +440,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const String _devAgentShortcutUsername = '1q1q';
-  static const String _devAgentShortcutPassword = '1q1q';
-  static const String _devAgentEmail = String.fromEnvironment(
-    'DEV_AGENT_EMAIL',
-  );
-  static const String _devAgentPassword = String.fromEnvironment(
-    'DEV_AGENT_PASSWORD',
-  );
-  static const String _devUserShortcutUsername = '2q2q';
-  static const String _devUserShortcutPassword = '2q2q';
-  static const String _devUserEmail = String.fromEnvironment('DEV_USER_EMAIL');
-  static const String _devUserPassword = String.fromEnvironment(
-    'DEV_USER_PASSWORD',
-  );
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -462,12 +449,6 @@ class _LoginPageState extends State<LoginPage> {
   StreamSubscription<AuthState>? _authSubscription;
   bool _isRouting = false;
   bool _isOpeningPasswordRecovery = false;
-
-  bool get _hasDevAgentCredentials =>
-      _devAgentEmail.isNotEmpty && _devAgentPassword.isNotEmpty;
-
-  bool get _hasDevUserCredentials =>
-      _devUserEmail.isNotEmpty && _devUserPassword.isNotEmpty;
 
   @override
   void initState() {
@@ -513,14 +494,9 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted || _isOpeningPasswordRecovery) return;
 
     _isOpeningPasswordRecovery = true;
-    await Navigator.push(
+    await openPasswordRecoveryPage(
       context,
-      MaterialPageRoute(
-        builder: (context) => ChangePasswordPage(
-          isPasswordRecovery: true,
-          recoveryLoginBuilder: (context) => const LoginPage(),
-        ),
-      ),
+      loginBuilder: (context) => const LoginPage(),
     );
 
     if (mounted) {
@@ -529,82 +505,45 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _routeByRole(User user) async {
-    final role =
-        ((user.appMetadata['role'] ?? user.userMetadata?['role']) as String?)
-            ?.toLowerCase() ??
-        'user';
-
     await loadProperties();
 
     if (!mounted) return;
-    if (role == 'admin') {
-      Navigator.pushReplacement(
+    if (isAdminAuthUser(user)) {
+      await replaceWithAuthenticatedAdmin(
         context,
-        MaterialPageRoute(
-          builder: (context) =>
-              AdminHomePage(onLogout: _signOutAndReturnToLegacyLogin),
-        ),
+        adminBuilder: (context) =>
+            AdminHomePage(onLogout: _signOutAndReturnToLegacyLogin),
       );
     } else {
-      final List<Property> initialProperties = appPropertiesNotifier.value
-          .take(AppConfig.initialPropertyImagePrefetchCount)
-          .toList(growable: false);
-      await Future.wait(
-        initialProperties.map(
-          (property) =>
-              precachePropertyImage(context, property, useThumbnail: true),
-        ),
+      await precacheInitialPropertyImages(
+        context: context,
+        properties: appPropertiesNotifier.value,
+        count: AppConfig.initialPropertyImagePrefetchCount,
       );
       if (!mounted) return;
-      Navigator.pushReplacement(
+      await replaceWithAuthenticatedHome(
         context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
+        homeBuilder: (context) => const HomePage(),
       );
     }
-  }
-
-  Future<void> _signInWithDevUserShortcut() async {
-    try {
-      final AuthResponse response = await Supabase.instance.client.auth
-          .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
-      await _routeToAuthenticatedUser(response.user);
-      return;
-    } on AuthException catch (error) {
-      final String message = error.message.toLowerCase();
-      final bool shouldCreateAccount =
-          message.contains('invalid login credentials') ||
-          message.contains('user not found');
-
-      if (!shouldCreateAccount) rethrow;
-    }
-
-    await Supabase.instance.client.auth.signUp(
-      email: _devUserEmail,
-      password: _devUserPassword,
-      data: const {'role': 'user'},
-    );
-
-    final AuthResponse response = await Supabase.instance.client.auth
-        .signInWithPassword(email: _devUserEmail, password: _devUserPassword);
-    await _routeToAuthenticatedUser(response.user);
   }
 
   Future<void> _signIn() async {
     final enteredEmail = _emailController.text.trim();
     final enteredPassword = _passwordController.text;
     final bool requestedDevAgentShortcut =
-        enteredEmail == _devAgentShortcutUsername &&
-        enteredPassword == _devAgentShortcutPassword;
+        enteredEmail == AuthConfig.devAgentShortcutUsername &&
+        enteredPassword == AuthConfig.devAgentShortcutPassword;
     final bool requestedDevUserShortcut =
-        enteredEmail == _devUserShortcutUsername &&
-        enteredPassword == _devUserShortcutPassword;
+        enteredEmail == AuthConfig.devUserShortcutUsername &&
+        enteredPassword == AuthConfig.devUserShortcutPassword;
 
     final bool isDevAgentShortcut =
-        requestedDevAgentShortcut && _hasDevAgentCredentials;
+        requestedDevAgentShortcut && AuthConfig.hasDevAgentCredentials;
     final bool isDevUserShortcut =
-        requestedDevUserShortcut && _hasDevUserCredentials;
+        requestedDevUserShortcut && AuthConfig.hasDevUserCredentials;
 
-    if (requestedDevAgentShortcut && !_hasDevAgentCredentials) {
+    if (requestedDevAgentShortcut && !AuthConfig.hasDevAgentCredentials) {
       setState(() {
         _errorText =
             'Dev agent shortcut is disabled until DEV_AGENT_EMAIL and '
@@ -613,7 +552,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    if (requestedDevUserShortcut && !_hasDevUserCredentials) {
+    if (requestedDevUserShortcut && !AuthConfig.hasDevUserCredentials) {
       setState(() {
         _errorText =
             'Dev user shortcut is disabled until DEV_USER_EMAIL and '
@@ -629,7 +568,8 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       try {
-        await _signInWithDevUserShortcut();
+        final User? user = await AuthSessionService.signInWithDevUserShortcut();
+        await _routeToAuthenticatedUser(user);
       } on AuthException catch (e) {
         if (!mounted) return;
         setState(() {
@@ -650,8 +590,12 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final email = isDevAgentShortcut ? _devAgentEmail : enteredEmail;
-    final password = isDevAgentShortcut ? _devAgentPassword : enteredPassword;
+    final email = isDevAgentShortcut
+        ? AuthConfig.devAgentEmail
+        : enteredEmail;
+    final password = isDevAgentShortcut
+        ? AuthConfig.devAgentPassword
+        : enteredPassword;
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {
@@ -666,11 +610,11 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
+      final User? user = await AuthSessionService.signInWithPassword(
         email: email,
         password: password,
       );
-      await _routeToAuthenticatedUser(response.user);
+      await _routeToAuthenticatedUser(user);
     } on AuthException catch (e) {
       if (!mounted) return;
       final String normalizedMessage = e.message.toLowerCase();
@@ -700,10 +644,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? null : AuthConfig.redirectUrl,
-      );
+      await AuthSessionService.signInWithGoogle();
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {

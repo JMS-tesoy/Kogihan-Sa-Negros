@@ -96,6 +96,20 @@ Future<void> precachePropertyImage(
   await precacheImage(imageProvider, context);
 }
 
+Future<void> precacheInitialPropertyImages({
+  required BuildContext context,
+  required Iterable<Property> properties,
+  required int count,
+}) {
+  final Iterable<Property> initialProperties = properties.take(count);
+  return Future.wait(
+    initialProperties.map(
+      (property) =>
+          precachePropertyImage(context, property, useThumbnail: true),
+    ),
+  );
+}
+
 Widget buildPropertyImage({
   required BuildContext context,
   required Property property,
