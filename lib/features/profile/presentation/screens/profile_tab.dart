@@ -16,6 +16,7 @@ class ProfileTab extends StatefulWidget {
   final bool profileAvatarHidden;
   final VoidCallback onAvatarTap;
   final Future<void> Function(BuildContext context) onLogout;
+  final ValueChanged<bool>? onRemoteAvatarAvailableChanged;
 
   const ProfileTab({
     super.key,
@@ -23,6 +24,7 @@ class ProfileTab extends StatefulWidget {
     required this.profileAvatarHidden,
     required this.onAvatarTap,
     required this.onLogout,
+    this.onRemoteAvatarAvailableChanged,
   });
 
   @override
@@ -66,6 +68,14 @@ class _ProfileTabState extends State<ProfileTab> {
                 currentSubscription,
               );
               final String avatarUrl = (profile.avatarUrl ?? '').trim();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                widget.onRemoteAvatarAvailableChanged?.call(
+                  !widget.profileAvatarHidden &&
+                      widget.profileImageBytes == null &&
+                      avatarUrl.isNotEmpty,
+                );
+              });
               final ImageProvider<Object>? avatarImageProvider =
                   widget.profileImageBytes != null
                   ? MemoryImage(widget.profileImageBytes!)

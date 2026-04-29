@@ -8,6 +8,18 @@ final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
 );
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
 
+Future<void> initializeAppThemePreference() async {
+  final SharedPreferences preferences = await SharedPreferences.getInstance();
+  final bool followSystemTheme =
+      preferences.getBool(StorageConstants.followSystemThemeEnabled) ?? true;
+  final String? preferredThemeMode = preferences.getString(
+    StorageConstants.preferredThemeMode,
+  );
+  appThemeNotifier.value = followSystemTheme
+      ? ThemeMode.system
+      : (preferredThemeMode == 'dark' ? ThemeMode.dark : ThemeMode.light);
+}
+
 Future<void> persistFollowSystemThemePreference(bool enabled) async {
   final SharedPreferences preferences = await SharedPreferences.getInstance();
   await preferences.setBool(StorageConstants.followSystemThemeEnabled, enabled);

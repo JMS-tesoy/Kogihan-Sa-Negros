@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -13,8 +12,8 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../features/auth/data/services/auth_session_service.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
 import '../../features/auth/presentation/screens/change_password_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_page.dart';
@@ -23,7 +22,6 @@ import '../../features/location/data/datasources/negros_places_datasource.dart';
 import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../../features/home/presentation/widgets/top_header.dart';
 import '../../features/home/presentation/helpers/home_filter_helpers.dart';
-import '../../features/messaging/data/services/messaging_service.dart';
 import '../../features/messaging/presentation/screens/messages_tab.dart'
     as messaging_screens;
 import '../../features/profile/data/services/avatar_image_optimizer.dart';
@@ -31,7 +29,6 @@ import '../../features/profile/data/services/profile_avatar_service.dart';
 import '../../features/profile/data/services/buyer_profile_service.dart';
 import '../../features/profile/presentation/screens/profile_tab.dart'
     as profile_screens;
-import '../../features/profile/presentation/widgets/profile_formatters.dart';
 import '../../features/profile/presentation/widgets/avatar_options_sheet.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
 import '../../features/properties/data/services/saved_property_storage_service.dart';
@@ -42,16 +39,16 @@ import '../../features/home/presentation/screens/home_tab.dart';
 import '../../features/properties/presentation/screens/saved_tab.dart';
 import '../../features/subscription/presentation/screens/subscription_screen.dart';
 import '../../features/subscription/data/services/subscription_service.dart';
-import '../../core/constants/storage_constants.dart';
+import '../real_estate_app.dart';
 import '../config/app_config.dart';
 import '../config/auth_config.dart';
+import '../config/mapbox_config.dart';
 import '../config/supabase_config.dart';
 import '../router/instant_route.dart';
 import '../state/app_display_preferences.dart'
-    show appFontScaleNotifier, appThemeNotifier;
+    show initializeAppThemePreference;
 import '../state/inline_property_details_controller.dart';
 import '../state/inline_property_details_state.dart';
-import '../theme/legacy_app_theme.dart';
 
 part '../../features/map/presentation/screens/legacy_map_tab.dart';
 
@@ -62,12 +59,12 @@ Future<void> main() async {
     await dotenv.load(fileName: '.env');
     final String envToken = dotenv.env['MAPBOX_ACCESS_TOKEN']?.trim() ?? '';
     if (envToken.isNotEmpty) {
-      _mapboxAccessToken = envToken;
+      MapboxConfig.accessToken = envToken;
     }
   } catch (_) {}
 
-  if (_mapboxAccessToken.isNotEmpty) {
-    MapboxOptions.setAccessToken(_mapboxAccessToken);
+  if (MapboxConfig.accessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(MapboxConfig.accessToken);
   }
 
   try {
@@ -88,53 +85,9 @@ Future<void> main() async {
   }
 
   await SubscriptionService.initialize();
-  final SharedPreferences preferences = await SharedPreferences.getInstance();
-  final bool followSystemTheme =
-      preferences.getBool(StorageConstants.followSystemThemeEnabled) ?? true;
-  final String? preferredThemeMode = preferences.getString(
-    StorageConstants.preferredThemeMode,
-  );
-  appThemeNotifier.value = followSystemTheme
-      ? ThemeMode.system
-      : (preferredThemeMode == 'dark' ? ThemeMode.dark : ThemeMode.light);
+  await initializeAppThemePreference();
 
-  runApp(const RealEstateApp());
-}
-
-class RealEstateApp extends StatelessWidget {
-  const RealEstateApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: appThemeNotifier,
-      builder: (context, currentMode, child) {
-        return ValueListenableBuilder<double>(
-          valueListenable: appFontScaleNotifier,
-          builder: (context, fontScale, child) {
-            return MaterialApp(
-              title: 'Land Finder',
-              debugShowCheckedModeBanner: false,
-              themeMode: currentMode,
-              themeAnimationDuration: const Duration(milliseconds: 220),
-              themeAnimationCurve: Curves.easeOutCubic,
-              builder: (context, child) {
-                return MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(textScaler: TextScaler.linear(fontScale)),
-                  child: child!,
-                );
-              },
-              theme: buildLegacyLightTheme(),
-              darkTheme: buildLegacyDarkTheme(),
-              home: const LoginPage(),
-            );
-          },
-        );
-      },
-    );
-  }
+  runApp(const RealEstateApp(home: LoginPage()));
 }
 
 class HomePage extends StatefulWidget {
@@ -164,6 +117,7 @@ class _HomePageState extends State<HomePage> {
 
   Uint8List? _profileImageBytes;
   bool _profileAvatarHidden = false;
+  bool _hasRemoteProfileAvatar = false;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -215,22 +169,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _warmCurrentUserAvatar() async {
-    try {
-      final MessagingProfile? profile =
-          await MessagingService.fetchCurrentProfile();
-      final String avatarUrl = profileTextValue(
-        profile?.avatarUrl ??
-            Supabase
-                .instance
-                .client
-                .auth
-                .currentUser
-                ?.userMetadata?['avatar_url'],
-      );
-      if (!mounted || _profileAvatarHidden || avatarUrl.isEmpty) return;
-
-      await precacheImage(CachedNetworkImageProvider(avatarUrl), context);
-    } catch (_) {}
+    if (_profileAvatarHidden) return;
+    await ProfileAvatarService.warmCurrentUserAvatar(context);
   }
 
   void _scheduleInitialPropertyCardImageWarmup(List<Property> properties) {
@@ -304,6 +244,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _profileImageBytes = imageBytes;
           _profileAvatarHidden = false;
+          _hasRemoteProfileAvatar = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Avatar saved to your profile.')),
@@ -327,6 +268,8 @@ class _HomePageState extends State<HomePage> {
       final Uint8List imageBytes = await pickedFile.readAsBytes();
       setState(() {
         _profileImageBytes = imageBytes;
+        _profileAvatarHidden = false;
+        _hasRemoteProfileAvatar = true;
       });
     }
   }
@@ -336,13 +279,14 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (context) {
         return AvatarOptionsSheet(
-          canRemoveAvatar: _profileImageBytes != null,
+          canRemoveAvatar: _profileImageBytes != null || _hasRemoteProfileAvatar,
           onChooseFromGallery: _pickAvatarFromGallery,
           onTakePhoto: _pickAvatarFromCamera,
           onRemoveAvatar: () {
             setState(() {
               _profileImageBytes = null;
               _profileAvatarHidden = true;
+              _hasRemoteProfileAvatar = false;
             });
             unawaited(ProfileAvatarService.removeAvatarForCurrentUser());
           },
@@ -352,100 +296,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Property> get _filteredProperties {
-    final String normalizedQuery = normalizeSearchText(_searchQuery);
-    final String numericQuery = digitsOnly(_searchQuery);
-    final bool hasSearchQuery =
-        normalizedQuery.isNotEmpty || numericQuery.isNotEmpty;
-    final bool hasLocationFilter = _selectedLocation != null;
-    final bool hasLotSizeFilter = _selectedLotSize != null;
-    final bool hasBudgetFilter = _selectedBudget != null;
-
-    if (!hasSearchQuery &&
-        !hasLocationFilter &&
-        !hasLotSizeFilter &&
-        !hasBudgetFilter) {
-      return List<Property>.from(_availableProperties);
-    }
-
-    return _availableProperties
-        .where((property) {
-          if (hasLocationFilter) {
-            final NegrosPlace? selectedPlace = _negrosPlaces.cast<NegrosPlace?>().firstWhere(
-              (place) => place?.placeName == _selectedLocation,
-              orElse: () => null,
-            );
-
-            if (selectedPlace != null) {
-              final List<double>? propertyCoordinates = parsePropertyCoordinates(
-                property.location,
-              );
-              final double? placeLatitude = selectedPlace.latitude;
-              final double? placeLongitude = selectedPlace.longitude;
-
-              if (propertyCoordinates == null ||
-                  placeLatitude == null ||
-                  placeLongitude == null) {
-                return false;
-              }
-
-              final double propertyDistanceInKm = distanceInKm(
-                startLatitude: propertyCoordinates[0],
-                startLongitude: propertyCoordinates[1],
-                endLatitude: placeLatitude,
-                endLongitude: placeLongitude,
-              );
-
-              if (propertyDistanceInKm > 25) return false;
-            } else if (property.location != _selectedLocation) {
-              return false;
-            }
-          }
-
-          if (hasLotSizeFilter) {
-            final bool matchesLotSize = switch (_selectedLotSize) {
-              'Below 500 sqm' => property.sizeValue < 500,
-              '500 - 1000 sqm' =>
-                property.sizeValue >= 500 && property.sizeValue <= 1000,
-              'Above 1000 sqm' => property.sizeValue > 1000,
-              _ => true,
-            };
-
-            if (!matchesLotSize) return false;
-          }
-
-          if (hasBudgetFilter) {
-            final bool matchesBudget = switch (_selectedBudget) {
-              'Below ₱1M' => property.priceValue < 1000000,
-              '₱1M - ₱3M' =>
-                property.priceValue >= 1000000 &&
-                    property.priceValue <= 3000000,
-              'Above ₱3M' => property.priceValue > 3000000,
-              _ => true,
-            };
-
-            if (!matchesBudget) return false;
-          }
-
-          if (!hasSearchQuery) return true;
-
-          final String normalizedTitle = normalizeSearchText(property.title);
-          final String normalizedLocation = normalizeSearchText(
-            property.location,
-          );
-          final String normalizedPrice = normalizeSearchText(property.price);
-
-          if (normalizedTitle.contains(normalizedQuery) ||
-              normalizedLocation.contains(normalizedQuery) ||
-              normalizedPrice.contains(normalizedQuery)) {
-            return true;
-          }
-
-          if (numericQuery.isEmpty) return false;
-
-          final String numericPrice = digitsOnly(property.price);
-          return numericPrice.contains(numericQuery);
-        })
-        .toList(growable: false);
+    return filterHomeProperties(
+      availableProperties: _availableProperties,
+      negrosPlaces: _negrosPlaces,
+      searchQuery: _searchQuery,
+      selectedLocation: _selectedLocation,
+      selectedLotSize: _selectedLotSize,
+      selectedBudget: _selectedBudget,
+    );
   }
 
   void _resetFilters() {
@@ -532,6 +390,12 @@ class _HomePageState extends State<HomePage> {
         profileAvatarHidden: _profileAvatarHidden,
         onAvatarTap: _showAvatarOptions,
         onLogout: _signOutAndReturnToLogin,
+        onRemoteAvatarAvailableChanged: (hasRemoteAvatar) {
+          if (_hasRemoteProfileAvatar == hasRemoteAvatar) return;
+          setState(() {
+            _hasRemoteProfileAvatar = hasRemoteAvatar;
+          });
+        },
       ),
     ];
 
@@ -596,7 +460,7 @@ class _HomePageState extends State<HomePage> {
 
 Future<void> _signOutAndReturnToLogin(BuildContext context) async {
   try {
-    await Supabase.instance.client.auth.signOut();
+    await AuthSessionService.signOutCurrentUser();
     if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,

@@ -12,10 +12,6 @@ final Point _negrosIslandCenter = Point(
 );
 const double _negrosIslandInitialZoom = 7.35;
 const String _mapTerrainSourceId = 'property-terrain-dem';
-const String _mapboxAccessTokenFallback = String.fromEnvironment(
-  'ACCESS_TOKEN',
-);
-String _mapboxAccessToken = _mapboxAccessTokenFallback;
 
 enum _MapLightPreset { day, night }
 
@@ -662,7 +658,7 @@ class _MapTabState extends State<MapTab> {
         'geometries': 'geojson',
         'overview': 'full',
         'steps': 'false',
-        'access_token': _mapboxAccessToken,
+        'access_token': MapboxConfig.accessToken,
       },
     );
 
@@ -1444,7 +1440,7 @@ class _MapTabState extends State<MapTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_mapboxAccessToken.isEmpty) {
+    if (MapboxConfig.accessToken.isEmpty) {
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

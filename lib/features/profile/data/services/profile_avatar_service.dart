@@ -1,11 +1,34 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/config/supabase_config.dart';
+import '../../../messaging/data/services/messaging_service.dart';
+import '../../presentation/widgets/profile_formatters.dart';
 
 class ProfileAvatarService {
   const ProfileAvatarService._();
+
+  static Future<void> warmCurrentUserAvatar(BuildContext context) async {
+    try {
+      final MessagingProfile? profile =
+          await MessagingService.fetchCurrentProfile();
+      final String avatarUrl = profileTextValue(
+        profile?.avatarUrl ??
+            Supabase
+                .instance
+                .client
+                .auth
+                .currentUser
+                ?.userMetadata?['avatar_url'],
+      );
+      if (!context.mounted || avatarUrl.isEmpty) return;
+
+      await precacheImage(CachedNetworkImageProvider(avatarUrl), context);
+    } catch (_) {}
+  }
 
   static Future<void> saveAvatarForCurrentUser(Uint8List imageBytes) async {
     final User? user = Supabase.instance.client.auth.currentUser;
