@@ -722,9 +722,9 @@ class _MapTabState extends State<MapTab> {
 
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final int pulsingColor = colorScheme.primary.toARGB32();
-    final int routeColor = colorScheme.primary.toARGB32();
+    final int routeColor = const Color(0xFF38BDF8).toARGB32();
     final int routeBorderColor = Colors.white
-        .withValues(alpha: 0.84)
+        .withValues(alpha: 0.72)
         .toARGB32();
 
     final bool isLocationReady = await _ensureGpsLocationReady();
@@ -771,7 +771,6 @@ class _MapTabState extends State<MapTab> {
     if (routeManager == null) {
       routeManager = await mapboxMap.annotations.createPolylineAnnotationManager(
         id: 'property-route',
-        below: _circleAnnotationManager == null ? null : 'property-markers',
       );
       _routeAnnotationManager = routeManager;
     }
@@ -781,11 +780,13 @@ class _MapTabState extends State<MapTab> {
       PolylineAnnotationOptions(
         geometry: LineString(coordinates: routePositions),
         lineBorderColor: routeBorderColor,
-        lineBorderWidth: 2.0,
+        lineBorderWidth: 1.5,
         lineColor: routeColor,
+        lineEmissiveStrength: 0.75,
         lineJoin: LineJoin.ROUND,
-        lineOpacity: 0.95,
-        lineWidth: 6.0,
+        lineOpacity: 0.88,
+        lineWidth: 5.5,
+        lineZOffset: 2.0,
       ),
     );
 

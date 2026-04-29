@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -13,7 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../features/auth/data/services/auth_session_service.dart';
+import '../../features/auth/presentation/navigation/auth_navigation.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
 import '../../features/auth/presentation/screens/change_password_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_page.dart';
@@ -40,13 +39,11 @@ import '../../features/properties/presentation/screens/saved_tab.dart';
 import '../../features/subscription/presentation/screens/subscription_screen.dart';
 import '../../features/subscription/data/services/subscription_service.dart';
 import '../real_estate_app.dart';
+import '../bootstrap/legacy_app_bootstrap.dart';
 import '../config/app_config.dart';
 import '../config/auth_config.dart';
 import '../config/mapbox_config.dart';
-import '../config/supabase_config.dart';
 import '../router/instant_route.dart';
-import '../state/app_display_preferences.dart'
-    show initializeAppThemePreference;
 import '../state/inline_property_details_controller.dart';
 import '../state/inline_property_details_state.dart';
 
@@ -54,39 +51,7 @@ part '../../features/map/presentation/screens/legacy_map_tab.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  try {
-    await dotenv.load(fileName: '.env');
-    final String envToken = dotenv.env['MAPBOX_ACCESS_TOKEN']?.trim() ?? '';
-    if (envToken.isNotEmpty) {
-      MapboxConfig.accessToken = envToken;
-    }
-  } catch (_) {}
-
-  if (MapboxConfig.accessToken.isNotEmpty) {
-    MapboxOptions.setAccessToken(MapboxConfig.accessToken);
-  }
-
-  try {
-    await Supabase.initialize(
-      url: SupabaseConfig.effectiveUrl,
-      anonKey: SupabaseConfig.effectiveAnonKey,
-    );
-    unawaited(loadProperties());
-    unawaited(loadNegrosPlaces());
-    developer.log('✅ Supabase connected successfully!', name: 'Supabase');
-  } catch (e, stackTrace) {
-    developer.log(
-      '❌ Supabase connection failed',
-      name: 'Supabase',
-      error: e,
-      stackTrace: stackTrace,
-    );
-  }
-
-  await SubscriptionService.initialize();
-  await initializeAppThemePreference();
-
+  await initializeLegacyAppBootstrap();
   runApp(const RealEstateApp(home: LoginPage()));
 }
 
@@ -389,7 +354,7 @@ class _HomePageState extends State<HomePage> {
         profileImageBytes: _profileImageBytes,
         profileAvatarHidden: _profileAvatarHidden,
         onAvatarTap: _showAvatarOptions,
-        onLogout: _signOutAndReturnToLogin,
+        onLogout: _signOutAndReturnToLegacyLogin,
         onRemoteAvatarAvailableChanged: (hasRemoteAvatar) {
           if (_hasRemoteProfileAvatar == hasRemoteAvatar) return;
           setState(() {
@@ -458,21 +423,11 @@ class _HomePageState extends State<HomePage> {
 
 
 
-Future<void> _signOutAndReturnToLogin(BuildContext context) async {
-  try {
-    await AuthSessionService.signOutCurrentUser();
-    if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-      (route) => false,
-    );
-  } catch (_) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Failed to log out. Please try again.')),
-    );
-  }
+Future<void> _signOutAndReturnToLegacyLogin(BuildContext context) {
+  return signOutAndReturnToLogin(
+    context,
+    loginBuilder: (context) => const LoginPage(),
+  );
 }
 
 class LoginPage extends StatefulWidget {
@@ -587,7 +542,7 @@ class _LoginPageState extends State<LoginPage> {
         context,
         MaterialPageRoute(
           builder: (context) =>
-              AdminHomePage(onLogout: _signOutAndReturnToLogin),
+              AdminHomePage(onLogout: _signOutAndReturnToLegacyLogin),
         ),
       );
     } else {
