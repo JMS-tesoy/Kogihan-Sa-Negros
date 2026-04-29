@@ -16,11 +16,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_section_header.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
+import '../../features/auth/presentation/screens/change_password_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_page.dart';
 import '../../features/location/data/datasources/negros_places_datasource.dart';
 import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../../features/home/presentation/widgets/active_filter_chip.dart';
@@ -29,194 +30,31 @@ import '../../features/home/presentation/widgets/sticky_search_header_delegate.d
 import '../../features/home/presentation/widgets/top_header.dart';
 import '../../features/messaging/data/services/messaging_service.dart';
 import '../../features/messaging/presentation/widgets/chat_loading_placeholder.dart';
+import '../../features/messaging/presentation/widgets/inbox_conversation_helpers.dart';
 import '../../features/messaging/presentation/widgets/message_palettes.dart';
+import '../../features/profile/data/services/buyer_profile_service.dart';
 import '../../features/profile/data/models/profile_model.dart';
+import '../../features/profile/presentation/screens/pin_code_screen.dart';
+import '../../features/profile/presentation/widgets/profile_formatters.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
+import '../../features/properties/presentation/screens/property_details_inline_screen.dart';
+import '../../features/properties/presentation/widgets/property_tile.dart';
+import '../../features/properties/presentation/widgets/property_image.dart';
+import '../../features/properties/presentation/widgets/recommended_properties_carousel.dart';
 import '../../features/subscription/presentation/screens/subscription_screen.dart';
 import '../../features/subscription/data/services/subscription_service.dart';
+import '../../core/constants/storage_constants.dart';
+import '../config/app_config.dart';
+import '../config/auth_config.dart';
+import '../config/supabase_config.dart';
+import '../state/app_display_preferences.dart' as app_display_preferences;
+import '../state/app_display_preferences.dart'
+    show appFontScaleNotifier, appThemeNotifier;
+import '../state/app_pin_code.dart';
+import '../state/inline_property_details_state.dart';
+import '../theme/legacy_app_theme.dart';
 
 part '../../features/map/presentation/screens/legacy_map_tab.dart';
-
-final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
-  ThemeMode.system,
-);
-final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
-final ValueNotifier<String?> appPinCodeNotifier = ValueNotifier(null);
-const String _followSystemThemePrefsKey = 'follow_system_theme_enabled';
-const String _preferredThemeModePrefsKey = 'preferred_theme_mode';
-const String _savedPropertyIdsPrefsKey = 'saved_property_ids';
-const int _initialPropertyImagePrefetchCount = 4;
-const String _profileAvatarsBucket = 'profile-avatars';
-const String _authRedirectUrl =
-    'com.example.flutterapplication1://login-callback/';
-
-Future<void> _persistFollowSystemThemePreference(bool enabled) async {
-  final SharedPreferences preferences = await SharedPreferences.getInstance();
-  await preferences.setBool(_followSystemThemePrefsKey, enabled);
-}
-
-Future<void> _persistPreferredThemeMode(ThemeMode themeMode) async {
-  final SharedPreferences preferences = await SharedPreferences.getInstance();
-  await preferences.setString(
-    _preferredThemeModePrefsKey,
-    themeMode == ThemeMode.dark ? 'dark' : 'light',
-  );
-}
-
-String _messageInitial(String value) {
-  final String trimmed = value.trim();
-  if (trimmed.isEmpty) return '?';
-  return trimmed[0].toUpperCase();
-}
-
-String _formatInboxTimestamp(DateTime? value) {
-  if (value == null) return '';
-
-  const List<String> months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  final DateTime localValue = value.toLocal();
-  final int hour = localValue.hour % 12 == 0 ? 12 : localValue.hour % 12;
-  final String minute = localValue.minute.toString().padLeft(2, '0');
-  final String suffix = localValue.hour >= 12 ? 'PM' : 'AM';
-
-  return '${months[localValue.month - 1]} ${localValue.day}, $hour:$minute $suffix';
-}
-
-String _formatSubscriptionDate(DateTime? value) {
-  if (value == null) return 'No renewal date yet';
-
-  const List<String> months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  final DateTime localValue = value.toLocal();
-  return '${months[localValue.month - 1]} ${localValue.day}, ${localValue.year}';
-}
-
-ImageProvider<Object>? _propertyImageProvider(
-  Property property, {
-  int? targetWidth,
-  bool useThumbnail = false,
-}) {
-  final String? imageUrl = resolvePropertyImageUrl(
-    property,
-    preferThumbnail: useThumbnail,
-    targetWidth: useThumbnail ? targetWidth : null,
-  );
-  if (imageUrl == null || imageUrl.isEmpty) return null;
-  if (imageUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(imageUrl);
-  }
-  return AssetImage(imageUrl);
-}
-
-ImageProvider<Object>? _propertyDisplayImageProvider(
-  BuildContext context,
-  Property property, {
-  required double height,
-  bool useThumbnail = false,
-}) {
-  final double devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-  final int targetWidth = (MediaQuery.sizeOf(context).width * 1.5)
-      .round()
-      .clamp(480, 900);
-  final ImageProvider<Object>? imageProvider = _propertyImageProvider(
-    property,
-    targetWidth: targetWidth,
-    useThumbnail: useThumbnail,
-  );
-  if (imageProvider == null) return null;
-
-  return ResizeImage.resizeIfNeeded(
-    (MediaQuery.sizeOf(context).width * devicePixelRatio).round(),
-    (height * devicePixelRatio).round(),
-    imageProvider,
-  );
-}
-
-String _buyerInboxConversationTitle(ConversationSummary conversation) {
-  final String propertyTitle = (conversation.propertyTitle ?? '').trim();
-  if (propertyTitle.isNotEmpty) return propertyTitle;
-  return conversation.title;
-}
-
-ImageProvider<Object>? _buyerInboxConversationImageProvider(
-  BuildContext context,
-  ConversationSummary conversation,
-) {
-  final String? rawImageUrl = (() {
-    final String thumbnailUrl = (conversation.propertyThumbnailUrl ?? '')
-        .trim();
-    if (thumbnailUrl.isNotEmpty) return thumbnailUrl;
-
-    final String imageUrl = (conversation.propertyImageUrl ?? '').trim();
-    if (imageUrl.isNotEmpty) return imageUrl;
-
-    return null;
-  })();
-
-  if (rawImageUrl == null || rawImageUrl.isEmpty) return null;
-  if (rawImageUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(rawImageUrl);
-  }
-  return AssetImage(rawImageUrl);
-}
-
-void _warmPropertyImage(
-  BuildContext context,
-  Property property, {
-  double height = 210,
-  bool useThumbnail = false,
-}) {
-  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
-    context,
-    property,
-    height: height,
-    useThumbnail: useThumbnail,
-  );
-  if (imageProvider == null) return;
-  unawaited(precacheImage(imageProvider, context));
-}
-
-Future<void> _precachePropertyImage(
-  BuildContext context,
-  Property property, {
-  double height = 210,
-  bool useThumbnail = false,
-}) async {
-  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
-    context,
-    property,
-    height: height,
-    useThumbnail: useThumbnail,
-  );
-  if (imageProvider == null) return;
-  await precacheImage(imageProvider, context);
-}
 
 Route<T> _instantRoute<T>(Widget child) {
   return PageRouteBuilder<T>(
@@ -226,30 +64,14 @@ Route<T> _instantRoute<T>(Widget child) {
   );
 }
 
-class _InlinePropertyDetailsState {
-  final Property property;
-  final bool isSaved;
-  final VoidCallback onToggleSave;
-
-  const _InlinePropertyDetailsState({
-    required this.property,
-    required this.isSaved,
-    required this.onToggleSave,
-  });
-}
-
-final ValueNotifier<_InlinePropertyDetailsState?>
-    _appInlinePropertyDetailsNotifier =
-    ValueNotifier<_InlinePropertyDetailsState?>(null);
-
 void _showInlinePropertyDetails({
   required BuildContext context,
   required Property property,
   required bool isSaved,
   required VoidCallback onToggleSave,
 }) {
-  unawaited(_precachePropertyImage(context, property, height: 300));
-  _appInlinePropertyDetailsNotifier.value = _InlinePropertyDetailsState(
+  unawaited(precachePropertyImage(context, property, height: 300));
+  appInlinePropertyDetailsNotifier.value = InlinePropertyDetailsState(
     property: property,
     isSaved: isSaved,
     onToggleSave: onToggleSave,
@@ -257,237 +79,7 @@ void _showInlinePropertyDetails({
 }
 
 void _hideInlinePropertyDetails() {
-  _appInlinePropertyDetailsNotifier.value = null;
-}
-
-Widget _buildPropertyImage({
-  required BuildContext context,
-  required Property property,
-  required double height,
-  required Widget fallbackChild,
-  BorderRadius? borderRadius,
-  bool useThumbnail = false,
-}) {
-  final Widget fallback = Container(
-    height: height,
-    width: double.infinity,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          property.imageColor,
-          property.imageColor.withValues(alpha: 0.78),
-        ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-    ),
-    child: fallbackChild,
-  );
-  final Color shimmerHighlightColor = Color.alphaBlend(
-    Colors.white.withValues(alpha: 0.34),
-    property.imageColor,
-  );
-  final Widget loadingFallback = SizedBox(
-    height: height,
-    width: double.infinity,
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        Shimmer.fromColors(
-          baseColor: property.imageColor,
-          highlightColor: shimmerHighlightColor,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  property.imageColor,
-                  property.imageColor.withValues(alpha: 0.78),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-        ),
-        fallbackChild,
-      ],
-    ),
-  );
-
-  final ImageProvider<Object>? imageProvider = _propertyDisplayImageProvider(
-    context,
-    property,
-    height: height,
-    useThumbnail: useThumbnail,
-  );
-  if (imageProvider == null) {
-    return borderRadius == null
-        ? fallback
-        : ClipRRect(borderRadius: borderRadius, child: fallback);
-  }
-
-  final Widget image = Image(
-    image: imageProvider,
-    height: height,
-    width: double.infinity,
-    fit: BoxFit.cover,
-    filterQuality: FilterQuality.low,
-    gaplessPlayback: true,
-    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-      if (wasSynchronouslyLoaded || frame != null) {
-        return child;
-      }
-      return loadingFallback;
-    },
-    loadingBuilder:
-        resolvePropertyImageUrl(
-              property,
-              preferThumbnail: useThumbnail,
-            )?.startsWith('http') ==
-            true
-        ? (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return loadingFallback;
-          }
-        : null,
-    errorBuilder: (context, error, stackTrace) => fallback,
-  );
-
-  return borderRadius == null
-      ? image
-      : ClipRRect(borderRadius: borderRadius, child: image);
-}
-
-ThemeData _buildLightTheme() {
-  const Color seedColor = Color(0xFF2563EB);
-  final ColorScheme scheme =
-      ColorScheme.fromSeed(
-        seedColor: seedColor,
-        brightness: Brightness.light,
-      ).copyWith(
-        primary: const Color(0xFF2563EB),
-        onPrimary: Colors.white,
-        primaryContainer: const Color(0xFFDBEAFE),
-        onPrimaryContainer: const Color(0xFF123B7A),
-        secondary: const Color(0xFF64748B),
-        onSecondary: Colors.white,
-        secondaryContainer: const Color(0xFFE8EEF6),
-        onSecondaryContainer: const Color(0xFF243449),
-        surface: const Color(0xFFFFFFFF),
-        onSurface: const Color(0xFF0F172A),
-        surfaceContainerHighest: const Color(0xFFEEF2F6),
-        onSurfaceVariant: const Color(0xFF475569),
-        outline: const Color(0xFFD7DFE8),
-        outlineVariant: const Color(0xFFE6ECF2),
-        shadow: const Color(0xFF0F172A),
-      );
-
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-    cardColor: scheme.surface,
-    dividerColor: scheme.outlineVariant,
-    canvasColor: scheme.surface,
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      surfaceTintColor: Colors.transparent,
-    ),
-    cardTheme: CardThemeData(
-      color: scheme.surface,
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface,
-      indicatorColor: scheme.primaryContainer,
-      surfaceTintColor: Colors.transparent,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.onPrimary,
-        surfaceTintColor: Colors.transparent,
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: scheme.primary),
-    ),
-    iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-    textTheme: ThemeData.light().textTheme.apply(
-      bodyColor: scheme.onSurface,
-      displayColor: scheme.onSurface,
-    ),
-  );
-}
-
-ThemeData _buildDarkTheme() {
-  const Color seedColor = Color(0xFF2563EB);
-  final ColorScheme scheme =
-      ColorScheme.fromSeed(
-        seedColor: seedColor,
-        brightness: Brightness.dark,
-      ).copyWith(
-        primary: const Color(0xFF60A5FA),
-        onPrimary: const Color(0xFF07111F),
-        primaryContainer: const Color(0xFF1E3A8A),
-        onPrimaryContainer: const Color(0xFFDBEAFE),
-        secondary: const Color(0xFF94A3B8),
-        onSecondary: const Color(0xFF0F172A),
-        secondaryContainer: const Color(0xFF1E293B),
-        onSecondaryContainer: const Color(0xFFE2E8F0),
-        surface: const Color(0xFF111827),
-        onSurface: const Color(0xFFE5E7EB),
-        surfaceContainerHighest: const Color(0xFF1F2937),
-        onSurfaceVariant: const Color(0xFFCBD5E1),
-        outline: const Color(0xFF475569),
-        outlineVariant: const Color(0xFF334155),
-        shadow: Colors.black,
-      );
-
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFF0B1120),
-    cardColor: scheme.surface,
-    dividerColor: scheme.outlineVariant,
-    canvasColor: scheme.surface,
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      surfaceTintColor: Colors.transparent,
-    ),
-    cardTheme: CardThemeData(
-      color: scheme.surface,
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface,
-      indicatorColor: scheme.primaryContainer,
-      surfaceTintColor: Colors.transparent,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.onPrimary,
-        surfaceTintColor: Colors.transparent,
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: scheme.primary),
-    ),
-    iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-    textTheme: ThemeData.dark().textTheme.apply(
-      bodyColor: scheme.onSurface,
-      displayColor: scheme.onSurface,
-    ),
-  );
+  appInlinePropertyDetailsNotifier.value = null;
 }
 
 Future<void> main() async {
@@ -507,9 +99,8 @@ Future<void> main() async {
 
   try {
     await Supabase.initialize(
-      // TODO: Paste your actual Supabase URL and Anon Key here
-      url: 'https://vludvvjkrrqzjahxjdjl.supabase.co',
-      anonKey: 'sb_publishable_xrlYmyU6k2ItwhoSycq_iQ_4RxiPGdJ',
+      url: SupabaseConfig.effectiveUrl,
+      anonKey: SupabaseConfig.effectiveAnonKey,
     );
     unawaited(loadProperties());
     unawaited(loadNegrosPlaces());
@@ -526,9 +117,9 @@ Future<void> main() async {
   await SubscriptionService.initialize();
   final SharedPreferences preferences = await SharedPreferences.getInstance();
   final bool followSystemTheme =
-      preferences.getBool(_followSystemThemePrefsKey) ?? true;
+      preferences.getBool(StorageConstants.followSystemThemeEnabled) ?? true;
   final String? preferredThemeMode = preferences.getString(
-    _preferredThemeModePrefsKey,
+    StorageConstants.preferredThemeMode,
   );
   appThemeNotifier.value = followSystemTheme
       ? ThemeMode.system
@@ -562,8 +153,8 @@ class RealEstateApp extends StatelessWidget {
                   child: child!,
                 );
               },
-              theme: _buildLightTheme(),
-              darkTheme: _buildDarkTheme(),
+              theme: buildLegacyLightTheme(),
+              darkTheme: buildLegacyDarkTheme(),
               home: const LoginPage(),
             );
           },
@@ -703,7 +294,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final MessagingProfile? profile =
           await MessagingService.fetchCurrentProfile();
-      final String avatarUrl = _profileTextValue(
+      final String avatarUrl = profileTextValue(
         profile?.avatarUrl ??
             Supabase
                 .instance
@@ -723,10 +314,10 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       for (final Property property in properties.take(
-        _initialPropertyImagePrefetchCount,
+        AppConfig.initialPropertyImagePrefetchCount,
       )) {
         if (_warmedPropertyImageIds.add(property.id)) {
-          _warmPropertyImage(context, property, useThumbnail: true);
+          warmPropertyImage(context, property, useThumbnail: true);
         }
       }
     });
@@ -743,7 +334,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _restoreSavedProperties() async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     final Set<String> savedIds =
-        preferences.getStringList(_savedPropertyIdsPrefsKey)?.toSet() ??
+        preferences.getStringList(StorageConstants.savedPropertyIds)?.toSet() ??
         <String>{};
 
     if (!mounted || savedIds.isEmpty) return;
@@ -765,7 +356,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistSavedProperties() async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setStringList(
-      _savedPropertyIdsPrefsKey,
+      StorageConstants.savedPropertyIds,
       _savedPropertyIds.toList(),
     );
   }
@@ -866,7 +457,7 @@ class _HomePageState extends State<HomePage> {
         '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
 
     await Supabase.instance.client.storage
-        .from(_profileAvatarsBucket)
+        .from(SupabaseConfig.profileAvatarsBucket)
         .uploadBinary(
           avatarPath,
           imageBytes,
@@ -878,7 +469,7 @@ class _HomePageState extends State<HomePage> {
         );
 
     final String avatarUrl = Supabase.instance.client.storage
-        .from(_profileAvatarsBucket)
+        .from(SupabaseConfig.profileAvatarsBucket)
         .getPublicUrl(avatarPath);
 
     await Supabase.instance.client.from('profiles').upsert({
@@ -1171,8 +762,8 @@ class _HomePageState extends State<HomePage> {
       ),
     ];
 
-    return ValueListenableBuilder<_InlinePropertyDetailsState?>(
-      valueListenable: _appInlinePropertyDetailsNotifier,
+    return ValueListenableBuilder<InlinePropertyDetailsState?>(
+      valueListenable: appInlinePropertyDetailsNotifier,
       builder: (context, inlineDetails, child) {
         return Scaffold(
           body: inlineDetails == null
@@ -1362,10 +953,23 @@ class HomeTab extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.only(bottom: 20),
                 sliver: SliverToBoxAdapter(
-                  child: _RecommendedPropertiesCarousel(
+                  child: RecommendedPropertiesCarousel(
                     properties: recommendedProperties,
                     savedProperties: savedProperties,
                     onToggleSave: onToggleSave,
+                    onOpenDetails: (property) {
+                      _showInlinePropertyDetails(
+                        context: context,
+                        property: property,
+                        isSaved: savedProperties.contains(property),
+                        onToggleSave: () => onToggleSave(property),
+                      );
+                    },
+                    onPrecacheDetails: (context, property) {
+                      unawaited(
+                        precachePropertyImage(context, property, height: 300),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -1389,10 +993,18 @@ class HomeTab extends StatelessWidget {
                     final Property property = properties[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: _PropertyTile(
+                      child: PropertyTile(
                         property: property,
                         isSaved: savedProperties.contains(property),
                         onToggleSave: () => onToggleSave(property),
+                        onOpenDetails: () {
+                          _showInlinePropertyDetails(
+                            context: context,
+                            property: property,
+                            isSaved: savedProperties.contains(property),
+                            onToggleSave: () => onToggleSave(property),
+                          );
+                        },
                       ),
                     );
                   },
@@ -1477,7 +1089,7 @@ class SavedTab extends StatelessWidget {
                               child: SizedBox(
                                 width: 56,
                                 height: 56,
-                                child: _buildPropertyImage(
+                                child: buildPropertyImage(
                                   context: context,
                                   property: property,
                                   height: 56,
@@ -1697,7 +1309,7 @@ class _MessagesTabState extends State<MessagesTab> {
   Future<bool> _confirmDeleteConversation(
     ConversationSummary conversation,
   ) async {
-    final String displayTitle = _buyerInboxConversationTitle(conversation);
+    final String displayTitle = buyerInboxConversationTitle(conversation);
     final bool? shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -1818,13 +1430,13 @@ class _MessagesTabState extends State<MessagesTab> {
     BuildContext context,
     ConversationSummary conversation,
   ) {
-    final String displayTitle = _buyerInboxConversationTitle(conversation);
+    final String displayTitle = buyerInboxConversationTitle(conversation);
     final InboxCardPalette palette = _paletteForConversation(
       context,
       conversation,
     );
     final ImageProvider<Object>? propertyImageProvider =
-        _buyerInboxConversationImageProvider(context, conversation);
+        buyerInboxConversationImageProvider(context, conversation);
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Dismissible(
@@ -1888,7 +1500,7 @@ class _MessagesTabState extends State<MessagesTab> {
                                   )
                                 : Center(
                                     child: Text(
-                                      _messageInitial(displayTitle),
+                                      messageInitial(displayTitle),
                                       style: TextStyle(
                                         color: palette.avatarForeground,
                                         fontSize: 26,
@@ -1940,7 +1552,7 @@ class _MessagesTabState extends State<MessagesTab> {
                                             const SizedBox(width: 6),
                                           ],
                                           Text(
-                                            _formatInboxTimestamp(
+                                            formatInboxTimestamp(
                                               conversation.lastMessageAt,
                                             ),
                                             style: TextStyle(
@@ -2050,102 +1662,6 @@ class _MessagesTabState extends State<MessagesTab> {
   }
 }
 
-const BuyerProfileData _defaultBuyerProfileData = BuyerProfileData(
-  displayName: 'Buyer',
-  email: 'No email available',
-  phone: 'No phone available',
-  avatarUrl: null,
-  subscription: UserSubscription.free(),
-);
-
-String _profileTextValue(Object? value) {
-  return value == null ? '' : value.toString().trim();
-}
-
-Future<BuyerProfileData> _loadCurrentBuyerProfileData() async {
-  final User? user = Supabase.instance.client.auth.currentUser;
-  if (user == null) {
-    return _defaultBuyerProfileData;
-  }
-
-  final UserSubscription localSubscription =
-      await SubscriptionService.loadCurrentSubscription();
-
-  try {
-    final MessagingProfile? profile =
-        await MessagingService.fetchCurrentProfile();
-    final String profileName = _profileTextValue(profile?.fullName);
-    final String metadataName = _profileTextValue(
-      user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
-    );
-    final String displayName = profileName.isNotEmpty
-        ? profileName
-        : metadataName.isNotEmpty
-        ? metadataName
-        : _profileTextValue(user.email).isNotEmpty
-        ? _profileTextValue(user.email)
-        : _profileTextValue(user.phone).isNotEmpty
-        ? _profileTextValue(user.phone)
-        : 'Buyer';
-    final String email = _profileTextValue(profile?.email).isNotEmpty
-        ? _profileTextValue(profile?.email)
-        : _profileTextValue(user.email);
-    final String phone = _profileTextValue(profile?.phone).isNotEmpty
-        ? _profileTextValue(profile?.phone)
-        : _profileTextValue(user.phone);
-    final UserSubscription subscription =
-        profile?.subscription ?? localSubscription;
-    final String avatarUrl = _profileTextValue(
-      profile?.avatarUrl ?? user.userMetadata?['avatar_url'],
-    );
-
-    return BuyerProfileData(
-      displayName: displayName,
-      email: email.isNotEmpty ? email : 'No email available',
-      phone: phone.isNotEmpty ? phone : 'No phone available',
-      avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
-      subscription: subscription,
-    );
-  } catch (_) {
-    final String metadataName = _profileTextValue(
-      user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
-    );
-    final String email = _profileTextValue(user.email);
-    final String phone = _profileTextValue(user.phone);
-    final String avatarUrl = _profileTextValue(user.userMetadata?['avatar_url']);
-
-    return BuyerProfileData(
-      displayName: metadataName.isNotEmpty
-          ? metadataName
-          : email.isNotEmpty
-          ? email
-          : phone.isNotEmpty
-          ? phone
-          : 'Buyer',
-      email: email.isNotEmpty ? email : 'No email available',
-      phone: phone.isNotEmpty ? phone : 'No phone available',
-      avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
-      subscription: localSubscription,
-    );
-  }
-}
-
-BuyerProfileData _resolveBuyerProfileData(
-  BuyerProfileData? profile,
-  UserSubscription currentSubscription,
-) {
-  final BuyerProfileData baseProfile = profile ?? _defaultBuyerProfileData;
-  final bool hasLocalSubscriptionData =
-      currentSubscription.tier != SubscriptionTier.free ||
-      currentSubscription.expiresAt != null;
-
-  return baseProfile.copyWith(
-    subscription: hasLocalSubscriptionData
-        ? currentSubscription
-        : baseProfile.subscription,
-  );
-}
-
 Future<void> _signOutAndReturnToLogin(BuildContext context) async {
   try {
     await Supabase.instance.client.auth.signOut();
@@ -2189,7 +1705,7 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<BuyerProfileData> _loadProfileAndPrecacheAvatar() async {
-    final BuyerProfileData profile = await _loadCurrentBuyerProfileData();
+    final BuyerProfileData profile = await loadCurrentBuyerProfileData();
     final String avatarUrl = (profile.avatarUrl ?? '').trim();
     if (mounted &&
         !widget.profileAvatarHidden &&
@@ -2211,7 +1727,7 @@ class _ProfileTabState extends State<ProfileTab> {
           return FutureBuilder<BuyerProfileData>(
             future: _profileFuture,
             builder: (context, snapshot) {
-              final BuyerProfileData profile = _resolveBuyerProfileData(
+              final BuyerProfileData profile = resolveBuyerProfileData(
                 snapshot.data,
                 currentSubscription,
               );
@@ -2314,7 +1830,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         title: const Text('Subscription'),
                         subtitle: Text(
                           profile.isPremium
-                              ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
+                              ? '${profile.planName} until ${formatSubscriptionDate(profile.expiresAt)}'
                               : 'Current plan: ${profile.planName}',
                         ),
                         trailing: const Icon(Icons.chevron_right),
@@ -2385,7 +1901,7 @@ class _AccountPageState extends State<AccountPage> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = _loadCurrentBuyerProfileData();
+    _profileFuture = loadCurrentBuyerProfileData();
   }
 
   @override
@@ -2461,7 +1977,7 @@ class _AccountPageState extends State<AccountPage> {
       if (!mounted) return;
 
       final BuyerProfileData savedProfile =
-          await _loadCurrentBuyerProfileData();
+          await loadCurrentBuyerProfileData();
 
       if (!mounted) return;
 
@@ -2541,7 +2057,7 @@ class _AccountPageState extends State<AccountPage> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final BuyerProfileData profile = _resolveBuyerProfileData(
+              final BuyerProfileData profile = resolveBuyerProfileData(
                 snapshot.data,
                 currentSubscription,
               );
@@ -2650,7 +2166,7 @@ class _AccountPageState extends State<AccountPage> {
                       title: const Text('Subscription'),
                       subtitle: Text(
                         profile.isPremium
-                            ? '${profile.planName} until ${_formatSubscriptionDate(profile.expiresAt)}'
+                            ? '${profile.planName} until ${formatSubscriptionDate(profile.expiresAt)}'
                             : 'Current plan: ${profile.planName}',
                       ),
                       trailing: const Icon(Icons.chevron_right),
@@ -3345,7 +2861,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadPreferredThemeMode() async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     final String? preferredThemeMode = preferences.getString(
-      _preferredThemeModePrefsKey,
+      StorageConstants.preferredThemeMode,
     );
     if (!mounted || preferredThemeMode == null) return;
 
@@ -3553,7 +3069,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         foregroundColor: theme.colorScheme.primary,
                         child: Text(
-                          _messageInitial(accountLabel),
+                              messageInitial(accountLabel),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -3716,12 +3232,19 @@ class _SettingsPageState extends State<SettingsPage> {
                         appThemeNotifier.value = _preferredThemeMode;
                       }
                     });
-                    unawaited(_persistFollowSystemThemePreference(value));
+                    unawaited(
+                      app_display_preferences.AppDisplayPreferences
+                          .persistFollowSystemThemePreference(value),
+                    );
                     if (value) {
-                      unawaited(_persistPreferredThemeMode(ThemeMode.light));
+                      unawaited(
+                        app_display_preferences.AppDisplayPreferences
+                            .persistPreferredThemeMode(ThemeMode.light),
+                      );
                     } else {
                       unawaited(
-                        _persistPreferredThemeMode(_preferredThemeMode),
+                        app_display_preferences.AppDisplayPreferences
+                            .persistPreferredThemeMode(_preferredThemeMode),
                       );
                     }
                   },
@@ -3745,7 +3268,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             appThemeNotifier.value = selectedThemeMode;
                           });
                           unawaited(
-                            _persistPreferredThemeMode(selectedThemeMode),
+                            app_display_preferences.AppDisplayPreferences
+                                .persistPreferredThemeMode(selectedThemeMode),
                           );
                         },
                 ),
@@ -3905,8 +3429,10 @@ class _LoginPageState extends State<LoginPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            const ChangePasswordPage(isPasswordRecovery: true),
+        builder: (context) => ChangePasswordPage(
+          isPasswordRecovery: true,
+          recoveryLoginBuilder: (context) => const LoginPage(),
+        ),
       ),
     );
 
@@ -3934,12 +3460,12 @@ class _LoginPageState extends State<LoginPage> {
       );
     } else {
       final List<Property> initialProperties = appPropertiesNotifier.value
-          .take(_initialPropertyImagePrefetchCount)
+          .take(AppConfig.initialPropertyImagePrefetchCount)
           .toList(growable: false);
       await Future.wait(
         initialProperties.map(
           (property) =>
-              _precachePropertyImage(context, property, useThumbnail: true),
+              precachePropertyImage(context, property, useThumbnail: true),
         ),
       );
       if (!mounted) return;
@@ -4089,7 +3615,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: kIsWeb ? null : _authRedirectUrl,
+        redirectTo: kIsWeb ? null : AuthConfig.redirectUrl,
       );
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -4594,2403 +4120,6 @@ class _SignUpPageState extends State<SignUpPage> {
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
-
-  @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
-}
-
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  final TextEditingController _emailController = TextEditingController();
-  Timer? _resetCountdownTimer;
-  bool _isLoading = false;
-  bool _emailSent = false;
-  int _resetCountdown = 0;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _resetCountdownTimer?.cancel();
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  void _startResetCountdown() {
-    _resetCountdownTimer?.cancel();
-    setState(() {
-      _emailSent = true;
-      _resetCountdown = 60;
-    });
-
-    _resetCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      if (_resetCountdown <= 1) {
-        timer.cancel();
-        setState(() {
-          _resetCountdown = 0;
-        });
-        return;
-      }
-
-      setState(() {
-        _resetCountdown--;
-      });
-    });
-  }
-
-  Future<void> _sendResetEmail() async {
-    if (_resetCountdown > 0) return;
-
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      setState(() {
-        _errorText = 'Please enter your email.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _errorText = null;
-    });
-
-    try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: _authRedirectUrl,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset email sent. Check your inbox.'),
-        ),
-      );
-      _startResetCountdown();
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = 'Failed to send reset email. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final bool isDarkMode = theme.brightness == Brightness.dark;
-    final Color pageBackgroundColor = isDarkMode
-        ? theme.scaffoldBackgroundColor
-        : const Color(0xFFF7F8FA);
-    final Color cardBackgroundColor = isDarkMode
-        ? theme.cardColor
-        : Colors.white;
-    final Color fieldFillColor = isDarkMode
-        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
-        : const Color(0xFFF9FAFB);
-    final Color fieldBorderColor = isDarkMode
-        ? colorScheme.outlineVariant
-        : const Color(0xFFE4E7EC);
-    final Color headingColor = isDarkMode
-        ? colorScheme.onSurface
-        : const Color(0xFF101828);
-    final Color helperColor = isDarkMode
-        ? colorScheme.onSurfaceVariant
-        : const Color(0xFF667085);
-    final Color errorBackgroundColor = isDarkMode
-        ? colorScheme.errorContainer.withValues(alpha: 0.32)
-        : const Color(0xFFFFF1F3);
-    final Color errorBorderColor = isDarkMode
-        ? colorScheme.error.withValues(alpha: 0.50)
-        : const Color(0xFFFDA29B);
-    final Color errorTextColor = isDarkMode
-        ? colorScheme.onErrorContainer
-        : const Color(0xFFB42318);
-    final Color successBackgroundColor = isDarkMode
-        ? const Color(0xFF052E16)
-        : const Color(0xFFECFDF3);
-    final Color successBorderColor = isDarkMode
-        ? const Color(0xFF22C55E).withValues(alpha: 0.50)
-        : const Color(0xFFABEFC6);
-    final Color successTextColor = isDarkMode
-        ? const Color(0xFF86EFAC)
-        : const Color(0xFF067647);
-
-    return Scaffold(
-      backgroundColor: pageBackgroundColor,
-      appBar: AppBar(title: const Text('Reset Password')),
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: cardBackgroundColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDarkMode
-                            ? Colors.black.withValues(alpha: 0.24)
-                            : const Color(0x12000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          height: 86,
-                          width: 86,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary.withValues(alpha: 0.10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Container(
-                              height: 64,
-                              width: 64,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.lock_outline,
-                                color: colorScheme.onPrimary,
-                                size: 36,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Forgot your password?',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: headingColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Enter your email and we will send you a secure reset link.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: helperColor,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.email],
-                        onSubmitted: (_) {
-                          if (!_isLoading && _resetCountdown == 0) {
-                            _sendResetEmail();
-                          }
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'Email address',
-                          hintText: 'name@example.com',
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          filled: true,
-                          fillColor: fieldFillColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(color: fieldBorderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_errorText != null) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: errorBackgroundColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: errorBorderColor),
-                          ),
-                          child: Text(
-                            _errorText!,
-                            style: TextStyle(color: errorTextColor),
-                          ),
-                        ),
-                      ],
-                      if (_emailSent && _errorText == null) ...[
-                        const SizedBox(height: 14),
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: successBackgroundColor,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: successBorderColor),
-                            ),
-                            child: Text(
-                              _resetCountdown > 0
-                                  ? 'Reset link sent. Check your inbox.'
-                                  : 'Reset link sent. You can resend now.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: successTextColor),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _isLoading || _resetCountdown > 0
-                              ? null
-                              : _sendResetEmail,
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : _resetCountdown > 0
-                              ? Text('Resend in ${_resetCountdown}s')
-                              : const Text('Send Reset Email'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ChangePasswordPage extends StatefulWidget {
-  final bool isPasswordRecovery;
-
-  const ChangePasswordPage({
-    super.key,
-    this.isPasswordRecovery = false,
-  });
-
-  @override
-  State<ChangePasswordPage> createState() => _ChangePasswordPageState();
-}
-
-class _ChangePasswordPageState extends State<ChangePasswordPage> {
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-  bool _isLoading = false;
-  bool _obscureNewPassword = true;
-  bool _obscureConfirmPassword = true;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  String? _validatePasswordComplexity(String password) {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters.';
-    }
-
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password must include at least one uppercase letter.';
-    }
-
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password must include at least one lowercase letter.';
-    }
-
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      return 'Password must include at least one number.';
-    }
-
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
-      return 'Password must include at least one symbol.';
-    }
-
-    return null;
-  }
-
-  Future<void> _changePassword() async {
-    final newPassword = _newPasswordController.text;
-    final confirmPassword = _confirmPasswordController.text;
-
-    if (newPassword.isEmpty || confirmPassword.isEmpty) {
-      setState(() {
-        _errorText = 'Please enter and confirm your new password.';
-      });
-      return;
-    }
-
-    final passwordError = _validatePasswordComplexity(newPassword);
-    if (passwordError != null) {
-      setState(() {
-        _errorText = passwordError;
-      });
-      return;
-    }
-
-    if (newPassword != confirmPassword) {
-      setState(() {
-        _errorText = 'Passwords do not match.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _errorText = null;
-    });
-
-    try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated successfully.')),
-      );
-
-      if (widget.isPasswordRecovery) {
-        await Supabase.instance.client.auth.signOut();
-        if (!mounted) return;
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-          (route) => false,
-        );
-        return;
-      }
-
-      Navigator.pop(context);
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = 'Failed to update password. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final user = Supabase.instance.client.auth.currentUser;
-    final String pageTitle =
-        widget.isPasswordRecovery ? 'Create New Password' : 'Reset Password';
-    final String heading = widget.isPasswordRecovery
-        ? 'Create a new password'
-        : 'Update your password';
-    final String helperText = widget.isPasswordRecovery
-        ? 'Choose a secure password for your account.'
-        : 'Change the password for your current account.';
-    final bool isDarkMode = theme.brightness == Brightness.dark;
-    final Color pageBackgroundColor = isDarkMode
-        ? theme.scaffoldBackgroundColor
-        : const Color(0xFFF7F8FA);
-    final Color cardBackgroundColor = isDarkMode
-        ? theme.cardColor
-        : Colors.white;
-    final Color fieldFillColor = isDarkMode
-        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
-        : const Color(0xFFF9FAFB);
-    final Color fieldBorderColor = isDarkMode
-        ? colorScheme.outlineVariant
-        : const Color(0xFFE4E7EC);
-    final Color headingColor = isDarkMode
-        ? colorScheme.onSurface
-        : const Color(0xFF101828);
-    final Color helperColor = isDarkMode
-        ? colorScheme.onSurfaceVariant
-        : const Color(0xFF667085);
-    final Color accountTextColor = isDarkMode
-        ? colorScheme.onSurface
-        : const Color(0xFF475467);
-    final Color errorBackgroundColor = isDarkMode
-        ? colorScheme.errorContainer.withValues(alpha: 0.32)
-        : const Color(0xFFFFF1F3);
-    final Color errorBorderColor = isDarkMode
-        ? colorScheme.error.withValues(alpha: 0.50)
-        : const Color(0xFFFDA29B);
-    final Color errorTextColor = isDarkMode
-        ? colorScheme.onErrorContainer
-        : const Color(0xFFB42318);
-
-    return Scaffold(
-      backgroundColor: pageBackgroundColor,
-      appBar: AppBar(title: Text(pageTitle)),
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: cardBackgroundColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDarkMode
-                            ? Colors.black.withValues(alpha: 0.24)
-                            : const Color(0x12000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          height: 86,
-                          width: 86,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary.withValues(alpha: 0.10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Container(
-                              height: 64,
-                              width: 64,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.lock_reset_outlined,
-                                color: colorScheme.onPrimary,
-                                size: 36,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        heading,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: headingColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        helperText,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: helperColor,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: fieldFillColor,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: fieldBorderColor),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.alternate_email,
-                              color: helperColor,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                user?.email ?? 'Logged in account',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: accountTextColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _newPasswordController,
-                        obscureText: _obscureNewPassword,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.newPassword],
-                        decoration: InputDecoration(
-                          labelText: 'New password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureNewPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscureNewPassword = !_obscureNewPassword;
-                              });
-                            },
-                          ),
-                          filled: true,
-                          fillColor: fieldFillColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(color: fieldBorderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Use 8+ characters with uppercase, lowercase, number, and symbol.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: helperColor,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _confirmPasswordController,
-                        obscureText: _obscureConfirmPassword,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.newPassword],
-                        onSubmitted: (_) {
-                          if (!_isLoading) _changePassword();
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'Confirm new password',
-                          prefixIcon: const Icon(Icons.verified_user_outlined),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureConfirmPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscureConfirmPassword =
-                                    !_obscureConfirmPassword;
-                              });
-                            },
-                          ),
-                          filled: true,
-                          fillColor: fieldFillColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(color: fieldBorderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: colorScheme.primary,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_errorText != null) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: errorBackgroundColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: errorBorderColor),
-                          ),
-                          child: Text(
-                            _errorText!,
-                            style: TextStyle(color: errorTextColor),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _changePassword,
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Update Password'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RecommendedPropertiesCarousel extends StatefulWidget {
-  final List<Property> properties;
-  final Set<Property> savedProperties;
-  final ValueChanged<Property> onToggleSave;
-
-  const _RecommendedPropertiesCarousel({
-    required this.properties,
-    required this.savedProperties,
-    required this.onToggleSave,
-  });
-
-  @override
-  State<_RecommendedPropertiesCarousel> createState() =>
-      _RecommendedPropertiesCarouselState();
-}
-
-class _RecommendedPropertiesCarouselState
-    extends State<_RecommendedPropertiesCarousel> {
-  late final CarouselController _carouselController;
-  final Set<String> _warmedDetailImageIds = <String>{};
-  int _currentPage = 0;
-  static const List<int> _carouselWeights = <int>[1];
-  static const double _activeCardHeight = 265;
-  static const double _indicatorHeight = 19;
-
-  @override
-  void initState() {
-    super.initState();
-    _carouselController = CarouselController();
-    _carouselController.addListener(_handleCarouselScroll);
-    _warmRecommendedDetailImages();
-  }
-
-  void _warmRecommendedDetailImages() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      for (final Property property in widget.properties.take(
-        _initialPropertyImagePrefetchCount,
-      )) {
-        if (_warmedDetailImageIds.add(property.id)) {
-          unawaited(_precachePropertyImage(context, property, height: 300));
-        }
-      }
-    });
-  }
-
-  void _handleCarouselScroll() {
-    if (!_carouselController.hasClients || widget.properties.isEmpty) return;
-
-    final ScrollPosition position = _carouselController.position;
-    if (!position.hasViewportDimension || position.viewportDimension == 0) {
-      return;
-    }
-
-    final double itemScrollExtent =
-        position.viewportDimension /
-        _carouselWeights.reduce((value, element) => value + element);
-    if (itemScrollExtent == 0) return;
-
-    final int nextPage = math.max(
-      0,
-      math.min(
-        widget.properties.length - 1,
-        (_carouselController.offset / itemScrollExtent).round(),
-      ),
-    );
-
-    if (nextPage == _currentPage) return;
-    setState(() {
-      _currentPage = nextPage;
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant _RecommendedPropertiesCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _warmRecommendedDetailImages();
-
-    if (widget.properties.isEmpty) {
-      _currentPage = 0;
-      return;
-    }
-
-    if (_currentPage >= widget.properties.length) {
-      _currentPage = widget.properties.length - 1;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_carouselController.hasClients) return;
-        unawaited(_carouselController.animateToItem(_currentPage));
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _carouselController.removeListener(_handleCarouselScroll);
-    _carouselController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.properties.isEmpty) return const SizedBox.shrink();
-
-    final ThemeData theme = Theme.of(context);
-
-    return SizedBox(
-      height:
-          _activeCardHeight +
-          (widget.properties.length > 1 ? _indicatorHeight : 0),
-      child: Column(
-        children: [
-          Expanded(
-            child: CarouselView.weighted(
-              controller: _carouselController,
-              itemSnapping: true,
-              flexWeights: _carouselWeights,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              itemClipBehavior: Clip.none,
-              enableSplash: false,
-              children: List<Widget>.generate(widget.properties.length, (
-                index,
-              ) {
-                final Property property = widget.properties[index];
-                final bool isActive = index == _currentPage;
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: _activeCardHeight,
-                      child: _RecommendedPropertyCard(
-                        property: property,
-                        isSaved: widget.savedProperties.contains(property),
-                        isActive: isActive,
-                        onToggleSave: () => widget.onToggleSave(property),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          if (widget.properties.length > 1) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(widget.properties.length, (index) {
-                final bool isActive = index == _currentPage;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: isActive ? 18 : 7,
-                  height: 7,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                );
-              }),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-String _propertyAvailabilityLabel(Property property) {
-  final String tag = property.tag.trim().toLowerCase();
-  if (tag.contains('sold')) return 'Sold';
-  if (tag.contains('auction')) return 'For Auction';
-  return 'Available';
-}
-
-IconData _propertyAvailabilityIcon(String label) {
-  switch (label) {
-    case 'Sold':
-      return Icons.task_alt_rounded;
-    case 'For Auction':
-      return Icons.gavel_rounded;
-    default:
-      return Icons.check_circle_outline_rounded;
-  }
-}
-
-Color _propertyAvailabilityColor(BuildContext context, String label) {
-  final ColorScheme colorScheme = Theme.of(context).colorScheme;
-  switch (label) {
-    case 'Sold':
-      return colorScheme.error;
-    case 'For Auction':
-      return const Color(0xFFF59E0B);
-    default:
-      return colorScheme.primary;
-  }
-}
-
-class _RecommendedPropertyCard extends StatelessWidget {
-  final Property property;
-  final bool isSaved;
-  final bool isActive;
-  final VoidCallback onToggleSave;
-
-  const _RecommendedPropertyCard({
-    required this.property,
-    required this.isSaved,
-    required this.isActive,
-    required this.onToggleSave,
-  });
-
-  void _openDetails(BuildContext context) {
-    _showInlinePropertyDetails(
-      context: context,
-      property: property,
-      isSaved: isSaved,
-      onToggleSave: onToggleSave,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _openDetails(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                _buildPropertyImage(
-                  context: context,
-                  property: property,
-                  height: isActive ? 172 : 140,
-                  useThumbnail: true,
-                  fallbackChild: const Center(
-                    child: Icon(
-                      Icons.landscape_rounded,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(999),
-                    onTap: onToggleSave,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isSaved
-                            ? Icons.favorite
-                            : Icons.favorite_border_rounded,
-                        size: 18,
-                        color: isSaved ? Colors.red : theme.iconTheme.color,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    property.price,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    property.location,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyTile extends StatelessWidget {
-  final Property property;
-  final bool isSaved;
-  final VoidCallback onToggleSave;
-
-  const _PropertyTile({
-    required this.property,
-    required this.isSaved,
-    required this.onToggleSave,
-  });
-
-  void _openDetails(BuildContext context) {
-    _showInlinePropertyDetails(
-      context: context,
-      property: property,
-      isSaved: isSaved,
-      onToggleSave: onToggleSave,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final String availabilityLabel = _propertyAvailabilityLabel(property);
-    final Color availabilityColor = _propertyAvailabilityColor(
-      context,
-      availabilityLabel,
-    );
-
-    Widget metaChip(IconData icon, String label) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 5),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 112),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    Widget availabilityChip() {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: availabilityColor.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _propertyAvailabilityIcon(availabilityLabel),
-              size: 14,
-              color: availabilityColor,
-            ),
-            const SizedBox(width: 5),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 82),
-              child: Text(
-                availabilityLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: availabilityColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: InkWell(
-        onTap: () => _openDetails(context),
-        child: SizedBox(
-          height: 118,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final double thumbnailWidth = constraints.maxWidth * 0.30;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: SizedBox(
-                        width: thumbnailWidth,
-                        height: 118,
-                        child: _buildPropertyImage(
-                          context: context,
-                          property: property,
-                          height: 118,
-                          useThumbnail: true,
-                          fallbackChild: const Center(
-                            child: Icon(
-                              Icons.landscape_rounded,
-                              color: Colors.white,
-                              size: 34,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  property.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              IconButton(
-                                tooltip: isSaved
-                                    ? 'Remove from saved'
-                                    : 'Save lot',
-                                onPressed: onToggleSave,
-                                style: IconButton.styleFrom(
-                                  backgroundColor:
-                                      theme.colorScheme.surfaceContainerHighest,
-                                  foregroundColor: isSaved
-                                      ? Colors.red
-                                      : theme.iconTheme.color,
-                                  fixedSize: const Size(28, 28),
-                                  minimumSize: const Size(28, 28),
-                                  padding: EdgeInsets.zero,
-                                ),
-                                icon: Icon(
-                                  isSaved
-                                      ? Icons.favorite
-                                      : Icons.favorite_border_rounded,
-                                  size: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on_outlined,
-                                size: 15,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  property.location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  property.price,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              availabilityChip(),
-                              const SizedBox(width: 6),
-                              metaChip(
-                                Icons.square_foot_outlined,
-                                property.size,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class PropertyCard extends StatelessWidget {
-  final Property property;
-  final bool isSaved;
-  final VoidCallback onToggleSave;
-  final bool compact;
-
-  const PropertyCard({
-    super.key,
-    required this.property,
-    required this.isSaved,
-    required this.onToggleSave,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final double imageHeight = compact ? 155 : 210;
-    final EdgeInsets contentPadding = compact
-        ? const EdgeInsets.fromLTRB(14, 12, 14, 14)
-        : const EdgeInsets.fromLTRB(16, 16, 16, 18);
-    final TextStyle? titleStyle =
-        (compact ? theme.textTheme.titleMedium : theme.textTheme.titleLarge)
-            ?.copyWith(fontWeight: FontWeight.w700);
-    final double priceFontSize = compact ? 18 : 20;
-    final double buttonVerticalPadding = compact ? 13 : 16;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(22),
-        border: isDark
-            ? null
-            : Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? const Color(0x12000000)
-                : theme.colorScheme.shadow.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(22),
-                ),
-                child: _buildPropertyImage(
-                  context: context,
-                  property: property,
-                  height: imageHeight,
-                  useThumbnail: true,
-                  fallbackChild: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.landscape_rounded,
-                          size: 64,
-                          color: Colors.white,
-                        ),
-                        SizedBox(height: 10),
-                        Text(
-                          'Lot Preview',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: compact ? 12 : 14,
-                left: compact ? 12 : 14,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 10 : 12,
-                    vertical: compact ? 6 : 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Text(
-                    property.tag,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: compact ? 12 : 14,
-                right: compact ? 12 : 14,
-                child: GestureDetector(
-                  onTap: onToggleSave,
-                  child: Container(
-                    width: compact ? 38 : 42,
-                    height: compact ? 38 : 42,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isSaved ? Icons.favorite : Icons.favorite_border_rounded,
-                      color: isSaved
-                          ? Colors.red
-                          : Theme.of(context).iconTheme.color,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: contentPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  property.title,
-                  maxLines: compact ? 2 : null,
-                  overflow: compact ? TextOverflow.ellipsis : null,
-                  style: titleStyle,
-                ),
-                SizedBox(height: compact ? 6 : 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        property.location,
-                        maxLines: compact ? 1 : null,
-                        overflow: compact ? TextOverflow.ellipsis : null,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: compact ? 10 : 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified_outlined,
-                            size: 16,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            property.titleStatus,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: compact ? 12 : 14),
-                Row(
-                  children: [
-                    Text(
-                      property.price,
-                      style: TextStyle(
-                        fontSize: priceFontSize,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compact ? 10 : 12,
-                        vertical: compact ? 7 : 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E3A23)
-                            : theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        property.size,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? const Color(0xFF2E7D32)
-                              : theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: compact ? 12 : 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      _showInlinePropertyDetails(
-                        context: context,
-                        property: property,
-                        isSaved: isSaved,
-                        onToggleSave: onToggleSave,
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                        vertical: buttonVerticalPadding,
-                      ),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text('View Details'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class PropertyDetailsInlineView extends StatefulWidget {
-  final Property property;
-  final bool isSaved;
-  final VoidCallback onToggleSave;
-  final VoidCallback onBack;
-
-  const PropertyDetailsInlineView({
-    super.key,
-    required this.property,
-    required this.isSaved,
-    required this.onToggleSave,
-    required this.onBack,
-  });
-
-  @override
-  State<PropertyDetailsInlineView> createState() =>
-      _PropertyDetailsInlineViewState();
-}
-
-class _PropertyDetailsInlineViewState extends State<PropertyDetailsInlineView> {
-  late bool _isSaved;
-
-  @override
-  void initState() {
-    super.initState();
-    _isSaved = widget.isSaved;
-  }
-
-  void _handleToggleSave() {
-    widget.onToggleSave();
-    setState(() {
-      _isSaved = !_isSaved;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final String description = widget.property.description.trim().isEmpty
-        ? 'No description available for this lot yet.'
-        : widget.property.description;
-    final String tagLabel = widget.property.tag.trim().isEmpty
-        ? 'Available'
-        : widget.property.tag.trim();
-
-    return Column(
-      children: [
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: widget.onBack,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                Expanded(
-                  child: Text(
-                    'Lot Details',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: _handleToggleSave,
-                  icon: Icon(
-                    _isSaved
-                        ? Icons.favorite
-                        : Icons.favorite_border_rounded,
-                    size: 28,
-                    color: _isSaved ? Colors.red : theme.iconTheme.color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPropertyImage(
-                  context: context,
-                  property: widget.property,
-                  height: 300,
-                  fallbackChild: const Center(
-                    child: Icon(
-                      Icons.landscape_rounded,
-                      size: 100,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Text(
-                              tagLabel,
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.pin_outlined,
-                                color: theme.colorScheme.onSurfaceVariant,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                widget.property.referenceCode,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.property.title,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              widget.property.location,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.verified_outlined,
-                                  size: 18,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  widget.property.titleStatus,
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Price',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.property.price,
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Lot Size',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.property.size,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      const Text(
-                        'Description',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: theme.colorScheme.onSurface,
-                          height: 1.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        ContactAgentPage(property: widget.property),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: const SizedBox(
-                width: double.infinity,
-                child: Center(
-                  child: Text(
-                    'Contact Agent',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class PropertyDetailsPage extends StatelessWidget {
-  final Property property;
-  final bool isSaved;
-  final VoidCallback onToggleSave;
-
-  const PropertyDetailsPage({
-    super.key,
-    required this.property,
-    required this.isSaved,
-    required this.onToggleSave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: PropertyDetailsInlineView(
-        property: property,
-        isSaved: isSaved,
-        onToggleSave: onToggleSave,
-        onBack: () => Navigator.pop(context),
-      ),
-    );
-  }
-}
-
-class ContactAgentPage extends StatefulWidget {
-  final Property property;
-
-  const ContactAgentPage({super.key, required this.property});
-
-  @override
-  State<ContactAgentPage> createState() => _ContactAgentPageState();
-}
-
-class _ContactAgentPageState extends State<ContactAgentPage> {
-  late TextEditingController _messageController;
-  late TextEditingController _fullNameController;
-  late TextEditingController _contactController;
-  bool _isSending = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _fullNameController = TextEditingController();
-    _contactController = TextEditingController();
-    _messageController = TextEditingController(
-      text:
-          'Hi, I am interested in the ${widget.property.title} located at ${widget.property.location}. Please send me more details.',
-    );
-    unawaited(_loadProfile());
-  }
-
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _contactController.dispose();
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadProfile() async {
-    final User? user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final MessagingProfile? profile =
-          await MessagingService.fetchCurrentProfile();
-      if (!mounted) return;
-
-      _fullNameController.text = profile?.fullName?.trim().isNotEmpty == true
-          ? profile!.fullName!.trim()
-          : ((user.userMetadata?['full_name'] ??
-                        user.userMetadata?['name'] ??
-                        '')
-                    as String)
-                .trim();
-
-      final String preferredContact = (profile?.phone ?? '').trim().isNotEmpty
-          ? profile!.phone!.trim()
-          : ((profile?.email ?? user.email ?? user.phone ?? '')).trim();
-      _contactController.text = preferredContact;
-    } catch (_) {}
-  }
-
-  Future<void> _sendInquiry() async {
-    final String fullName = _fullNameController.text.trim();
-    final String contactValue = _contactController.text.trim();
-    final String message = _messageController.text.trim();
-
-    if (fullName.isEmpty || contactValue.isEmpty || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete your name, contact, and message.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
-
-    try {
-      await MessagingService.startConversationForProperty(
-        property: widget.property,
-        body: message,
-        fullName: fullName,
-        contactValue: contactValue,
-      );
-
-      if (!mounted) return;
-      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Message sent to agent successfully!')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
-      setState(() {
-        _isSending = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Contact Agent'), centerTitle: true),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Icon(Icons.person, color: Colors.white, size: 36),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Juan Dela Cruz',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Senior Real Estate Agent',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'Your Details',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _buildTextField(
-              context,
-              'Full Name',
-              Icons.person_outline,
-              _fullNameController,
-            ),
-            const SizedBox(height: 12),
-            _buildTextField(
-              context,
-              'Email or Phone Number',
-              Icons.contact_mail_outlined,
-              _contactController,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Message',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _messageController,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: 'Enter your message',
-                filled: true,
-                fillColor: Theme.of(context).cardColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSending ? null : _sendInquiry,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'Send Message',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    BuildContext context,
-    String hint,
-    IconData icon,
-    TextEditingController controller,
-  ) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon),
-        filled: true,
-        fillColor: Theme.of(context).cardColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-}
-
-class PinCodePage extends StatefulWidget {
-  const PinCodePage({super.key});
-
-  @override
-  State<PinCodePage> createState() => _PinCodePageState();
-}
-
-class _PinCodePageState extends State<PinCodePage> {
-  final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _confirmPinController = TextEditingController();
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    final currentPin = appPinCodeNotifier.value;
-    if (currentPin != null) {
-      _pinController.text = currentPin;
-      _confirmPinController.text = currentPin;
-    }
-  }
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    _confirmPinController.dispose();
-    super.dispose();
-  }
-
-  void _savePinCode() {
-    final pin = _pinController.text.trim();
-    final confirmPin = _confirmPinController.text.trim();
-
-    if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
-      setState(() {
-        _errorText = 'PIN must be exactly 4 digits.';
-      });
-      return;
-    }
-
-    if (pin != confirmPin) {
-      setState(() {
-        _errorText = 'PIN entries do not match.';
-      });
-      return;
-    }
-
-    appPinCodeNotifier.value = pin;
-    setState(() {
-      _errorText = null;
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('PIN code saved.')));
-    Navigator.pop(context);
-  }
-
-  void _clearPinCode() {
-    appPinCodeNotifier.value = null;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('PIN code removed.')));
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final bool isDarkMode = theme.brightness == Brightness.dark;
-    final Color cardBackgroundColor = isDarkMode
-        ? theme.cardColor
-        : Colors.white;
-    final Color fieldFillColor = isDarkMode
-        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
-        : const Color(0xFFF9FAFB);
-    final Color fieldBorderColor = isDarkMode
-        ? colorScheme.outlineVariant
-        : const Color(0xFFE4E7EC);
-    final Color helperColor = colorScheme.onSurfaceVariant;
-    final Color errorBackgroundColor = isDarkMode
-        ? colorScheme.errorContainer.withValues(alpha: 0.32)
-        : const Color(0xFFFFF1F3);
-    final Color errorBorderColor = isDarkMode
-        ? colorScheme.error.withValues(alpha: 0.50)
-        : const Color(0xFFFDA29B);
-    final Color errorTextColor = isDarkMode
-        ? colorScheme.onErrorContainer
-        : const Color(0xFFB42318);
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('PIN Code')),
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  color: cardBackgroundColor,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDarkMode
-                          ? Colors.black.withValues(alpha: 0.24)
-                          : const Color(0x12000000),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        height: 78,
-                        width: 78,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.10),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Container(
-                            height: 56,
-                            width: 56,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.pin_outlined,
-                              color: colorScheme.onPrimary,
-                              size: 30,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Secure access',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Set a 4-digit PIN to protect quick access to your account.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: helperColor,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    TextField(
-                      controller: _pinController,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      maxLength: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Enter 4-digit PIN',
-                        prefixIcon: const Icon(Icons.pin_outlined),
-                        filled: true,
-                        fillColor: fieldFillColor,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: fieldBorderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: colorScheme.primary,
-                            width: 1.4,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _confirmPinController,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      maxLength: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Confirm PIN',
-                        prefixIcon: const Icon(Icons.verified_user_outlined),
-                        filled: true,
-                        fillColor: fieldFillColor,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: fieldBorderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: colorScheme.primary,
-                            width: 1.4,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_errorText != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: errorBackgroundColor,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: errorBorderColor),
-                        ),
-                        child: Text(
-                          _errorText!,
-                          style: TextStyle(color: errorTextColor),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _savePinCode,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text('Save PIN'),
-                      ),
-                    ),
-                    if (appPinCodeNotifier.value != null) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _clearPinCode,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text('Remove PIN'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
               ],
             ),
           ),

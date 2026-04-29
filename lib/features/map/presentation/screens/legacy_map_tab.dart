@@ -197,7 +197,7 @@ class _MapTabState extends State<MapTab> {
     appPropertiesNotifier.addListener(_handlePropertiesChanged);
     appNegrosPlacesNotifier.addListener(_handleNegrosPlacesChanged);
     _warmMapPropertyImages(
-      _mappableProperties.take(_initialPropertyImagePrefetchCount),
+      _mappableProperties.take(AppConfig.initialPropertyImagePrefetchCount),
     );
   }
 
@@ -289,7 +289,7 @@ class _MapTabState extends State<MapTab> {
     });
 
     _warmMapPropertyImages(
-      nextProperties.take(_initialPropertyImagePrefetchCount),
+      nextProperties.take(AppConfig.initialPropertyImagePrefetchCount),
     );
     unawaited(_syncSelectedBoundary());
     unawaited(_syncSelectedLabel()); // NEW
@@ -314,7 +314,7 @@ class _MapTabState extends State<MapTab> {
         _maxMapPrecachedThumbnails,
       )) {
         if (_warmedMapPropertyImageIds.add(item.property.id)) {
-          _warmPropertyImage(context, item.property, useThumbnail: true);
+          warmPropertyImage(context, item.property, useThumbnail: true);
         }
       }
     });
@@ -1780,7 +1780,7 @@ class _SelectedMapPropertyCard extends StatelessWidget {
   });
 
   void _openDetails(BuildContext context) {
-    unawaited(_precachePropertyImage(context, property, height: 300));
+    unawaited(precachePropertyImage(context, property, height: 300));
     Navigator.push(
       context,
       _instantRoute(
@@ -1834,7 +1834,7 @@ class _SelectedMapPropertyCard extends StatelessWidget {
                     SizedBox(
                       width: thumbnailSize,
                       height: thumbnailSize,
-                      child: _buildPropertyImage(
+                      child: buildPropertyImage(
                         context: context,
                         property: property,
                         height: thumbnailSize,
