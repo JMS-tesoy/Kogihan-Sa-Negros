@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'router/app_router.dart';
 import 'state/app_display_preferences.dart'
     show appFontScaleNotifier, appThemeNotifier;
 import 'theme/land_finder_app_theme.dart';
@@ -33,6 +34,7 @@ class LandFinderApp extends StatelessWidget {
               },
               theme: buildLandFinderLightTheme(),
               darkTheme: buildLandFinderDarkTheme(),
+              onGenerateRoute: AppRouter.onGenerateRoute,
               home: home,
             );
           },

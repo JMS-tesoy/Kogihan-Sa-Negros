@@ -6,6 +6,7 @@ import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../../features/agent/presentation/screens/create_listing_screen.dart';
 import '../../features/agent/presentation/screens/edit_listing_screen.dart';
 import '../../features/agent/presentation/screens/manage_listings_screen.dart';
+import '../../features/agent_teams/presentation/screens/agent_teams_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
@@ -79,6 +80,8 @@ abstract final class AppRouter {
         return const ChatScreen();
       case RouteNames.agentDashboard:
         return const AgentDashboardScreen();
+      case RouteNames.agentTeams:
+        return const AgentTeamsScreen();
       case RouteNames.manageListings:
         return const ManageListingsScreen();
       case RouteNames.createListing:

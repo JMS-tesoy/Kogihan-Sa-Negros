@@ -18,6 +18,7 @@ abstract final class RouteNames {
   static const inbox = '/inbox';
   static const chat = '/chat';
   static const agentDashboard = '/agent-dashboard';
+  static const agentTeams = '/agent-teams';
   static const manageListings = '/manage-listings';
   static const createListing = '/create-listing';
   static const editListing = '/edit-listing';

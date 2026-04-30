@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/router/route_names.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -333,6 +334,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
     await _loadInquiries(showLoader: false);
   }
 
+  void _openAgentTeamsPage() {
+    Navigator.of(context).pushNamed(RouteNames.agentTeams);
+  }
+
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
     await updateProperty(updatedProperty);
   }
@@ -559,6 +564,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 ? 'Loading inquiries...'
                 : '$_unreadInquiryCount unread inquiry(s)',
             onTap: _openInboxPage,
+          ),
+          const SizedBox(height: 12),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.groups_rounded,
+            accentColor: Colors.green,
+            title: 'Agent Teams',
+            subtitle: 'View team members and collaboration groups.',
+            badgeText: 'Premium',
+            onTap: _openAgentTeamsPage,
           ),
           const SizedBox(height: 22),
           Text(
