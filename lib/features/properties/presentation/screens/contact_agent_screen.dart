@@ -110,6 +110,19 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final String agentName =
+        (widget.property.agentFullName ?? '').trim().isNotEmpty
+        ? widget.property.agentFullName!.trim()
+        : 'Assigned Agent';
+    final String agentSubtitle =
+        (widget.property.agentTeamName ?? '').trim().isNotEmpty
+        ? widget.property.agentTeamName!.trim()
+        : 'Real Estate Agent';
+    final String? agentAvatarUrl =
+        (widget.property.agentAvatarUrl ?? '').trim().isNotEmpty
+        ? widget.property.agentAvatarUrl!.trim()
+        : null;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Contact Agent'), centerTitle: true),
       body: SingleChildScrollView(
@@ -122,20 +135,29 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                 CircleAvatar(
                   radius: 32,
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Icon(Icons.person, color: Colors.white, size: 36),
+                  backgroundImage:
+                      agentAvatarUrl != null &&
+                          agentAvatarUrl.startsWith('http')
+                      ? NetworkImage(agentAvatarUrl)
+                      : null,
+                  child:
+                      agentAvatarUrl == null ||
+                          !agentAvatarUrl.startsWith('http')
+                      ? const Icon(Icons.person, color: Colors.white, size: 36)
+                      : null,
                 ),
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Juan Dela Cruz',
+                      agentName,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      'Senior Real Estate Agent',
+                      agentSubtitle,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),

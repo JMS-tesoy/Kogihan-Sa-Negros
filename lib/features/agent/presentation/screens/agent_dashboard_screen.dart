@@ -343,18 +343,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Future<void> _openTeamJoinRequestsPage() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const TeamJoinRequestsScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const TeamJoinRequestsScreen()),
     );
   }
 
   Future<void> _openManageTeamsPage() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const ManageAgentTeamsScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const ManageAgentTeamsScreen()),
     );
   }
 
@@ -672,6 +668,94 @@ class PropertyFormPage extends StatefulWidget {
   State<PropertyFormPage> createState() => _PropertyFormPageState();
 }
 
+class _UploadedImageThumbnail extends StatelessWidget {
+  const _UploadedImageThumbnail({
+    required this.url,
+    required this.isMainImage,
+    required this.onRemove,
+  });
+
+  final String url;
+  final bool isMainImage;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ImageProvider<Object> imageProvider = url.startsWith('http')
+        ? CachedNetworkImageProvider(url)
+        : AssetImage(url);
+
+    return SizedBox(
+      width: 76,
+      height: 76,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image(
+                image: imageProvider,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return ColoredBox(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          if (isMainImage)
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    'Main',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: InkWell(
+              onTap: onRemove,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PropertyFormPageState extends State<PropertyFormPage> {
   static const List<String> _titleStatusOptions = [
     'Clean Title',
@@ -691,6 +775,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _imageUrlController;
   late final TextEditingController _thumbnailUrlController;
+  late final TextEditingController _galleryImageUrlsController;
   late final TextEditingController _boundaryCoordinatesController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
@@ -756,6 +841,61 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     final String imageUrl = _imageUrlController.text.trim();
     return imageUrl.isEmpty ? null : imageUrl;
+  }
+
+  List<String> _galleryImageUrlsFromText() {
+    final List<String> urls = <String>[];
+    for (final String line in _galleryImageUrlsController.text.split('\n')) {
+      final String url = line.trim();
+      if (url.isNotEmpty && !urls.contains(url)) {
+        urls.add(url);
+      }
+    }
+    return urls;
+  }
+
+  List<String> get _mediaPreviewUrls {
+    final List<String> urls = <String>[];
+
+    void addUrl(String? value) {
+      final String url = (value ?? '').trim();
+      if (url.isNotEmpty && !urls.contains(url)) {
+        urls.add(url);
+      }
+    }
+
+    final String thumbnailUrl = _thumbnailUrlController.text.trim();
+    final String imageUrl = _imageUrlController.text.trim();
+    addUrl(thumbnailUrl.isNotEmpty ? thumbnailUrl : imageUrl);
+    for (final String url in _galleryImageUrlsFromText()) {
+      addUrl(url);
+    }
+    return urls;
+  }
+
+  void _addGalleryImageUrl(String imageUrl) {
+    final List<String> urls = _galleryImageUrlsFromText();
+    if (!urls.contains(imageUrl)) {
+      urls.add(imageUrl);
+    }
+    _galleryImageUrlsController.text = urls.join('\n');
+  }
+
+  void _removeMediaPreviewUrl(String imageUrl) {
+    final String normalizedUrl = imageUrl.trim();
+    final bool isMainImage =
+        _imageUrlController.text.trim() == normalizedUrl ||
+        _thumbnailUrlController.text.trim() == normalizedUrl;
+    if (isMainImage) {
+      _imageUrlController.clear();
+      _thumbnailUrlController.clear();
+    }
+
+    final List<String> urls = _galleryImageUrlsFromText()
+        .where((url) => url != normalizedUrl)
+        .toList();
+    _galleryImageUrlsController.text = urls.join('\n');
+    setState(() {});
   }
 
   ImageProvider<Object>? get _previewImageProvider {
@@ -850,6 +990,41 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
+  Widget _buildUploadedImagePreviewStrip(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final List<String> urls = _mediaPreviewUrls;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Uploaded images',
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 76,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: urls.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final String url = urls[index];
+              return _UploadedImageThumbnail(
+                url: url,
+                isMainImage: index == 0,
+                onRemove: () => _removeMediaPreviewUrl(url),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBoundaryGuidelines(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
@@ -935,10 +1110,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
       ),
       items: <DropdownMenuItem<String?>>[
-        const DropdownMenuItem<String?>(
-          value: null,
-          child: Text('No team'),
-        ),
+        const DropdownMenuItem<String?>(value: null, child: Text('No team')),
         ..._teamOptions.map(
           (team) => DropdownMenuItem<String?>(
             value: team.id,
@@ -1345,8 +1517,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
           .getPublicUrl(thumbnailFilePath);
 
       setState(() {
-        _imageUrlController.text = publicUrl;
-        _thumbnailUrlController.text = thumbnailPublicUrl;
+        if (_imageUrlController.text.trim().isEmpty) {
+          _imageUrlController.text = publicUrl;
+          _thumbnailUrlController.text = thumbnailPublicUrl;
+        } else {
+          _addGalleryImageUrl(publicUrl);
+        }
       });
 
       if (!mounted) return;
@@ -1408,6 +1584,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _thumbnailUrlController = TextEditingController(
       text: widget.initialProperty?.thumbnailUrl ?? '',
     );
+    _galleryImageUrlsController = TextEditingController(
+      text: widget.initialProperty?.galleryImageUrls.join('\n') ?? '',
+    );
     _boundaryCoordinatesController = TextEditingController(
       text: widget.initialProperty?.boundaryCoordinates ?? '',
     );
@@ -1426,6 +1605,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _descriptionController.dispose();
     _imageUrlController.dispose();
     _thumbnailUrlController.dispose();
+    _galleryImageUrlsController.dispose();
     _boundaryCoordinatesController.dispose();
     super.dispose();
   }
@@ -1459,6 +1639,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       thumbnailUrl: _thumbnailUrlController.text.trim().isEmpty
           ? null
           : _thumbnailUrlController.text.trim(),
+      galleryImageUrls: _galleryImageUrlsFromText(),
       boundaryCoordinates: arrangedBoundaryCoordinates,
       agentId:
           widget.initialProperty?.agentId ??
@@ -1959,6 +2140,10 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                     ),
                   ),
                 ),
+                if (_mediaPreviewUrls.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildUploadedImagePreviewStrip(context),
+                ],
                 const SizedBox(height: 12),
                 _buildFormField(
                   controller: _imageUrlController,
@@ -1975,6 +2160,18 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   icon: Icons.photo_size_select_small_outlined,
                   keyboardType: TextInputType.url,
                 ),
+                const SizedBox(height: 12),
+                _buildFormField(
+                  controller: _galleryImageUrlsController,
+                  label: 'Gallery image URLs (optional)',
+                  hintText:
+                      'https://example.com/gallery-1.jpg\nhttps://example.com/gallery-2.jpg',
+                  icon: Icons.photo_library_outlined,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 4,
+                  helperText:
+                      'One image URL per line. These appear as right-side thumbnails on property details.',
+                ),
                 if (_imageUrlController.text.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Align(
@@ -1983,6 +2180,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                       onPressed: () {
                         setState(() {
                           _imageUrlController.clear();
+                          _thumbnailUrlController.clear();
+                          _galleryImageUrlsController.clear();
                         });
                       },
                       icon: const Icon(Icons.delete_outline),

@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../app/state/inline_property_details_controller.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_section_header.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
+import '../../../properties/presentation/screens/property_details_screen.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
 import '../../../properties/presentation/widgets/property_tile.dart';
 import '../../../properties/presentation/widgets/recommended_properties_carousel.dart';
@@ -46,6 +46,23 @@ class HomeTab extends StatelessWidget {
     required this.onResetFilters,
   });
 
+  void _openDetails(
+    BuildContext context,
+    Property property,
+    Set<Property> savedProperties,
+    ValueChanged<Property> onToggleSave,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PropertyDetailsScreen(
+          property: property,
+          isSaved: savedProperties.contains(property),
+          onToggleSave: () => onToggleSave(property),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Property> recommendedProperties = properties
@@ -72,12 +89,12 @@ class HomeTab extends StatelessWidget {
     final bool hasActiveFilters =
         hasSearchQuery || activeFilterChips.isNotEmpty;
     final String lotsHeaderTitle =
-        hasActiveFilters ? 'Filtered Lots' : 'Available Lots';
+        hasActiveFilters ? 'Filtered Lots' : 'All Lots';
 
     return SafeArea(
       child: CustomScrollView(
         cacheExtent: 400,
-        slivers: [
+        slivers: <Widget>[
           SliverAppBar(
             automaticallyImplyLeading: false,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -119,7 +136,7 @@ class HomeTab extends StatelessWidget {
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: [
+                  children: <Widget>[
                     ...activeFilterChips,
                     ActionChip(
                       visualDensity: VisualDensity.compact,
@@ -155,14 +172,12 @@ class HomeTab extends StatelessWidget {
                   properties: recommendedProperties,
                   savedProperties: savedProperties,
                   onToggleSave: onToggleSave,
-                  onOpenDetails: (property) {
-                    showInlinePropertyDetails(
-                      context: context,
-                      property: property,
-                      isSaved: savedProperties.contains(property),
-                      onToggleSave: () => onToggleSave(property),
-                    );
-                  },
+                  onOpenDetails: (property) => _openDetails(
+                    context,
+                    property,
+                    savedProperties,
+                    onToggleSave,
+                  ),
                   onPrecacheDetails: (context, property) {
                     unawaited(
                       precachePropertyImage(context, property, height: 300),
@@ -171,44 +186,159 @@ class HomeTab extends StatelessWidget {
                 ),
               ),
             ),
-          if (properties.isNotEmpty) ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  '$lotsHeaderTitle (${properties.length})',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+          if (properties.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _LotsFilterSection(
+                title: lotsHeaderTitle,
+                properties: properties,
+                savedProperties: savedProperties,
+                onToggleSave: onToggleSave,
+                onOpenDetails: (property) => _openDetails(
+                  context,
+                  property,
+                  savedProperties,
+                  onToggleSave,
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              sliver: SliverList.builder(
-                itemCount: properties.length,
-                itemBuilder: (context, index) {
-                  final Property property = properties[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: PropertyTile(
-                      property: property,
-                      isSaved: savedProperties.contains(property),
-                      onToggleSave: () => onToggleSave(property),
-                      onOpenDetails: () {
-                        showInlinePropertyDetails(
-                          context: context,
-                          property: property,
-                          isSaved: savedProperties.contains(property),
-                          onToggleSave: () => onToggleSave(property),
-                        );
-                      },
-                    ),
-                  );
-                },
+        ],
+      ),
+    );
+  }
+}
+
+enum _LotFilter { all, newlyListed, available, sold, mostViewed }
+
+class _LotsFilterSection extends StatefulWidget {
+  const _LotsFilterSection({
+    required this.title,
+    required this.properties,
+    required this.savedProperties,
+    required this.onToggleSave,
+    required this.onOpenDetails,
+  });
+
+  final String title;
+  final List<Property> properties;
+  final Set<Property> savedProperties;
+  final ValueChanged<Property> onToggleSave;
+  final ValueChanged<Property> onOpenDetails;
+
+  @override
+  State<_LotsFilterSection> createState() => _LotsFilterSectionState();
+}
+
+class _LotsFilterSectionState extends State<_LotsFilterSection> {
+  _LotFilter _selectedFilter = _LotFilter.all;
+
+  List<Property> get _filteredProperties {
+    final Iterable<Property> filteredProperties = widget.properties.where(
+      (property) {
+        final String tag = property.tag.trim().toLowerCase();
+        switch (_selectedFilter) {
+          case _LotFilter.all:
+            return true;
+          case _LotFilter.newlyListed:
+            return tag.contains('new');
+          case _LotFilter.available:
+            return !tag.contains('sold') &&
+                !tag.contains('auction') &&
+                !tag.contains('process') &&
+                !tag.contains('pending') &&
+                !tag.contains('reserved');
+          case _LotFilter.sold:
+            return tag.contains('sold');
+          case _LotFilter.mostViewed:
+            return property.viewCount > 0;
+        }
+      },
+    );
+
+    final List<Property> result = filteredProperties.toList(growable: false);
+    if (_selectedFilter == _LotFilter.mostViewed) {
+      result.sort(
+        (first, second) => second.viewCount.compareTo(first.viewCount),
+      );
+    }
+    return result;
+  }
+
+  String get _selectedTitle {
+    switch (_selectedFilter) {
+      case _LotFilter.all:
+        return widget.title;
+      case _LotFilter.newlyListed:
+        return 'Newly Listed';
+      case _LotFilter.available:
+        return 'Available';
+      case _LotFilter.sold:
+        return 'Sold';
+      case _LotFilter.mostViewed:
+        return 'Most Viewed';
+    }
+  }
+
+  Widget _filterChip(_LotFilter filter, String label) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: _selectedFilter == filter,
+      onSelected: (_) => setState(() => _selectedFilter = filter),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Property> filteredProperties = _filteredProperties;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            '$_selectedTitle (${filteredProperties.length})',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                _filterChip(_LotFilter.all, 'All'),
+                const SizedBox(width: 8),
+                _filterChip(_LotFilter.newlyListed, 'New'),
+                const SizedBox(width: 8),
+                _filterChip(_LotFilter.available, 'Available'),
+                const SizedBox(width: 8),
+                _filterChip(_LotFilter.sold, 'Sold'),
+                const SizedBox(width: 8),
+                _filterChip(_LotFilter.mostViewed, 'Most Viewed'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (filteredProperties.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'No ${_selectedTitle.toLowerCase()} lots found.',
+                ),
+              ),
+            )
+          else
+            ...filteredProperties.map(
+              (property) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: PropertyTile(
+                  property: property,
+                  isSaved: widget.savedProperties.contains(property),
+                  onToggleSave: () => widget.onToggleSave(property),
+                  onOpenDetails: () => widget.onOpenDetails(property),
+                ),
               ),
             ),
-          ],
         ],
       ),
     );

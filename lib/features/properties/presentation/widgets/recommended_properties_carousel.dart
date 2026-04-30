@@ -117,10 +117,14 @@ class _RecommendedPropertiesCarouselState
     if (widget.properties.isEmpty) return const SizedBox.shrink();
 
     final ThemeData theme = Theme.of(context);
+    final bool hasTeamInfo = widget.properties.any(
+      (property) => (property.agentTeamName ?? '').trim().isNotEmpty,
+    );
+    final double activeCardHeight = hasTeamInfo ? 292 : _activeCardHeight;
 
     return SizedBox(
       height:
-          _activeCardHeight +
+          activeCardHeight +
           (widget.properties.length > 1 ? _indicatorHeight : 0),
       child: Column(
         children: [
@@ -145,7 +149,7 @@ class _RecommendedPropertiesCarouselState
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: SizedBox(
-                      height: _activeCardHeight,
+                      height: activeCardHeight,
                       child: RecommendedPropertyCard(
                         property: property,
                         isSaved: widget.savedProperties.contains(property),

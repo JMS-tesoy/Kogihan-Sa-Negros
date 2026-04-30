@@ -21,6 +21,7 @@ import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/onboarding/presentation/screens/role_selection_screen.dart';
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/properties/data/datasources/shared_properties.dart';
 import '../../features/properties/presentation/screens/property_details_screen.dart';
 import '../../features/properties/presentation/screens/property_filter_screen.dart';
 import '../../features/properties/presentation/screens/property_gallery_screen.dart';
@@ -36,12 +37,12 @@ abstract final class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     return MaterialPageRoute<void>(
       settings: settings,
-      builder: (_) => _screenFor(settings.name),
+      builder: (_) => _screenFor(settings),
     );
   }
 
-  static Widget _screenFor(String? routeName) {
-    switch (routeName) {
+  static Widget _screenFor(RouteSettings settings) {
+    switch (settings.name) {
       case RouteNames.splash:
         return const SplashScreen();
       case RouteNames.onboarding:
@@ -59,7 +60,13 @@ abstract final class AppRouter {
       case RouteNames.properties:
         return const PropertyListScreen();
       case RouteNames.propertyDetails:
-        return const PropertyDetailsScreen();
+        final PropertyDetailsArgs args =
+            settings.arguments as PropertyDetailsArgs;
+        return PropertyDetailsScreen(
+          property: args.property,
+          isSaved: args.isSaved,
+          onToggleSave: args.onToggleSave,
+        );
       case RouteNames.propertyGallery:
         return const PropertyGalleryScreen();
       case RouteNames.propertyFilter:
@@ -106,4 +113,17 @@ abstract final class AppRouter {
         return const SplashScreen();
     }
   }
+}
+
+/// Pass this as `arguments` when pushing [RouteNames.propertyDetails].
+class PropertyDetailsArgs {
+  const PropertyDetailsArgs({
+    required this.property,
+    required this.isSaved,
+    required this.onToggleSave,
+  });
+
+  final Property property;
+  final bool isSaved;
+  final VoidCallback onToggleSave;
 }

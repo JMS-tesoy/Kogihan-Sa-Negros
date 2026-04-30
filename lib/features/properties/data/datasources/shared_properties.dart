@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,10 +16,16 @@ class Property {
   final String titleStatus;
   final String description;
   final Color imageColor;
+  final int viewCount;
   final String? imageUrl;
   final String? thumbnailUrl;
+  final List<String> galleryImageUrls;
   final String? boundaryCoordinates;
   final String? agentId;
+  final String? agentFullName;
+  final String? agentEmail;
+  final String? agentPhone;
+  final String? agentAvatarUrl;
   final String? agentTeamId;
   final String? agentTeamName;
 
@@ -34,10 +42,16 @@ class Property {
     required this.titleStatus,
     required this.description,
     required this.imageColor,
+    this.viewCount = 0,
     this.imageUrl,
     this.thumbnailUrl,
+    this.galleryImageUrls = const <String>[],
     this.boundaryCoordinates,
     this.agentId,
+    this.agentFullName,
+    this.agentEmail,
+    this.agentPhone,
+    this.agentAvatarUrl,
     this.agentTeamId,
     this.agentTeamName,
   });
@@ -55,10 +69,16 @@ class Property {
     String? titleStatus,
     String? description,
     Color? imageColor,
+    int? viewCount,
     String? imageUrl,
     String? thumbnailUrl,
+    List<String>? galleryImageUrls,
     String? boundaryCoordinates,
     String? agentId,
+    String? agentFullName,
+    String? agentEmail,
+    String? agentPhone,
+    String? agentAvatarUrl,
     String? agentTeamId,
     String? agentTeamName,
   }) {
@@ -75,10 +95,16 @@ class Property {
       titleStatus: titleStatus ?? this.titleStatus,
       description: description ?? this.description,
       imageColor: imageColor ?? this.imageColor,
+      viewCount: viewCount ?? this.viewCount,
       imageUrl: imageUrl ?? this.imageUrl,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      galleryImageUrls: galleryImageUrls ?? this.galleryImageUrls,
       boundaryCoordinates: boundaryCoordinates ?? this.boundaryCoordinates,
       agentId: agentId ?? this.agentId,
+      agentFullName: agentFullName ?? this.agentFullName,
+      agentEmail: agentEmail ?? this.agentEmail,
+      agentPhone: agentPhone ?? this.agentPhone,
+      agentAvatarUrl: agentAvatarUrl ?? this.agentAvatarUrl,
       agentTeamId: agentTeamId ?? this.agentTeamId,
       agentTeamName: agentTeamName ?? this.agentTeamName,
     );
@@ -105,10 +131,16 @@ class Property {
       titleStatus: (map['title_status'] ?? '') as String,
       description: (map['description'] ?? '') as String,
       imageColor: Color(_toInt(map['image_color'])),
+      viewCount: _toInt(map['view_count']),
       imageUrl: _toNullableString(map['image_url']),
       thumbnailUrl: _toNullableString(map['thumbnail_url']),
+      galleryImageUrls: _galleryImageUrlsFromMap(map),
       boundaryCoordinates: _toNullableString(map['boundary_coordinates']),
       agentId: _toNullableString(map['agent_id']),
+      agentFullName: _agentProfileValueFromMap(map, 'full_name'),
+      agentEmail: _agentProfileValueFromMap(map, 'email'),
+      agentPhone: _agentProfileValueFromMap(map, 'phone'),
+      agentAvatarUrl: _agentProfileValueFromMap(map, 'avatar_url'),
       agentTeamId: _toNullableString(map['agent_team_id']),
       agentTeamName: _agentTeamNameFromMap(map),
     );
@@ -127,8 +159,10 @@ class Property {
       'title_status': titleStatus,
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
+      'view_count': viewCount,
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
+      'image_urls': galleryImageUrls,
       'boundary_coordinates': _toNullableString(boundaryCoordinates),
       'agent_id': _toNullableString(agentId),
       'agent_team_id': _toNullableString(agentTeamId),
@@ -149,8 +183,10 @@ class Property {
       'title_status': titleStatus,
       'description': description,
       'image_color': _toSigned32Bit(imageColor.toARGB32()),
+      'view_count': viewCount,
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
+      'image_urls': galleryImageUrls,
       'boundary_coordinates': _toNullableString(boundaryCoordinates),
       'agent_id': _toNullableString(agentId),
       'agent_team_id': _toNullableString(agentTeamId),
@@ -163,10 +199,67 @@ class Property {
     return normalized.isEmpty ? null : normalized;
   }
 
+  static List<String> _galleryImageUrlsFromMap(Map<String, dynamic> map) {
+    final Object? rawValue =
+        map['image_urls'] ?? map['gallery_image_urls'] ?? map['images'];
+    final List<String> urls = <String>[];
+
+    void addUrl(Object? value) {
+      final String? url = _toNullableString(value);
+      if (url != null && !urls.contains(url)) {
+        urls.add(url);
+      }
+    }
+
+    if (rawValue is List) {
+      for (final Object? item in rawValue) {
+        if (item is Map) {
+          addUrl(item['url'] ?? item['image_url']);
+        } else {
+          addUrl(item);
+        }
+      }
+      return urls;
+    }
+
+    if (rawValue is String) {
+      try {
+        final Object? decoded = jsonDecode(rawValue);
+        if (decoded is List) {
+          for (final Object? item in decoded) {
+            if (item is Map) {
+              addUrl(item['url'] ?? item['image_url']);
+            } else {
+              addUrl(item);
+            }
+          }
+          return urls;
+        }
+      } catch (_) {
+        for (final String item in rawValue.split(',')) {
+          addUrl(item);
+        }
+      }
+    }
+
+    return urls;
+  }
+
   static String? _agentTeamNameFromMap(Map<String, dynamic> map) {
     final Object? team = map['agent_teams'];
     if (team is Map) {
       return _toNullableString(team['name']);
+    }
+    return null;
+  }
+
+  static String? _agentProfileValueFromMap(
+    Map<String, dynamic> map,
+    String key,
+  ) {
+    final Object? agent = map['agent'];
+    if (agent is Map) {
+      return _toNullableString(agent[key]);
     }
     return null;
   }
@@ -257,7 +350,10 @@ Future<void> _loadPropertiesPage({required bool reset}) async {
     final int to = from + propertyPageSize - 1;
     final List<dynamic> response = await Supabase.instance.client
         .from('properties')
-        .select('*, agent_teams(name)')
+        .select(
+          '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
+          'agent_teams(name)',
+        )
         .order('created_at', ascending: false)
         .range(from, to);
 
@@ -300,7 +396,10 @@ Future<Property> createProperty(Property property) async {
   final Map<String, dynamic> response = await Supabase.instance.client
       .from('properties')
       .insert(property.toInsertMap())
-      .select('*, agent_teams(name)')
+      .select(
+        '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
+        'agent_teams(name)',
+      )
       .single();
 
   final Property createdProperty = Property.fromMap(
@@ -319,7 +418,10 @@ Future<Property> updateProperty(Property property) async {
       .from('properties')
       .update(property.toUpdateMap())
       .eq('id', property.id)
-      .select('*, agent_teams(name)')
+      .select(
+        '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
+        'agent_teams(name)',
+      )
       .single();
 
   final Property updatedProperty = Property.fromMap(
@@ -349,4 +451,29 @@ Future<void> deleteProperty(String propertyId) async {
   appPropertiesNotifier.value = appPropertiesNotifier.value
       .where((property) => property.id != propertyId)
       .toList();
+}
+
+Future<void> recordPropertyView(Property property) async {
+  try {
+    await Supabase.instance.client.rpc(
+      'increment_property_view_count',
+      params: {'property_id': property.id},
+    );
+  } catch (_) {
+    return;
+  }
+
+  final List<Property> updatedProperties = List<Property>.from(
+    appPropertiesNotifier.value,
+  );
+  final int index = updatedProperties.indexWhere(
+    (item) => item.id == property.id,
+  );
+
+  if (index == -1) return;
+
+  updatedProperties[index] = updatedProperties[index].copyWith(
+    viewCount: updatedProperties[index].viewCount + 1,
+  );
+  appPropertiesNotifier.value = updatedProperties;
 }

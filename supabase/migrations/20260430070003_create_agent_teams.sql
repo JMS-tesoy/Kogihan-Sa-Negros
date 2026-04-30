@@ -57,6 +57,23 @@ add column if not exists agent_id uuid references public.profiles(id) on delete 
 alter table if exists public.properties
 add column if not exists agent_team_id uuid references public.agent_teams(id) on delete set null;
 
+alter table if exists public.properties
+add column if not exists view_count integer not null default 0;
+
+create or replace function public.increment_property_view_count(property_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.properties
+  set view_count = coalesce(view_count, 0) + 1
+  where id = property_id;
+$$;
+
+grant execute on function public.increment_property_view_count(uuid)
+to authenticated;
+
 drop policy if exists "Admins can update agent teams"
 on public.agent_teams;
 create policy "Admins can update agent teams"

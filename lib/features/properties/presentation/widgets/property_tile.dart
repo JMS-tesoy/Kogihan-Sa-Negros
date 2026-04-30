@@ -25,6 +25,7 @@ class PropertyTile extends StatelessWidget {
       context,
       availabilityLabel,
     );
+    const double tileHeight = 118;
 
     Widget metaChip(IconData icon, String label) {
       return Container(
@@ -99,7 +100,7 @@ class PropertyTile extends StatelessWidget {
       child: InkWell(
         onTap: onOpenDetails,
         child: SizedBox(
-          height: 118,
+          height: tileHeight,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final double thumbnailWidth = constraints.maxWidth * 0.30;
@@ -113,11 +114,11 @@ class PropertyTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       child: SizedBox(
                         width: thumbnailWidth,
-                        height: 118,
+                        height: tileHeight,
                         child: buildPropertyDetailsImage(
                           context: context,
                           property: property,
-                          height: 118,
+                          height: tileHeight,
                           useThumbnail: true,
                           fallbackChild: const Center(
                             child: Icon(

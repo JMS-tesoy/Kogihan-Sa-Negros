@@ -489,20 +489,18 @@ class MessagingService {
     final User user = _currentUser;
     await _upsertCurrentProfile(fullName: fullName, contactValue: contactValue);
 
-    final Map<String, dynamic>? agentResponse = await _client
-        .from('profiles')
-        .select('id, full_name, email, phone, role')
-        .or('role.eq.agent,role.eq.admin')
-        .neq('id', user.id)
-        .order('created_at', ascending: true)
-        .limit(1)
-        .maybeSingle();
+    final String? assignedAgentId = property.agentId?.trim();
+    final String? agentId =
+        assignedAgentId != null &&
+            assignedAgentId.isNotEmpty &&
+            assignedAgentId != user.id
+        ? assignedAgentId
+        : await _firstAvailableAgentId(excludedUserId: user.id);
 
-    if (agentResponse == null) {
+    if (agentId == null) {
       throw StateError('No agent account is available yet.');
     }
 
-    final String agentId = agentResponse['id'] as String;
     final Map<String, dynamic>? existingConversation = await _client
         .from('conversations')
         .select('id')
@@ -531,6 +529,21 @@ class MessagingService {
 
     await sendMessage(conversationId: conversationId, body: body);
     return conversationId;
+  }
+
+  static Future<String?> _firstAvailableAgentId({
+    required String excludedUserId,
+  }) async {
+    final Map<String, dynamic>? agentResponse = await _client
+        .from('profiles')
+        .select('id')
+        .or('role.eq.agent,role.eq.admin')
+        .neq('id', excludedUserId)
+        .order('created_at', ascending: true)
+        .limit(1)
+        .maybeSingle();
+
+    return agentResponse?['id'] as String?;
   }
 
   static Future<void> _upsertCurrentProfile({

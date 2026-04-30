@@ -13,6 +13,7 @@ void showInlinePropertyDetails({
   required VoidCallback onToggleSave,
 }) {
   unawaited(precachePropertyImage(context, property, height: 300));
+  unawaited(recordPropertyView(property));
   appInlinePropertyDetailsNotifier.value = InlinePropertyDetailsState(
     property: property,
     isSaved: isSaved,
