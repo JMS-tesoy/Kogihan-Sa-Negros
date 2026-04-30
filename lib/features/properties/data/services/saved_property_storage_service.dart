@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/storage_constants.dart';
+import '../datasources/shared_properties.dart';
 
 class SavedPropertyStorageService {
   const SavedPropertyStorageService._();
@@ -18,5 +19,14 @@ class SavedPropertyStorageService {
       StorageConstants.savedPropertyIds,
       propertyIds.toList(),
     );
+  }
+
+  static Set<Property> resolveSavedProperties({
+    required Iterable<Property> availableProperties,
+    required Set<String> savedPropertyIds,
+  }) {
+    return availableProperties
+        .where((property) => savedPropertyIds.contains(property.id))
+        .toSet();
   }
 }

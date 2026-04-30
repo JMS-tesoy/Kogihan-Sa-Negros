@@ -54,3 +54,15 @@ class SavedPropertiesUpgradeSheet extends StatelessWidget {
     );
   }
 }
+
+Future<void> showSavedPropertiesUpgradeSheet({
+  required BuildContext context,
+  required VoidCallback onViewPlans,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) {
+      return SavedPropertiesUpgradeSheet(onViewPlans: onViewPlans);
+    },
+  );
+}

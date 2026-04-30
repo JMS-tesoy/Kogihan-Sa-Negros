@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
-import 'package:image_picker/image_picker.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
     hide ImageSource, Size;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,7 +24,7 @@ import '../../features/home/presentation/widgets/top_header.dart';
 import '../../features/home/presentation/helpers/home_filter_helpers.dart';
 import '../../features/messaging/presentation/screens/messages_tab.dart'
     as messaging_screens;
-import '../../features/profile/data/services/avatar_image_optimizer.dart';
+import '../../features/profile/data/services/avatar_picker_service.dart';
 import '../../features/profile/data/services/profile_avatar_service.dart';
 import '../../features/profile/data/services/buyer_profile_service.dart';
 import '../../features/profile/presentation/screens/profile_tab.dart'
@@ -38,7 +37,7 @@ import '../../features/properties/presentation/widgets/property_image.dart';
 import '../../features/properties/presentation/widgets/saved_properties_upgrade_sheet.dart';
 import '../../features/home/presentation/screens/home_tab.dart';
 import '../../features/properties/presentation/screens/saved_tab.dart';
-import '../../features/subscription/presentation/screens/subscription_screen.dart';
+import '../../features/subscription/presentation/navigation/subscription_navigation.dart';
 import '../../features/subscription/data/services/subscription_service.dart';
 import '../real_estate_app.dart';
 import '../bootstrap/legacy_app_bootstrap.dart';
@@ -85,7 +84,6 @@ class _HomePageState extends State<HomePage> {
   Uint8List? _profileImageBytes;
   bool _profileAvatarHidden = false;
   bool _hasRemoteProfileAvatar = false;
-  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -115,8 +113,9 @@ class _HomePageState extends State<HomePage> {
       _savedProperties
         ..clear()
         ..addAll(
-          _availableProperties.where(
-            (property) => _savedPropertyIds.contains(property.id),
+          SavedPropertyStorageService.resolveSavedProperties(
+            availableProperties: _availableProperties,
+            savedPropertyIds: _savedPropertyIds,
           ),
         );
     });
@@ -162,8 +161,9 @@ class _HomePageState extends State<HomePage> {
       _savedProperties
         ..clear()
         ..addAll(
-          _availableProperties.where(
-            (property) => _savedPropertyIds.contains(property.id),
+          SavedPropertyStorageService.resolveSavedProperties(
+            availableProperties: _availableProperties,
+            savedPropertyIds: _savedPropertyIds,
           ),
         );
     });
@@ -174,71 +174,50 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openSubscriptionPage() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SubscriptionPage()),
-    );
+    await openSubscriptionPage(context);
     if (!mounted) return;
     setState(() {});
   }
 
   Future<void> _showSavedPropertiesUpgradePrompt() async {
-    await showModalBottomSheet<void>(
+    await showSavedPropertiesUpgradeSheet(
       context: context,
-      builder: (sheetContext) {
-        return SavedPropertiesUpgradeSheet(
-          onViewPlans: _openSubscriptionPage,
-        );
-      },
+      onViewPlans: _openSubscriptionPage,
     );
   }
 
   Future<void> _pickAvatarFromGallery() async {
-    final XFile? pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-      maxWidth: 512,
-      maxHeight: 512,
-    );
+    final Uint8List? imageBytes = await AvatarPickerService.pickGalleryAvatar();
+    if (imageBytes == null) return;
 
-    if (pickedFile != null) {
-      final Uint8List imageBytes = optimizeAvatarImage(
-        await pickedFile.readAsBytes(),
-      );
-      try {
-        await ProfileAvatarService.saveAvatarForCurrentUser(imageBytes);
-        if (!mounted) return;
-        setState(() {
-          _profileImageBytes = imageBytes;
-          _profileAvatarHidden = false;
-          _hasRemoteProfileAvatar = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avatar saved to your profile.')),
-        );
-      } catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save avatar: $error')),
-        );
-      }
-    }
-  }
-
-  Future<void> _pickAvatarFromCamera() async {
-    final XFile? pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
-
-    if (pickedFile != null) {
-      final Uint8List imageBytes = await pickedFile.readAsBytes();
+    try {
+      await ProfileAvatarService.saveAvatarForCurrentUser(imageBytes);
+      if (!mounted) return;
       setState(() {
         _profileImageBytes = imageBytes;
         _profileAvatarHidden = false;
         _hasRemoteProfileAvatar = true;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avatar saved to your profile.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save avatar: $error')),
+      );
     }
+  }
+
+  Future<void> _pickAvatarFromCamera() async {
+    final Uint8List? imageBytes = await AvatarPickerService.pickCameraAvatar();
+    if (imageBytes == null) return;
+
+    setState(() {
+      _profileImageBytes = imageBytes;
+      _profileAvatarHidden = false;
+      _hasRemoteProfileAvatar = true;
+    });
   }
 
   void _showAvatarOptions() {
