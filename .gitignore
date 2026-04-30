@@ -47,3 +47,6 @@ cheatsheet prompt
 .env
 .env
 /test
+lib_chunk_txt
+/lib_chunk_txt
+lib_chunk_txt/
