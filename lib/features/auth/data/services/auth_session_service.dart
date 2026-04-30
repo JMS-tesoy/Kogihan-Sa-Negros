@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -51,5 +53,21 @@ class AuthSessionService {
       OAuthProvider.google,
       redirectTo: kIsWeb ? null : AuthConfig.redirectUrl,
     );
+  }
+
+  static StreamSubscription<AuthState> listenForLoginRouting({
+    required Future<void> Function() onPasswordRecovery,
+    required Future<void> Function(User? user) onSignedIn,
+  }) {
+    return Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        unawaited(onPasswordRecovery());
+        return;
+      }
+
+      if (data.event == AuthChangeEvent.signedIn) {
+        unawaited(onSignedIn(data.session?.user));
+      }
+    });
   }
 }

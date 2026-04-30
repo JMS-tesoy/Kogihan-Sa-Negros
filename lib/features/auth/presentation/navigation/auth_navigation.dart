@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/config/app_config.dart';
 import '../../data/services/auth_session_service.dart';
+import '../../domain/helpers/auth_user_role.dart';
+import '../../../properties/data/datasources/shared_properties.dart';
+import '../../../properties/presentation/widgets/property_image.dart';
 import '../screens/change_password_screen.dart';
 
 Future<void> signOutAndReturnToLogin(
@@ -56,4 +61,27 @@ Future<void> replaceWithAuthenticatedAdmin(
     context,
     MaterialPageRoute(builder: adminBuilder),
   );
+}
+
+Future<void> routeAuthenticatedUser(
+  BuildContext context, {
+  required User user,
+  required WidgetBuilder adminBuilder,
+  required WidgetBuilder homeBuilder,
+}) async {
+  await loadProperties();
+
+  if (!context.mounted) return;
+  if (isAdminAuthUser(user)) {
+    await replaceWithAuthenticatedAdmin(context, adminBuilder: adminBuilder);
+    return;
+  }
+
+  await precacheInitialPropertyImages(
+    context: context,
+    properties: appPropertiesNotifier.value,
+    count: AppConfig.initialPropertyImagePrefetchCount,
+  );
+  if (!context.mounted) return;
+  await replaceWithAuthenticatedHome(context, homeBuilder: homeBuilder);
 }
