@@ -4,6 +4,7 @@ class AgentTeamMemberModel extends AgentTeamMemberEntity {
   const AgentTeamMemberModel({
     required super.id,
     required super.name,
+    super.userId,
     super.role,
     super.avatarUrl,
     super.phone,
@@ -14,6 +15,7 @@ class AgentTeamMemberModel extends AgentTeamMemberEntity {
     return AgentTeamMemberModel(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      userId: json['user_id'] as String?,
       role: json['role'] as String? ?? '',
       avatarUrl: json['avatar_url'] as String?,
       phone: json['phone'] as String?,

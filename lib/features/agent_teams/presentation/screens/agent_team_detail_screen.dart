@@ -21,13 +21,17 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
   String? _joinRequestStatus;
 
   bool get _isCurrentUserMember {
-    final String? currentEmail = Supabase.instance.client.auth.currentUser?.email
-        ?.trim()
-        .toLowerCase();
-    if (currentEmail == null || currentEmail.isEmpty) return false;
+    final User? currentUser = Supabase.instance.client.auth.currentUser;
+    final String? currentEmail = currentUser?.email?.trim().toLowerCase();
 
     return widget.team.members.any(
-      (member) => member.email?.trim().toLowerCase() == currentEmail,
+      (member) {
+        if (currentUser?.id != null && member.userId == currentUser!.id) {
+          return true;
+        }
+        if (currentEmail == null || currentEmail.isEmpty) return false;
+        return member.email?.trim().toLowerCase() == currentEmail;
+      },
     );
   }
 

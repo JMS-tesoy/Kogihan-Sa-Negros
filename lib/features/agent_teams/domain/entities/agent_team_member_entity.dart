@@ -2,6 +2,7 @@ class AgentTeamMemberEntity {
   const AgentTeamMemberEntity({
     required this.id,
     required this.name,
+    this.userId,
     this.role = '',
     this.avatarUrl,
     this.phone,
@@ -10,6 +11,7 @@ class AgentTeamMemberEntity {
 
   final String id;
   final String name;
+  final String? userId;
   final String role;
   final String? avatarUrl;
   final String? phone;

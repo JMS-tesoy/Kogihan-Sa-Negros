@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/router/route_names.dart';
 import '../../../settings/presentation/screens/settings_page.dart';
 import '../../../subscription/data/services/subscription_service.dart';
 import '../../../subscription/presentation/screens/subscription_screen.dart';
@@ -184,6 +185,20 @@ class _ProfileTabState extends State<ProfileTab> {
                             MaterialPageRoute(
                               builder: (context) => const SubscriptionPage(),
                             ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.groups_outlined),
+                        title: const Text('Agent Teams'),
+                        subtitle: const Text('View and request to join teams'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).pushNamed(
+                            RouteNames.agentTeams,
                           );
                         },
                       ),

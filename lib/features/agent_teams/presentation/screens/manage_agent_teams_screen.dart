@@ -201,6 +201,11 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
                 spacing: 4,
                 children: <Widget>[
                   IconButton(
+                    tooltip: 'Members',
+                    icon: const Icon(Icons.groups_outlined),
+                    onPressed: () => _openMembersDialog(team),
+                  ),
+                  IconButton(
                     tooltip: 'Edit',
                     icon: const Icon(Icons.edit_outlined),
                     onPressed: () => _openTeamForm(team: team),
@@ -216,6 +221,13 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _openMembersDialog(AgentTeamEntity team) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _TeamMembersDialog(team: team),
     );
   }
 }
@@ -332,4 +344,404 @@ class _TeamFormResult {
   final String description;
   final String specialization;
   final String logoUrl;
+}
+
+class _TeamMembersDialog extends StatefulWidget {
+  const _TeamMembersDialog({required this.team});
+
+  final AgentTeamEntity team;
+
+  @override
+  State<_TeamMembersDialog> createState() => _TeamMembersDialogState();
+}
+
+class _TeamMembersDialogState extends State<_TeamMembersDialog> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<_EditableTeamMember> _members = const <_EditableTeamMember>[];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final List<dynamic> rows = await _client
+          .from('team_members')
+          .select('id, user_id, name, role, avatar_url, phone, email')
+          .eq('team_id', widget.team.id)
+          .order('name');
+
+      if (!mounted) return;
+      setState(() {
+        _members = rows
+            .map(
+              (row) => _EditableTeamMember.fromJson(
+                Map<String, dynamic>.from(row as Map),
+              ),
+            )
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load members.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openMemberForm({_EditableTeamMember? member}) async {
+    final _MemberFormResult? result = await showDialog<_MemberFormResult>(
+      context: context,
+      builder: (context) => _MemberFormDialog(member: member),
+    );
+    if (result == null) return;
+
+    try {
+      final Map<String, dynamic> values = {
+        'name': result.name,
+        'user_id': result.userId.isEmpty ? null : result.userId,
+        'role': result.role,
+        'avatar_url': result.avatarUrl.isEmpty ? null : result.avatarUrl,
+        'phone': result.phone.isEmpty ? null : result.phone,
+        'email': result.email.isEmpty ? null : result.email,
+      };
+
+      if (member == null) {
+        await _client.from('team_members').insert({
+          ...values,
+          'team_id': widget.team.id,
+        });
+      } else {
+        await _client.from('team_members').update(values).eq('id', member.id);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(member == null ? 'Member added.' : 'Member updated.'),
+        ),
+      );
+      await _loadMembers();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            member == null
+                ? 'Failed to add member.'
+                : 'Failed to update member.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteMember(_EditableTeamMember member) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove member?'),
+        content: Text('This will remove ${member.name} from this team.'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true) return;
+
+    try {
+      await _client.from('team_members').delete().eq('id', member.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member removed.')),
+      );
+      await _loadMembers();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to remove member.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.team.name} Members'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _buildContent(),
+      ),
+      actions: <Widget>[
+        TextButton.icon(
+          onPressed: () => _openMemberForm(),
+          icon: const Icon(Icons.person_add_outlined),
+          label: const Text('Add'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return SizedBox(
+        height: 120,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _loadMembers,
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_members.isEmpty) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: Text('No members yet.')),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 360),
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: _members.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final _EditableTeamMember member = _members[index];
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(member.name),
+            subtitle: Text(
+              member.userId == null || member.userId!.isEmpty
+                  ? (member.role.isEmpty ? 'No role' : member.role)
+                  : '${member.role.isEmpty ? 'No role' : member.role} - Linked profile',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _openMemberForm(member: member),
+                ),
+                IconButton(
+                  tooltip: 'Remove',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _deleteMember(member),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MemberFormDialog extends StatefulWidget {
+  const _MemberFormDialog({this.member});
+
+  final _EditableTeamMember? member;
+
+  @override
+  State<_MemberFormDialog> createState() => _MemberFormDialogState();
+}
+
+class _MemberFormDialogState extends State<_MemberFormDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _userIdController;
+  late final TextEditingController _roleController;
+  late final TextEditingController _avatarUrlController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _emailController;
+
+  @override
+  void initState() {
+    super.initState();
+    final _EditableTeamMember? member = widget.member;
+    _nameController = TextEditingController(text: member?.name ?? '');
+    _userIdController = TextEditingController(text: member?.userId ?? '');
+    _roleController = TextEditingController(text: member?.role ?? '');
+    _avatarUrlController = TextEditingController(
+      text: member?.avatarUrl ?? '',
+    );
+    _phoneController = TextEditingController(text: member?.phone ?? '');
+    _emailController = TextEditingController(text: member?.email ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _userIdController.dispose();
+    _roleController.dispose();
+    _avatarUrlController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    Navigator.pop(
+      context,
+      _MemberFormResult(
+        name: name,
+        userId: _userIdController.text.trim(),
+        role: _roleController.text.trim(),
+        avatarUrl: _avatarUrlController.text.trim(),
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isEditing = widget.member != null;
+    return AlertDialog(
+      title: Text(isEditing ? 'Edit Member' : 'Add Member'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Name'),
+              textInputAction: TextInputAction.next,
+            ),
+            TextField(
+              controller: _roleController,
+              decoration: const InputDecoration(labelText: 'Role'),
+              textInputAction: TextInputAction.next,
+            ),
+            TextField(
+              controller: _userIdController,
+              decoration: const InputDecoration(
+                labelText: 'User ID',
+                helperText: 'Optional. Links this member to an app account.',
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(labelText: 'Phone'),
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+            ),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+            ),
+            TextField(
+              controller: _avatarUrlController,
+              decoration: const InputDecoration(labelText: 'Avatar URL'),
+              keyboardType: TextInputType.url,
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(isEditing ? 'Save' : 'Add'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditableTeamMember {
+  const _EditableTeamMember({
+    required this.id,
+    required this.name,
+    required this.userId,
+    required this.role,
+    required this.avatarUrl,
+    required this.phone,
+    required this.email,
+  });
+
+  factory _EditableTeamMember.fromJson(Map<String, dynamic> json) {
+    return _EditableTeamMember(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      userId: json['user_id'] as String?,
+      role: json['role'] as String? ?? '',
+      avatarUrl: json['avatar_url'] as String?,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+    );
+  }
+
+  final String id;
+  final String name;
+  final String? userId;
+  final String role;
+  final String? avatarUrl;
+  final String? phone;
+  final String? email;
+}
+
+class _MemberFormResult {
+  const _MemberFormResult({
+    required this.name,
+    required this.userId,
+    required this.role,
+    required this.avatarUrl,
+    required this.phone,
+    required this.email,
+  });
+
+  final String name;
+  final String userId;
+  final String role;
+  final String avatarUrl;
+  final String phone;
+  final String email;
 }

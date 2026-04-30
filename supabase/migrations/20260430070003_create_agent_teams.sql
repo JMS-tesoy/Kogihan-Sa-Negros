@@ -10,6 +10,7 @@ create table if not exists public.agent_teams (
 create table if not exists public.team_members (
   id uuid primary key default gen_random_uuid(),
   team_id uuid references public.agent_teams(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
   name text not null,
   role text default '',
   avatar_url text,
@@ -42,6 +43,19 @@ with check (
     )
   ) = 'admin'
 );
+
+alter table public.team_members
+add column if not exists user_id uuid references auth.users(id) on delete set null;
+
+create unique index if not exists team_members_team_id_user_id_idx
+on public.team_members (team_id, user_id)
+where user_id is not null;
+
+alter table if exists public.properties
+add column if not exists agent_id uuid references public.profiles(id) on delete set null;
+
+alter table if exists public.properties
+add column if not exists agent_team_id uuid references public.agent_teams(id) on delete set null;
 
 drop policy if exists "Admins can update agent teams"
 on public.agent_teams;
@@ -167,6 +181,47 @@ on public.team_members
 for insert
 to authenticated
 with check (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+);
+
+drop policy if exists "Admins can update team members"
+on public.team_members;
+create policy "Admins can update team members"
+on public.team_members
+for update
+to authenticated
+using (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+)
+with check (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+);
+
+drop policy if exists "Admins can delete team members"
+on public.team_members;
+create policy "Admins can delete team members"
+on public.team_members
+for delete
+to authenticated
+using (
   lower(
     coalesce(
       auth.jwt() -> 'app_metadata' ->> 'role',

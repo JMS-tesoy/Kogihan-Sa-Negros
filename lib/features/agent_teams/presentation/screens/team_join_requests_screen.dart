@@ -75,7 +75,7 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
 
     final List<dynamic> rows = await _client
         .from('profiles')
-        .select('id, full_name, email, phone')
+        .select('id, full_name, email, phone, avatar_url')
         .inFilter('id', userIds);
 
     final Map<String, _RequesterProfile> profiles = <String, _RequesterProfile>{};
@@ -95,8 +95,10 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
     try {
       await _client.from('team_members').insert({
         'team_id': request.teamId,
+        'user_id': request.userId,
         'name': memberName,
         'role': 'Agent',
+        'avatar_url': requester?.avatarUrl,
         'phone': requester?.phone,
         'email': requester?.email,
       });
@@ -294,12 +296,14 @@ class _RequesterProfile {
     this.fullName,
     this.email,
     this.phone,
+    this.avatarUrl,
   });
 
   final String id;
   final String? fullName;
   final String? email;
   final String? phone;
+  final String? avatarUrl;
 
   String get displayName {
     final String name = fullName?.trim() ?? '';
@@ -313,6 +317,7 @@ class _RequesterProfile {
       fullName: json['full_name'] as String?,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
     );
   }
 }
