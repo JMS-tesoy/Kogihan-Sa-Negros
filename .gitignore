@@ -51,3 +51,5 @@ android/app/release/
 lib_chunk_txt/
 cheatsheet_prompt/
 cheatsheet prompt/
+# Supabase local temp files
+supabase/.temp/
