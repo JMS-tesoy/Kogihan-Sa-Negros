@@ -50,3 +50,6 @@ cheatsheet prompt
 lib_chunk_txt
 /lib_chunk_txt
 lib_chunk_txt/
+
+# Generated chunk text files
+lib_chunk_txt/
