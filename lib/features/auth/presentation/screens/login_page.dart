@@ -12,12 +12,12 @@ import '../widgets/google_logo_icon.dart';
 import 'forgot_password_page.dart';
 import 'sign_up_page.dart';
 
-class LegacyLoginPage extends StatefulWidget {
+class LoginPageView extends StatefulWidget {
   final WidgetBuilder loginBuilder;
   final WidgetBuilder homeBuilder;
   final WidgetBuilder adminBuilder;
 
-  const LegacyLoginPage({
+  const LoginPageView({
     super.key,
     required this.loginBuilder,
     required this.homeBuilder,
@@ -25,10 +25,10 @@ class LegacyLoginPage extends StatefulWidget {
   });
 
   @override
-  State<LegacyLoginPage> createState() => _LegacyLoginPageState();
+  State<LoginPageView> createState() => _LoginPageViewState();
 }
 
-class _LegacyLoginPageState extends State<LegacyLoginPage> {
+class _LoginPageViewState extends State<LoginPageView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;

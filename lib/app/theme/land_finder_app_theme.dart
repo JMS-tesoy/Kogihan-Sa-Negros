@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-ThemeData buildLegacyLightTheme() {
+ThemeData buildLandFinderLightTheme() {
   const Color seedColor = Color(0xFF2563EB);
   final ColorScheme scheme =
       ColorScheme.fromSeed(
@@ -66,7 +66,7 @@ ThemeData buildLegacyLightTheme() {
   );
 }
 
-ThemeData buildLegacyDarkTheme() {
+ThemeData buildLandFinderDarkTheme() {
   const Color seedColor = Color(0xFF2563EB);
   final ColorScheme scheme =
       ColorScheme.fromSeed(

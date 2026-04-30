@@ -15,7 +15,7 @@ class SplashScreen extends StatelessWidget {
             const FlutterLogo(size: 72),
             const SizedBox(height: 16),
             Text(
-              'Real Estate App',
+              'Land Finder',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 24),

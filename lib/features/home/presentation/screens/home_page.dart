@@ -27,28 +27,28 @@ import '../../../subscription/presentation/navigation/subscription_navigation.da
 import '../helpers/home_filter_helpers.dart';
 import 'home_tab.dart';
 
-typedef LegacyMapTabBuilder =
+typedef MapTabBuilder =
     Widget Function(
       BuildContext context,
       Set<Property> savedProperties,
       ValueChanged<Property> onToggleSave,
     );
 
-class LegacyHomePage extends StatefulWidget {
-  final LegacyMapTabBuilder mapTabBuilder;
+class HomePageView extends StatefulWidget {
+  final MapTabBuilder mapTabBuilder;
   final Future<void> Function(BuildContext context) onLogout;
 
-  const LegacyHomePage({
+  const HomePageView({
     super.key,
     required this.mapTabBuilder,
     required this.onLogout,
   });
 
   @override
-  State<LegacyHomePage> createState() => _LegacyHomePageState();
+  State<HomePageView> createState() => _HomePageViewState();
 }
 
-class _LegacyHomePageState extends State<LegacyHomePage> {
+class _HomePageViewState extends State<HomePageView> {
   int _currentIndex = 0;
 
   String _searchQuery = '';

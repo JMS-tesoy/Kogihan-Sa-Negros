@@ -6,40 +6,40 @@ import '../features/auth/presentation/screens/login_page.dart';
 import '../features/home/presentation/screens/home_page.dart';
 import '../features/map/presentation/screens/map_tab.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class AppHomePage extends StatelessWidget {
+  const AppHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return LegacyHomePage(
+    return HomePageView(
       mapTabBuilder: (context, savedProperties, onToggleSave) {
         return MapTab(
           savedProperties: savedProperties,
           onToggleSave: onToggleSave,
         );
       },
-      onLogout: _signOutAndReturnToLegacyLogin,
+      onLogout: _signOutAndReturnToLogin,
     );
   }
 }
 
-Future<void> _signOutAndReturnToLegacyLogin(BuildContext context) {
+Future<void> _signOutAndReturnToLogin(BuildContext context) {
   return signOutAndReturnToLogin(
     context,
-    loginBuilder: (context) => const LoginPage(),
+    loginBuilder: (context) => const AppLoginPage(),
   );
 }
 
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key});
+class AppLoginPage extends StatelessWidget {
+  const AppLoginPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return LegacyLoginPage(
-      loginBuilder: (context) => const LoginPage(),
-      homeBuilder: (context) => const HomePage(),
+    return LoginPageView(
+      loginBuilder: (context) => const AppLoginPage(),
+      homeBuilder: (context) => const AppHomePage(),
       adminBuilder: (context) =>
-          AdminHomePage(onLogout: _signOutAndReturnToLegacyLogin),
+          AdminHomePage(onLogout: _signOutAndReturnToLogin),
     );
   }
 }

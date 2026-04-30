@@ -12,7 +12,7 @@ import '../config/mapbox_config.dart';
 import '../config/supabase_config.dart';
 import '../state/app_display_preferences.dart';
 
-Future<void> initializeLegacyAppBootstrap() async {
+Future<void> initializeLandFinderAppBootstrap() async {
   try {
     await dotenv.load(fileName: '.env');
     final String envToken = dotenv.env['MAPBOX_ACCESS_TOKEN']?.trim() ?? '';

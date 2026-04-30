@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'state/app_display_preferences.dart'
     show appFontScaleNotifier, appThemeNotifier;
-import 'theme/legacy_app_theme.dart';
+import 'theme/land_finder_app_theme.dart';
 
-class RealEstateApp extends StatelessWidget {
+class LandFinderApp extends StatelessWidget {
   final Widget home;
 
-  const RealEstateApp({super.key, required this.home});
+  const LandFinderApp({super.key, required this.home});
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +31,8 @@ class RealEstateApp extends StatelessWidget {
                   child: child!,
                 );
               },
-              theme: buildLegacyLightTheme(),
-              darkTheme: buildLegacyDarkTheme(),
+              theme: buildLandFinderLightTheme(),
+              darkTheme: buildLandFinderDarkTheme(),
               home: home,
             );
           },
