@@ -69,6 +69,7 @@ class _PropertyDetailsInlineViewState extends State<PropertyDetailsInlineView> {
     final String tagLabel = widget.property.tag.trim().isEmpty
         ? 'Available'
         : widget.property.tag.trim();
+    final String? agentTeamName = widget.property.agentTeamName?.trim();
 
     return Column(
       children: [
@@ -198,6 +199,29 @@ class _PropertyDetailsInlineViewState extends State<PropertyDetailsInlineView> {
                           ),
                         ],
                       ),
+                      if (agentTeamName != null &&
+                          agentTeamName.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.groups_outlined,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Listed by team: $agentTeamName',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       Wrap(
                         spacing: 10,

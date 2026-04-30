@@ -17,6 +17,9 @@ class Property {
   final String? imageUrl;
   final String? thumbnailUrl;
   final String? boundaryCoordinates;
+  final String? agentId;
+  final String? agentTeamId;
+  final String? agentTeamName;
 
   const Property({
     required this.id,
@@ -34,6 +37,9 @@ class Property {
     this.imageUrl,
     this.thumbnailUrl,
     this.boundaryCoordinates,
+    this.agentId,
+    this.agentTeamId,
+    this.agentTeamName,
   });
 
   Property copyWith({
@@ -52,6 +58,9 @@ class Property {
     String? imageUrl,
     String? thumbnailUrl,
     String? boundaryCoordinates,
+    String? agentId,
+    String? agentTeamId,
+    String? agentTeamName,
   }) {
     return Property(
       id: id ?? this.id,
@@ -69,6 +78,9 @@ class Property {
       imageUrl: imageUrl ?? this.imageUrl,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       boundaryCoordinates: boundaryCoordinates ?? this.boundaryCoordinates,
+      agentId: agentId ?? this.agentId,
+      agentTeamId: agentTeamId ?? this.agentTeamId,
+      agentTeamName: agentTeamName ?? this.agentTeamName,
     );
   }
 
@@ -96,6 +108,9 @@ class Property {
       imageUrl: _toNullableString(map['image_url']),
       thumbnailUrl: _toNullableString(map['thumbnail_url']),
       boundaryCoordinates: _toNullableString(map['boundary_coordinates']),
+      agentId: _toNullableString(map['agent_id']),
+      agentTeamId: _toNullableString(map['agent_team_id']),
+      agentTeamName: _agentTeamNameFromMap(map),
     );
   }
 
@@ -115,6 +130,8 @@ class Property {
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
       'boundary_coordinates': _toNullableString(boundaryCoordinates),
+      'agent_id': _toNullableString(agentId),
+      'agent_team_id': _toNullableString(agentTeamId),
     };
     return data;
   }
@@ -135,6 +152,8 @@ class Property {
       'image_url': _toNullableString(imageUrl),
       'thumbnail_url': _toNullableString(thumbnailUrl),
       'boundary_coordinates': _toNullableString(boundaryCoordinates),
+      'agent_id': _toNullableString(agentId),
+      'agent_team_id': _toNullableString(agentTeamId),
     };
     return data;
   }
@@ -142,6 +161,14 @@ class Property {
   static String? _toNullableString(dynamic value) {
     final String normalized = (value?.toString() ?? '').trim();
     return normalized.isEmpty ? null : normalized;
+  }
+
+  static String? _agentTeamNameFromMap(Map<String, dynamic> map) {
+    final Object? team = map['agent_teams'];
+    if (team is Map) {
+      return _toNullableString(team['name']);
+    }
+    return null;
   }
 
   static int _toInt(dynamic value) {
@@ -230,7 +257,7 @@ Future<void> _loadPropertiesPage({required bool reset}) async {
     final int to = from + propertyPageSize - 1;
     final List<dynamic> response = await Supabase.instance.client
         .from('properties')
-        .select()
+        .select('*, agent_teams(name)')
         .order('created_at', ascending: false)
         .range(from, to);
 
@@ -273,7 +300,7 @@ Future<Property> createProperty(Property property) async {
   final Map<String, dynamic> response = await Supabase.instance.client
       .from('properties')
       .insert(property.toInsertMap())
-      .select()
+      .select('*, agent_teams(name)')
       .single();
 
   final Property createdProperty = Property.fromMap(
@@ -292,7 +319,7 @@ Future<Property> updateProperty(Property property) async {
       .from('properties')
       .update(property.toUpdateMap())
       .eq('id', property.id)
-      .select()
+      .select('*, agent_teams(name)')
       .single();
 
   final Property updatedProperty = Property.fromMap(

@@ -695,6 +695,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
+  bool _isLoadingTeamOptions = true;
+  List<_ListingTeamOption> _teamOptions = const <_ListingTeamOption>[];
+  String? _selectedAgentTeamId;
   late String _selectedTitleStatus;
 
   bool get _isEditing => widget.initialProperty != null;
@@ -738,6 +741,13 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     return value.isEmpty
         ? 'Add a property description so buyers understand the land offering.'
         : value;
+  }
+
+  String? get _selectedTeamName {
+    for (final _ListingTeamOption team in _teamOptions) {
+      if (team.id == _selectedAgentTeamId) return team.name;
+    }
+    return widget.initialProperty?.agentTeamName;
   }
 
   String? get _previewImageSource {
@@ -901,6 +911,69 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         return null;
       },
     );
+  }
+
+  Widget _buildTeamSelectionField(BuildContext context) {
+    final bool selectedTeamInOptions =
+        _selectedAgentTeamId == null ||
+        _teamOptions.any((team) => team.id == _selectedAgentTeamId);
+    return DropdownButtonFormField<String?>(
+      initialValue: selectedTeamInOptions ? _selectedAgentTeamId : null,
+      onChanged: _isLoadingTeamOptions
+          ? null
+          : (value) {
+              setState(() {
+                _selectedAgentTeamId = value;
+              });
+            },
+      decoration: InputDecoration(
+        labelText: 'Agent team',
+        helperText: _isLoadingTeamOptions
+            ? 'Loading teams...'
+            : 'Optional. Shows this team on property details.',
+        prefixIcon: const Icon(Icons.groups_outlined),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      items: <DropdownMenuItem<String?>>[
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('No team'),
+        ),
+        ..._teamOptions.map(
+          (team) => DropdownMenuItem<String?>(
+            value: team.id,
+            child: Text(team.name, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _loadTeamOptions() async {
+    try {
+      final List<dynamic> rows = await Supabase.instance.client
+          .from('agent_teams')
+          .select('id, name')
+          .order('name');
+
+      if (!mounted) return;
+      setState(() {
+        _teamOptions = rows
+            .map(
+              (row) => _ListingTeamOption.fromJson(
+                Map<String, dynamic>.from(row as Map),
+              ),
+            )
+            .toList();
+        _isLoadingTeamOptions = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _teamOptions = const <_ListingTeamOption>[];
+        _isLoadingTeamOptions = false;
+      });
+    }
   }
 
   Map<String, List<NegrosPlace>> _groupNegrosPlacesByProvince(
@@ -1338,6 +1411,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _boundaryCoordinatesController = TextEditingController(
       text: widget.initialProperty?.boundaryCoordinates ?? '',
     );
+    _selectedAgentTeamId = widget.initialProperty?.agentTeamId;
+    unawaited(_loadTeamOptions());
   }
 
   @override
@@ -1385,6 +1460,11 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
           ? null
           : _thumbnailUrlController.text.trim(),
       boundaryCoordinates: arrangedBoundaryCoordinates,
+      agentId:
+          widget.initialProperty?.agentId ??
+          Supabase.instance.client.auth.currentUser?.id,
+      agentTeamId: _selectedAgentTeamId,
+      agentTeamName: _selectedTeamName,
     );
 
     Navigator.pop(context, property);
@@ -1782,6 +1862,14 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            _buildSectionCard(
+              context: context,
+              title: 'Agent Team',
+              subtitle:
+                  'Choose which verified team should appear on this listing.',
+              children: [_buildTeamSelectionField(context)],
             ),
             const SizedBox(height: 12),
             _buildSectionCard(
@@ -3013,6 +3101,20 @@ class _OptimizedPropertyImages {
 
   final Uint8List detailBytes;
   final Uint8List thumbnailBytes;
+}
+
+class _ListingTeamOption {
+  const _ListingTeamOption({required this.id, required this.name});
+
+  factory _ListingTeamOption.fromJson(Map<String, dynamic> json) {
+    return _ListingTeamOption(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Agent Team',
+    );
+  }
+
+  final String id;
+  final String name;
 }
 
 class AgentDashboardScreen extends StatelessWidget {
