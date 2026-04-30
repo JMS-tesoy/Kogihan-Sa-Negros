@@ -7,49 +7,47 @@
 .atom/
 .build/
 .buildlog/
-.history
+.history/
 .svn/
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IntelliJ / Android Studio
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# VS Code
+# Keep commented if you want to commit launch.json/tasks.json
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Flutter / Dart / Pub
 .dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
-/coverage/
+build/
+coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
 
-# Symbolication related
+# Symbolication
 app.*.symbols
 
-# Obfuscation related
+# Obfuscation
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-cheatsheet prompt
-.env
-.env
-/test
-lib_chunk_txt
-/lib_chunk_txt
-lib_chunk_txt/
+# Android build artifacts
+android/app/debug/
+android/app/profile/
+android/app/release/
 
-# Generated chunk text files
+# Environment files
+.env
+.env.*
+
+# Generated files / temporary exports
 lib_chunk_txt/
+cheatsheet_prompt/
+cheatsheet prompt/
