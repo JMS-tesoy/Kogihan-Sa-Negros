@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../agent_teams/presentation/screens/team_join_requests_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -338,6 +339,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
     Navigator.of(context).pushNamed(RouteNames.agentTeams);
   }
 
+  Future<void> _openTeamJoinRequestsPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TeamJoinRequestsScreen(),
+      ),
+    );
+  }
+
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
     await updateProperty(updatedProperty);
   }
@@ -574,6 +584,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
             subtitle: 'View team members and collaboration groups.',
             badgeText: 'Premium',
             onTap: _openAgentTeamsPage,
+          ),
+          const SizedBox(height: 12),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.how_to_reg_rounded,
+            accentColor: Colors.purple,
+            title: 'Team Requests',
+            subtitle: 'Approve or reject pending join requests.',
+            badgeText: 'Admin',
+            onTap: _openTeamJoinRequestsPage,
           ),
           const SizedBox(height: 22),
           Text(

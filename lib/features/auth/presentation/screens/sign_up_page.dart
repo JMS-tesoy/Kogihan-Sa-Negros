@@ -105,6 +105,50 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
+  Future<void> _resendConfirmationEmail() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      setState(() {
+        _errorText = 'Please enter your email address first.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorText = null;
+    });
+
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Confirmation email sent.')),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = 'Failed to resend confirmation email.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -304,6 +348,15 @@ class _SignUpPageState extends State<SignUpPage> {
                                   ),
                                 )
                               : const Text('Sign Up'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: TextButton(
+                          onPressed: _isLoading
+                              ? null
+                              : _resendConfirmationEmail,
+                          child: const Text('Resend confirmation email'),
                         ),
                       ),
                     ],
