@@ -1,1 +1,0 @@
-lddx doql euni pxou

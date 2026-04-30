@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
 import '../../../agent_teams/presentation/screens/team_join_requests_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
@@ -348,6 +349,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  Future<void> _openManageTeamsPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ManageAgentTeamsScreen(),
+      ),
+    );
+  }
+
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
     await updateProperty(updatedProperty);
   }
@@ -594,6 +604,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
             subtitle: 'Approve or reject pending join requests.',
             badgeText: 'Admin',
             onTap: _openTeamJoinRequestsPage,
+          ),
+          const SizedBox(height: 12),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.admin_panel_settings_outlined,
+            accentColor: Colors.teal,
+            title: 'Manage Teams',
+            subtitle: 'Create, edit, or delete agent teams.',
+            badgeText: 'Admin',
+            onTap: _openManageTeamsPage,
           ),
           const SizedBox(height: 22),
           Text(

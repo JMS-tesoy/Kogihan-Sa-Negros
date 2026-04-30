@@ -27,6 +27,63 @@ on public.agent_teams
 for select
 using (true);
 
+drop policy if exists "Admins can create agent teams"
+on public.agent_teams;
+create policy "Admins can create agent teams"
+on public.agent_teams
+for insert
+to authenticated
+with check (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+);
+
+drop policy if exists "Admins can update agent teams"
+on public.agent_teams;
+create policy "Admins can update agent teams"
+on public.agent_teams
+for update
+to authenticated
+using (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+)
+with check (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+);
+
+drop policy if exists "Admins can delete agent teams"
+on public.agent_teams;
+create policy "Admins can delete agent teams"
+on public.agent_teams
+for delete
+to authenticated
+using (
+  lower(
+    coalesce(
+      auth.jwt() -> 'app_metadata' ->> 'role',
+      auth.jwt() -> 'user_metadata' ->> 'role',
+      ''
+    )
+  ) = 'admin'
+);
+
 drop policy if exists "Public read" on public.team_members;
 create policy "Public read"
 on public.team_members
