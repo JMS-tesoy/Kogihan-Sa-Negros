@@ -52,3 +52,23 @@ class AvatarOptionsSheet extends StatelessWidget {
     );
   }
 }
+
+Future<void> showAvatarOptionsSheet({
+  required BuildContext context,
+  required bool canRemoveAvatar,
+  required VoidCallback onChooseFromGallery,
+  required VoidCallback onTakePhoto,
+  required VoidCallback onRemoveAvatar,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (context) {
+      return AvatarOptionsSheet(
+        canRemoveAvatar: canRemoveAvatar,
+        onChooseFromGallery: onChooseFromGallery,
+        onTakePhoto: onTakePhoto,
+        onRemoveAvatar: onRemoveAvatar,
+      );
+    },
+  );
+}

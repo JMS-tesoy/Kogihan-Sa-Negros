@@ -105,6 +105,10 @@ List<Property> filterHomeProperties({
   }).toList(growable: false);
 }
 
+List<String> homeLocationFilterItems(List<NegrosPlace> negrosPlaces) {
+  return negrosPlaces.map((place) => place.placeName).toSet().toList()..sort();
+}
+
 List<double>? parsePropertyCoordinates(String value) {
   final List<String> parts = value.split(',');
   if (parts.length < 2) return null;

@@ -14,6 +14,8 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/data/services/auth_session_service.dart';
 import '../../features/auth/domain/helpers/auth_user_role.dart';
+import '../../features/auth/presentation/helpers/auth_error_messages.dart';
+import '../../features/auth/presentation/helpers/dev_auth_shortcuts.dart';
 import '../../features/auth/presentation/navigation/auth_navigation.dart';
 import '../../features/auth/presentation/widgets/google_logo_icon.dart';
 import '../../features/auth/presentation/screens/forgot_password_page.dart';
@@ -42,7 +44,6 @@ import '../../features/subscription/data/services/subscription_service.dart';
 import '../real_estate_app.dart';
 import '../bootstrap/legacy_app_bootstrap.dart';
 import '../config/app_config.dart';
-import '../config/auth_config.dart';
 import '../config/mapbox_config.dart';
 import '../router/instant_route.dart';
 import '../state/inline_property_details_controller.dart';
@@ -149,23 +150,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _restoreSavedProperties() async {
-    final Set<String> savedIds =
-        await SavedPropertyStorageService.loadSavedPropertyIds();
+    final SavedPropertiesSnapshot savedPropertiesSnapshot =
+        await SavedPropertyStorageService.loadSavedProperties(
+          availableProperties: _availableProperties,
+        );
 
-    if (!mounted || savedIds.isEmpty) return;
+    if (!mounted || savedPropertiesSnapshot.savedPropertyIds.isEmpty) return;
 
     setState(() {
       _savedPropertyIds
         ..clear()
-        ..addAll(savedIds);
+        ..addAll(savedPropertiesSnapshot.savedPropertyIds);
       _savedProperties
         ..clear()
-        ..addAll(
-          SavedPropertyStorageService.resolveSavedProperties(
-            availableProperties: _availableProperties,
-            savedPropertyIds: _savedPropertyIds,
-          ),
-        );
+        ..addAll(savedPropertiesSnapshot.savedProperties);
     });
   }
 
@@ -221,22 +219,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showAvatarOptions() {
-    showModalBottomSheet(
+    showAvatarOptionsSheet(
       context: context,
-      builder: (context) {
-        return AvatarOptionsSheet(
-          canRemoveAvatar: _profileImageBytes != null || _hasRemoteProfileAvatar,
-          onChooseFromGallery: _pickAvatarFromGallery,
-          onTakePhoto: _pickAvatarFromCamera,
-          onRemoveAvatar: () {
-            setState(() {
-              _profileImageBytes = null;
-              _profileAvatarHidden = true;
-              _hasRemoteProfileAvatar = false;
-            });
-            unawaited(ProfileAvatarService.removeAvatarForCurrentUser());
-          },
-        );
+      canRemoveAvatar: _profileImageBytes != null || _hasRemoteProfileAvatar,
+      onChooseFromGallery: _pickAvatarFromGallery,
+      onTakePhoto: _pickAvatarFromCamera,
+      onRemoveAvatar: () {
+        setState(() {
+          _profileImageBytes = null;
+          _profileAvatarHidden = true;
+          _hasRemoteProfileAvatar = false;
+        });
+        unawaited(ProfileAvatarService.removeAvatarForCurrentUser());
       },
     );
   }
@@ -263,21 +257,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleSavedProperty(Property property) {
-    if (!_savedProperties.contains(property) &&
-        !appSubscriptionNotifier.value.isPremium &&
-        _savedProperties.length >= freeSavedPropertiesLimit) {
+    final bool isAlreadySaved = _savedProperties.contains(property);
+    final bool shouldShowUpgradePrompt =
+        SavedPropertyStorageService.shouldShowUpgradePrompt(
+          isAlreadySaved: isAlreadySaved,
+          isPremium: appSubscriptionNotifier.value.isPremium,
+          savedCount: _savedProperties.length,
+          freeLimit: freeSavedPropertiesLimit,
+        );
+
+    if (shouldShowUpgradePrompt) {
       unawaited(_showSavedPropertiesUpgradePrompt());
       return;
     }
 
     setState(() {
-      if (_savedProperties.contains(property)) {
-        _savedProperties.remove(property);
-        _savedPropertyIds.remove(property.id);
-      } else {
-        _savedProperties.add(property);
-        _savedPropertyIds.add(property.id);
-      }
+      SavedPropertyStorageService.toggleSavedProperty(
+        property: property,
+        savedProperties: _savedProperties,
+        savedPropertyIds: _savedPropertyIds,
+      );
     });
     unawaited(_persistSavedProperties());
   }
@@ -296,11 +295,7 @@ class _HomePageState extends State<HomePage> {
           });
         },
         selectedLocation: _selectedLocation,
-        locationItems: _negrosPlaces
-            .map((place) => place.placeName)
-            .toSet()
-            .toList()
-          ..sort(),
+        locationItems: homeLocationFilterItems(_negrosPlaces),
         selectedLotSize: _selectedLotSize,
         selectedBudget: _selectedBudget,
         onLocationChanged: (value) {
@@ -510,37 +505,20 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _signIn() async {
     final enteredEmail = _emailController.text.trim();
     final enteredPassword = _passwordController.text;
-    final bool requestedDevAgentShortcut =
-        enteredEmail == AuthConfig.devAgentShortcutUsername &&
-        enteredPassword == AuthConfig.devAgentShortcutPassword;
-    final bool requestedDevUserShortcut =
-        enteredEmail == AuthConfig.devUserShortcutUsername &&
-        enteredPassword == AuthConfig.devUserShortcutPassword;
+    final DevAuthShortcutResult devShortcut = devAuthShortcutForCredentials(
+      email: enteredEmail,
+      password: enteredPassword,
+    );
+    final String? disabledDevShortcutMessage = devShortcut.disabledMessage;
 
-    final bool isDevAgentShortcut =
-        requestedDevAgentShortcut && AuthConfig.hasDevAgentCredentials;
-    final bool isDevUserShortcut =
-        requestedDevUserShortcut && AuthConfig.hasDevUserCredentials;
-
-    if (requestedDevAgentShortcut && !AuthConfig.hasDevAgentCredentials) {
+    if (disabledDevShortcutMessage != null) {
       setState(() {
-        _errorText =
-            'Dev agent shortcut is disabled until DEV_AGENT_EMAIL and '
-            'DEV_AGENT_PASSWORD are provided.';
+        _errorText = disabledDevShortcutMessage;
       });
       return;
     }
 
-    if (requestedDevUserShortcut && !AuthConfig.hasDevUserCredentials) {
-      setState(() {
-        _errorText =
-            'Dev user shortcut is disabled until DEV_USER_EMAIL and '
-            'DEV_USER_PASSWORD are provided.';
-      });
-      return;
-    }
-
-    if (isDevUserShortcut) {
+    if (devShortcut.isUser) {
       setState(() {
         _isLoading = true;
         _errorText = null;
@@ -569,12 +547,8 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final email = isDevAgentShortcut
-        ? AuthConfig.devAgentEmail
-        : enteredEmail;
-    final password = isDevAgentShortcut
-        ? AuthConfig.devAgentPassword
-        : enteredPassword;
+    final email = devShortcut.emailFor(enteredEmail);
+    final password = devShortcut.passwordFor(enteredPassword);
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {
@@ -596,11 +570,8 @@ class _LoginPageState extends State<LoginPage> {
       await _routeToAuthenticatedUser(user);
     } on AuthException catch (e) {
       if (!mounted) return;
-      final String normalizedMessage = e.message.toLowerCase();
       setState(() {
-        _errorText = normalizedMessage.contains('email rate limit exceeded')
-            ? 'Too many signup attempts for now. The account may already exist, so try Login first. If it fails, wait a bit before signing up again.'
-            : e.message;
+        _errorText = passwordSignInErrorMessage(e.message);
       });
     } catch (_) {
       if (!mounted) return;
