@@ -1,4 +1,24 @@
-part of '../../../../app/legacy/main.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart' as geo;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
+    hide ImageSource, Size;
+
+import '../../../../app/config/app_config.dart';
+import '../../../../app/config/mapbox_config.dart';
+import '../../../../app/router/instant_route.dart';
+import '../../../location/data/datasources/negros_places_datasource.dart';
+import '../../../properties/data/datasources/shared_properties.dart';
+import '../../../properties/presentation/screens/property_details_inline_screen.dart';
+import '../../../properties/presentation/widgets/property_image.dart';
 
 const int _initialMapAnnotationBatchSize = 8;
 const int _mapAnnotationBatchSize = 12;

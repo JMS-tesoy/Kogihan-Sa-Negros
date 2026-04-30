@@ -1,5 +1,11 @@
-import 'app/legacy/main.dart' as legacy;
+import 'package:flutter/material.dart';
 
-Future<void> main() {
-  return legacy.main();
+import 'app/bootstrap/legacy_app_bootstrap.dart';
+import 'app/legacy_app_shell.dart';
+import 'app/real_estate_app.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeLegacyAppBootstrap();
+  runApp(const RealEstateApp(home: LoginPage()));
 }
