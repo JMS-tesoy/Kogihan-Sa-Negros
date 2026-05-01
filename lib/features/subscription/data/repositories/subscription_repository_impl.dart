@@ -8,8 +8,8 @@ class SubscriptionRepositoryImpl implements SubscriptionRepository {
   SubscriptionRepositoryImpl({
     SubscriptionRemoteDatasource? remoteDatasource,
     SubscriptionLocalDatasource? localDatasource,
-  })  : _remoteDatasource = remoteDatasource ?? SubscriptionRemoteDatasource(),
-        _localDatasource = localDatasource ?? SubscriptionLocalDatasource();
+  }) : _remoteDatasource = remoteDatasource ?? SubscriptionRemoteDatasource(),
+       _localDatasource = localDatasource ?? SubscriptionLocalDatasource();
 
   final SubscriptionRemoteDatasource _remoteDatasource;
   final SubscriptionLocalDatasource _localDatasource;
@@ -20,17 +20,29 @@ class SubscriptionRepositoryImpl implements SubscriptionRepository {
   }
 
   @override
-  Future<SubscriptionEntity?> getCurrentSubscription() {
-    return _remoteDatasource.getCurrentSubscription();
+  Future<SubscriptionEntity?> getCurrentSubscription() async {
+    final SubscriptionEntity? cached = await _localDatasource
+        .getCachedSubscription();
+    if (cached != null) return cached;
+
+    final SubscriptionEntity? remote = await _remoteDatasource
+        .getCurrentSubscription();
+    if (remote != null) {
+      await _localDatasource.saveSubscription(remote);
+    }
+    return remote;
   }
 
   @override
-  Future<void> restoreSubscription() {
-    return _localDatasource.restoreSubscription();
+  Future<void> restoreSubscription() async {
+    await _localDatasource.restoreSubscription();
   }
 
   @override
-  Future<void> subscribe(String planId) {
-    return _remoteDatasource.subscribe(planId);
+  Future<void> subscribe(String planId) async {
+    final SubscriptionEntity subscription = await _remoteDatasource.subscribe(
+      planId,
+    );
+    await _localDatasource.saveSubscription(subscription);
   }
 }

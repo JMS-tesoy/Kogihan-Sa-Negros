@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/place_entity.dart';
 
 class PlaceChip extends StatelessWidget {
-  const PlaceChip({
-    super.key,
-    required this.place,
-    this.onSelected,
-  });
+  const PlaceChip({super.key, required this.place, this.onSelected});
 
   final PlaceEntity place;
   final ValueChanged<PlaceEntity>? onSelected;

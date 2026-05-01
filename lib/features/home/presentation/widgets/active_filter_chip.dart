@@ -17,11 +17,7 @@ class ActiveFilterChip extends StatelessWidget {
       child: InputChip(
         visualDensity: VisualDensity.compact,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        label: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         deleteIcon: const Icon(Icons.close_rounded, size: 16),
         onDeleted: onDeleted,
       ),

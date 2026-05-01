@@ -12,8 +12,7 @@ class NotificationsController extends ChangeNotifier {
   List<String> get notifications => _notifications;
 
   Future<void> load() async {
-    _notifications =
-        await getNotificationsUsecase?.call() ?? const <String>[];
+    _notifications = await getNotificationsUsecase?.call() ?? const <String>[];
     notifyListeners();
   }
 }

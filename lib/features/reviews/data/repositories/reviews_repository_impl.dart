@@ -5,7 +5,7 @@ import '../models/review_model.dart';
 
 class ReviewsRepositoryImpl implements ReviewsRepository {
   ReviewsRepositoryImpl({ReviewsRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? ReviewsRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? ReviewsRemoteDatasource();
 
   final ReviewsRemoteDatasource _remoteDatasource;
 

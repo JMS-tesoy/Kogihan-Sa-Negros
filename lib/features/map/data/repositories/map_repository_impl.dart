@@ -5,7 +5,7 @@ import '../datasources/map_remote_datasource.dart';
 
 class MapRepositoryImpl implements MapRepository {
   MapRepositoryImpl({MapRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? MapRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? MapRemoteDatasource();
 
   final MapRemoteDatasource _remoteDatasource;
 

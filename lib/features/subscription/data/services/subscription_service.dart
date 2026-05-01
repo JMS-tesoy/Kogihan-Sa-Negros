@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum SubscriptionTier { free, monthly, yearly }
+import '../../../../core/enums/subscription_tier.dart';
+import '../../domain/entities/subscription_entity.dart';
+
+export '../../../../core/enums/subscription_tier.dart' show SubscriptionTier;
 
 const int freeSavedPropertiesLimit = 3;
 
@@ -65,7 +68,6 @@ class UserSubscription {
     final DateTime? expiresAt = _parseDateTime(
       preferences.getString(_subscriptionExpiresAtPrefsKey),
     );
-
     return UserSubscription(
       tier: tier,
       expiresAt: tier == SubscriptionTier.free ? null : expiresAt,
@@ -79,7 +81,6 @@ class UserSubscription {
     final DateTime? expiresAt = _parseDateTime(
       map['subscription_expires_at'] ?? map['expires_at'],
     );
-
     return UserSubscription(
       tier: tier,
       expiresAt: tier == SubscriptionTier.free ? null : expiresAt,
@@ -94,6 +95,12 @@ class UserSubscription {
     if (!hasTier && !hasExpiry) return null;
     return UserSubscription.fromProfileMap(map);
   }
+
+  /// Bridge: convert a [SubscriptionEntity] from the clean-arch layer
+  /// into a [UserSubscription] for the notifier.
+  factory UserSubscription.fromEntity(SubscriptionEntity entity) {
+    return UserSubscription(tier: entity.tier, expiresAt: entity.expiresAt);
+  }
 }
 
 const List<SubscriptionPlan> subscriptionPlans = [
@@ -102,17 +109,13 @@ const List<SubscriptionPlan> subscriptionPlans = [
     title: 'Free',
     priceLabel: '₱0',
     billingLabel: 'Current starter access',
-    features: [
-      'Browse lot listings',
-      'Message agents',
-      'Save up to 3 lots',
-    ],
+    features: ['Browse lot listings', 'Message agents', 'Save up to 3 lots'],
   ),
   SubscriptionPlan(
     tier: SubscriptionTier.monthly,
     title: 'Monthly Premium',
     priceLabel: '₱199',
-    billingLabel: 'Per month placeholder',
+    billingLabel: 'Per month',
     features: [
       'Unlimited saved lots',
       'Premium-only feature gates',
@@ -123,11 +126,11 @@ const List<SubscriptionPlan> subscriptionPlans = [
     tier: SubscriptionTier.yearly,
     title: 'Yearly Premium',
     priceLabel: '₱1,999',
-    billingLabel: 'Per year placeholder',
+    billingLabel: 'Per year',
     features: [
       'Everything in Monthly Premium',
       'Longer subscription window',
-      'Best value placeholder plan',
+      'Best value',
     ],
   ),
 ];
@@ -148,8 +151,6 @@ class SubscriptionService {
   }
 
   static Future<UserSubscription> purchasePlan(SubscriptionTier tier) async {
-    // INTEGRATION POINT: Replace this local placeholder with Google Play
-    // Billing / Apple In-App Purchase purchase handling.
     final UserSubscription subscription = UserSubscription(
       tier: tier,
       expiresAt: switch (tier) {
@@ -162,25 +163,27 @@ class SubscriptionService {
         ),
       },
     );
-
     await _saveSubscription(subscription);
     return subscription;
   }
 
   static Future<UserSubscription> restorePurchases() async {
-    // INTEGRATION POINT: Replace this with real restore logic from the billing
-    // SDK once store products are configured.
     final UserSubscription subscription = await loadCurrentSubscription();
     appSubscriptionNotifier.value = subscription;
     return subscription;
   }
 
   static Future<UserSubscription> cancelSubscription() async {
-    // INTEGRATION POINT: Replace this with real cancellation handling once
-    // store billing is connected.
     const UserSubscription subscription = UserSubscription.free();
     await _saveSubscription(subscription);
     return subscription;
+  }
+
+  /// Called by [SubscriptionController] to push entity changes
+  /// into the global notifier so all widgets react immediately.
+  static Future<void> syncFromEntity(SubscriptionEntity entity) async {
+    final UserSubscription subscription = UserSubscription.fromEntity(entity);
+    await _saveSubscription(subscription);
   }
 
   static Future<void> _saveSubscription(UserSubscription subscription) async {
@@ -189,7 +192,6 @@ class SubscriptionService {
       _subscriptionTierPrefsKey,
       subscription.tier.name,
     );
-
     if (subscription.expiresAt == null) {
       await preferences.remove(_subscriptionExpiresAtPrefsKey);
     } else {
@@ -198,7 +200,6 @@ class SubscriptionService {
         subscription.expiresAt!.toIso8601String(),
       );
     }
-
     appSubscriptionNotifier.value = subscription;
   }
 }

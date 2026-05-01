@@ -16,10 +16,7 @@ class InquiryFormSheet extends StatelessWidget {
         children: <Widget>[
           const AppTextField(labelText: 'Message'),
           const SizedBox(height: 16),
-          AppPrimaryButton(
-            label: 'Send inquiry',
-            onPressed: () {},
-          ),
+          AppPrimaryButton(label: 'Send inquiry', onPressed: () {}),
         ],
       ),
     );

@@ -107,16 +107,10 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListTile(
       enabled: isEnabled,
       dense: isChild,
-      title: Text(
-        title,
-        style: isChild ? theme.textTheme.bodyMedium : null,
-      ),
+      title: Text(title, style: isChild ? theme.textTheme.bodyMedium : null),
       subtitle: subtitle == null
           ? null
-          : Text(
-              subtitle,
-              style: isChild ? theme.textTheme.bodySmall : null,
-            ),
+          : Text(subtitle, style: isChild ? theme.textTheme.bodySmall : null),
       visualDensity: VisualDensity.compact,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       onTap: isEnabled ? () => onChanged(!value) : null,
@@ -419,18 +413,24 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     });
                     unawaited(
-                      app_display_preferences.AppDisplayPreferences
-                          .persistFollowSystemThemePreference(value),
+                      app_display_preferences
+                          .AppDisplayPreferences.persistFollowSystemThemePreference(
+                        value,
+                      ),
                     );
                     if (value) {
                       unawaited(
-                        app_display_preferences.AppDisplayPreferences
-                            .persistPreferredThemeMode(ThemeMode.light),
+                        app_display_preferences
+                            .AppDisplayPreferences.persistPreferredThemeMode(
+                          ThemeMode.light,
+                        ),
                       );
                     } else {
                       unawaited(
-                        app_display_preferences.AppDisplayPreferences
-                            .persistPreferredThemeMode(_preferredThemeMode),
+                        app_display_preferences
+                            .AppDisplayPreferences.persistPreferredThemeMode(
+                          _preferredThemeMode,
+                        ),
                       );
                     }
                   },
@@ -454,8 +454,10 @@ class _SettingsPageState extends State<SettingsPage> {
                             appThemeNotifier.value = selectedThemeMode;
                           });
                           unawaited(
-                            app_display_preferences.AppDisplayPreferences
-                                .persistPreferredThemeMode(selectedThemeMode),
+                            app_display_preferences
+                                .AppDisplayPreferences.persistPreferredThemeMode(
+                              selectedThemeMode,
+                            ),
                           );
                         },
                 ),

@@ -4,10 +4,7 @@ import '../../domain/entities/property_entity.dart';
 import 'property_card.dart';
 
 class PropertyGrid extends StatelessWidget {
-  const PropertyGrid({
-    super.key,
-    required this.properties,
-  });
+  const PropertyGrid({super.key, required this.properties});
 
   final List<PropertyEntity> properties;
 

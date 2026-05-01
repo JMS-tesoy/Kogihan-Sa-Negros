@@ -10,9 +10,8 @@ class AgentTeamsRemoteDatasource {
         .order('name');
     return response
         .map(
-          (item) => AgentTeamModel.fromJson(
-            Map<String, dynamic>.from(item as Map),
-          ),
+          (item) =>
+              AgentTeamModel.fromJson(Map<String, dynamic>.from(item as Map)),
         )
         .toList();
   }

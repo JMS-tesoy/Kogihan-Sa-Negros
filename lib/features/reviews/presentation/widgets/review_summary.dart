@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ReviewSummary extends StatelessWidget {
-  const ReviewSummary({
-    super.key,
-    required this.averageRating,
-  });
+  const ReviewSummary({super.key, required this.averageRating});
 
   final double averageRating;
 

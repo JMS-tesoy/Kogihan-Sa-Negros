@@ -1,7 +1,1 @@
-enum PropertyStatus {
-  draft,
-  active,
-  sold,
-  rented,
-  archived,
-}
+enum PropertyStatus { draft, active, sold, rented, archived }

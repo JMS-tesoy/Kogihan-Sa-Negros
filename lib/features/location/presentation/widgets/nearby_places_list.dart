@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/place_entity.dart';
 
 class NearbyPlacesList extends StatelessWidget {
-  const NearbyPlacesList({
-    super.key,
-    required this.places,
-  });
+  const NearbyPlacesList({super.key, required this.places});
 
   final List<PlaceEntity> places;
 
@@ -14,7 +11,9 @@ class NearbyPlacesList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       shrinkWrap: true,
-      children: places.map((place) => ListTile(title: Text(place.name))).toList(),
+      children: places
+          .map((place) => ListTile(title: Text(place.name)))
+          .toList(),
     );
   }
 }

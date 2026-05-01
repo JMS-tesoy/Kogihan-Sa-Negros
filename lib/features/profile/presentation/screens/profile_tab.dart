@@ -197,9 +197,9 @@ class _ProfileTabState extends State<ProfileTab> {
                         subtitle: const Text('View and request to join teams'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          Navigator.of(context).pushNamed(
-                            RouteNames.agentTeams,
-                          );
+                          Navigator.of(
+                            context,
+                          ).pushNamed(RouteNames.agentTeams);
                         },
                       ),
                     ),

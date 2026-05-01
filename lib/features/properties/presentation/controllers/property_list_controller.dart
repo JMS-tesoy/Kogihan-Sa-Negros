@@ -13,7 +13,8 @@ class PropertyListController extends ChangeNotifier {
   List<PropertyEntity> get properties => _properties;
 
   Future<void> load() async {
-    _properties = await getPropertiesUsecase?.call() ?? const <PropertyEntity>[];
+    _properties =
+        await getPropertiesUsecase?.call() ?? const <PropertyEntity>[];
     notifyListeners();
   }
 }

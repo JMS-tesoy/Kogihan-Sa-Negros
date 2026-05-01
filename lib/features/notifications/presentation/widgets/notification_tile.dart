@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class NotificationTile extends StatelessWidget {
-  const NotificationTile({
-    super.key,
-    required this.message,
-    this.onTap,
-  });
+  const NotificationTile({super.key, required this.message, this.onTap});
 
   final String message;
   final VoidCallback? onTap;

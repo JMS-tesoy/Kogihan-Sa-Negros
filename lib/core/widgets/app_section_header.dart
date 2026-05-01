@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppSectionHeader extends StatelessWidget {
-  const AppSectionHeader({
-    super.key,
-    required this.title,
-    this.action,
-  });
+  const AppSectionHeader({super.key, required this.title, this.action});
 
   final String title;
   final Widget? action;
@@ -15,10 +11,7 @@ class AppSectionHeader extends StatelessWidget {
     return Row(
       children: <Widget>[
         Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
         ),
         ?action,
       ],

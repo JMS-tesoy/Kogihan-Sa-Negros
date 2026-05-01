@@ -26,83 +26,86 @@ List<Property> filterHomeProperties({
     return List<Property>.from(availableProperties);
   }
 
-  return availableProperties.where((property) {
-    if (hasLocationFilter) {
-      final NegrosPlace? selectedPlace = negrosPlaces
-          .cast<NegrosPlace?>()
-          .firstWhere(
-            (place) => place?.placeName == selectedLocation,
-            orElse: () => null,
-          );
+  return availableProperties
+      .where((property) {
+        if (hasLocationFilter) {
+          final NegrosPlace? selectedPlace = negrosPlaces
+              .cast<NegrosPlace?>()
+              .firstWhere(
+                (place) => place?.placeName == selectedLocation,
+                orElse: () => null,
+              );
 
-      if (selectedPlace != null) {
-        final List<double>? propertyCoordinates = parsePropertyCoordinates(
-          property.location,
-        );
-        final double? placeLatitude = selectedPlace.latitude;
-        final double? placeLongitude = selectedPlace.longitude;
+          if (selectedPlace != null) {
+            final List<double>? propertyCoordinates = parsePropertyCoordinates(
+              property.location,
+            );
+            final double? placeLatitude = selectedPlace.latitude;
+            final double? placeLongitude = selectedPlace.longitude;
 
-        if (propertyCoordinates == null ||
-            placeLatitude == null ||
-            placeLongitude == null) {
-          return false;
+            if (propertyCoordinates == null ||
+                placeLatitude == null ||
+                placeLongitude == null) {
+              return false;
+            }
+
+            final double propertyDistanceInKm = distanceInKm(
+              startLatitude: propertyCoordinates[0],
+              startLongitude: propertyCoordinates[1],
+              endLatitude: placeLatitude,
+              endLongitude: placeLongitude,
+            );
+
+            if (propertyDistanceInKm > 25) return false;
+          } else if (property.location != selectedLocation) {
+            return false;
+          }
         }
 
-        final double propertyDistanceInKm = distanceInKm(
-          startLatitude: propertyCoordinates[0],
-          startLongitude: propertyCoordinates[1],
-          endLatitude: placeLatitude,
-          endLongitude: placeLongitude,
+        if (hasLotSizeFilter) {
+          final bool matchesLotSize = switch (selectedLotSize) {
+            'Below 500 sqm' => property.sizeValue < 500,
+            '500 - 1000 sqm' =>
+              property.sizeValue >= 500 && property.sizeValue <= 1000,
+            'Above 1000 sqm' => property.sizeValue > 1000,
+            _ => true,
+          };
+
+          if (!matchesLotSize) return false;
+        }
+
+        if (hasBudgetFilter) {
+          final bool matchesBudget = switch (selectedBudget) {
+            'Below ₱1M' => property.priceValue < 1000000,
+            '₱1M - ₱3M' =>
+              property.priceValue >= 1000000 && property.priceValue <= 3000000,
+            'Above ₱3M' => property.priceValue > 3000000,
+            _ => true,
+          };
+
+          if (!matchesBudget) return false;
+        }
+
+        if (!hasSearchQuery) return true;
+
+        final String normalizedTitle = normalizeSearchText(property.title);
+        final String normalizedLocation = normalizeSearchText(
+          property.location,
         );
+        final String normalizedPrice = normalizeSearchText(property.price);
 
-        if (propertyDistanceInKm > 25) return false;
-      } else if (property.location != selectedLocation) {
-        return false;
-      }
-    }
+        if (normalizedTitle.contains(normalizedQuery) ||
+            normalizedLocation.contains(normalizedQuery) ||
+            normalizedPrice.contains(normalizedQuery)) {
+          return true;
+        }
 
-    if (hasLotSizeFilter) {
-      final bool matchesLotSize = switch (selectedLotSize) {
-        'Below 500 sqm' => property.sizeValue < 500,
-        '500 - 1000 sqm' =>
-          property.sizeValue >= 500 && property.sizeValue <= 1000,
-        'Above 1000 sqm' => property.sizeValue > 1000,
-        _ => true,
-      };
+        if (numericQuery.isEmpty) return false;
 
-      if (!matchesLotSize) return false;
-    }
-
-    if (hasBudgetFilter) {
-      final bool matchesBudget = switch (selectedBudget) {
-        'Below ₱1M' => property.priceValue < 1000000,
-        '₱1M - ₱3M' =>
-          property.priceValue >= 1000000 &&
-              property.priceValue <= 3000000,
-        'Above ₱3M' => property.priceValue > 3000000,
-        _ => true,
-      };
-
-      if (!matchesBudget) return false;
-    }
-
-    if (!hasSearchQuery) return true;
-
-    final String normalizedTitle = normalizeSearchText(property.title);
-    final String normalizedLocation = normalizeSearchText(property.location);
-    final String normalizedPrice = normalizeSearchText(property.price);
-
-    if (normalizedTitle.contains(normalizedQuery) ||
-        normalizedLocation.contains(normalizedQuery) ||
-        normalizedPrice.contains(normalizedQuery)) {
-      return true;
-    }
-
-    if (numericQuery.isEmpty) return false;
-
-    final String numericPrice = digitsOnly(property.price);
-    return numericPrice.contains(numericQuery);
-  }).toList(growable: false);
+        final String numericPrice = digitsOnly(property.price);
+        return numericPrice.contains(numericQuery);
+      })
+      .toList(growable: false);
 }
 
 List<String> homeLocationFilterItems(List<NegrosPlace> negrosPlaces) {
@@ -128,9 +131,7 @@ double distanceInKm({
 }) {
   const double earthRadiusKm = 6371;
   final double latitudeDelta = degreesToRadians(endLatitude - startLatitude);
-  final double longitudeDelta = degreesToRadians(
-    endLongitude - startLongitude,
-  );
+  final double longitudeDelta = degreesToRadians(endLongitude - startLongitude);
   final double a =
       math.sin(latitudeDelta / 2) * math.sin(latitudeDelta / 2) +
       math.cos(degreesToRadians(startLatitude)) *

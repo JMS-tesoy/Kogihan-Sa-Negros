@@ -5,4 +5,5 @@ abstract final class StorageConstants {
   static const preferredThemeMode = 'preferred_theme_mode';
   static const recentSearches = 'recent_searches';
   static const savedPropertyIds = 'saved_property_ids';
+  static const onboardingCompleted = 'onboarding_completed';
 }

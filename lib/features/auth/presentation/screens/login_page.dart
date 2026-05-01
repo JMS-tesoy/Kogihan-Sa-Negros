@@ -80,10 +80,7 @@ class _LoginPageViewState extends State<LoginPageView> {
     if (!mounted || _isOpeningPasswordRecovery) return;
 
     _isOpeningPasswordRecovery = true;
-    await openPasswordRecoveryPage(
-      context,
-      loginBuilder: widget.loginBuilder,
-    );
+    await openPasswordRecoveryPage(context, loginBuilder: widget.loginBuilder);
 
     if (mounted) {
       _isOpeningPasswordRecovery = false;

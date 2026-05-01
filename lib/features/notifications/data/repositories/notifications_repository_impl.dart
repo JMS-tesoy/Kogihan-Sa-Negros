@@ -3,7 +3,7 @@ import '../datasources/notifications_remote_datasource.dart';
 
 class NotificationsRepositoryImpl implements NotificationsRepository {
   NotificationsRepositoryImpl({NotificationsRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? NotificationsRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? NotificationsRemoteDatasource();
 
   final NotificationsRemoteDatasource _remoteDatasource;
 

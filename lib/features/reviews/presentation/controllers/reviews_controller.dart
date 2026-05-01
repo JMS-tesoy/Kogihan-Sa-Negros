@@ -13,7 +13,8 @@ class ReviewsController extends ChangeNotifier {
   List<ReviewEntity> get reviews => _reviews;
 
   Future<void> load(String propertyId) async {
-    _reviews = await getReviewsUsecase?.call(propertyId) ?? const <ReviewEntity>[];
+    _reviews =
+        await getReviewsUsecase?.call(propertyId) ?? const <ReviewEntity>[];
     notifyListeners();
   }
 }

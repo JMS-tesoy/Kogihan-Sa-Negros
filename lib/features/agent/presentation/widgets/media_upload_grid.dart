@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class MediaUploadGrid extends StatelessWidget {
-  const MediaUploadGrid({
-    super.key,
-    this.items = const <String>[],
-  });
+  const MediaUploadGrid({super.key, this.items = const <String>[]});
 
   final List<String> items;
 

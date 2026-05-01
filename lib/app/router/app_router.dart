@@ -74,7 +74,7 @@ abstract final class AppRouter {
       case RouteNames.propertySearch:
         return const PropertySearchScreen();
       case RouteNames.map:
-        return const MapScreen();
+        return MapScreen(selectedProperty: settings.arguments as Property?);
       case RouteNames.search:
         return const SearchScreen();
       case RouteNames.favorites:

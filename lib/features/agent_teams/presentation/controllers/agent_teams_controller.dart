@@ -6,8 +6,9 @@ import '../../domain/usecases/get_agent_teams_usecase.dart';
 
 class AgentTeamsController extends ChangeNotifier {
   AgentTeamsController({GetAgentTeamsUsecase? getAgentTeamsUsecase})
-      : _getAgentTeamsUsecase = getAgentTeamsUsecase ??
-            GetAgentTeamsUsecase(AgentTeamsRepositoryImpl());
+    : _getAgentTeamsUsecase =
+          getAgentTeamsUsecase ??
+          GetAgentTeamsUsecase(AgentTeamsRepositoryImpl());
 
   final GetAgentTeamsUsecase _getAgentTeamsUsecase;
 

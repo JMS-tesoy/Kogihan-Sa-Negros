@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/inquiry_entity.dart';
 
 class InquiryCard extends StatelessWidget {
-  const InquiryCard({
-    super.key,
-    required this.inquiry,
-  });
+  const InquiryCard({super.key, required this.inquiry});
 
   final InquiryEntity inquiry;
 

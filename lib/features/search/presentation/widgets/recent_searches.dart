@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class RecentSearches extends StatelessWidget {
-  const RecentSearches({
-    super.key,
-    this.searches = const <String>[],
-  });
+  const RecentSearches({super.key, this.searches = const <String>[]});
 
   final List<String> searches;
 

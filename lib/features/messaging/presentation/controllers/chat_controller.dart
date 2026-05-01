@@ -14,7 +14,8 @@ class ChatController extends ChangeNotifier {
 
   Future<void> load(String conversationId) async {
     _messages =
-        await getMessagesUsecase?.call(conversationId) ?? const <MessageEntity>[];
+        await getMessagesUsecase?.call(conversationId) ??
+        const <MessageEntity>[];
     notifyListeners();
   }
 }

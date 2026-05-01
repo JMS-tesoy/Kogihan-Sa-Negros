@@ -37,9 +37,7 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
       if (!mounted) return;
       setState(() {
         _teams = rows
-            .map(
-              (row) => _teamFromJson(Map<String, dynamic>.from(row as Map)),
-            )
+            .map((row) => _teamFromJson(Map<String, dynamic>.from(row as Map)))
             .toList();
         _isLoading = false;
       });
@@ -107,9 +105,7 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete team?'),
-        content: Text(
-          'This will remove ${team.name} and its team members.',
-        ),
+        content: Text('This will remove ${team.name} and its team members.'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -127,15 +123,15 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
     try {
       await _client.from('agent_teams').delete().eq('id', team.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Team deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Team deleted.')));
       await _loadTeams();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to delete team.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to delete team.')));
     }
   }
 
@@ -470,15 +466,15 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
     try {
       await _client.from('team_members').delete().eq('id', member.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member removed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member removed.')));
       await _loadMembers();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to remove member.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to remove member.')));
     }
   }
 
@@ -486,10 +482,7 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text('${widget.team.name} Members'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: _buildContent(),
-      ),
+      content: SizedBox(width: double.maxFinite, child: _buildContent()),
       actions: <Widget>[
         TextButton.icon(
           onPressed: () => _openMemberForm(),
@@ -600,9 +593,7 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
     _nameController = TextEditingController(text: member?.name ?? '');
     _userIdController = TextEditingController(text: member?.userId ?? '');
     _roleController = TextEditingController(text: member?.role ?? '');
-    _avatarUrlController = TextEditingController(
-      text: member?.avatarUrl ?? '',
-    );
+    _avatarUrlController = TextEditingController(text: member?.avatarUrl ?? '');
     _phoneController = TextEditingController(text: member?.phone ?? '');
     _emailController = TextEditingController(text: member?.email ?? '');
   }

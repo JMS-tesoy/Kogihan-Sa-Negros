@@ -204,7 +204,9 @@ const List<NegrosPlace> _fallbackNegrosPlaces = [
 ];
 
 final ValueNotifier<List<NegrosPlace>> appNegrosPlacesNotifier =
-    ValueNotifier<List<NegrosPlace>>(List<NegrosPlace>.from(_fallbackNegrosPlaces));
+    ValueNotifier<List<NegrosPlace>>(
+      List<NegrosPlace>.from(_fallbackNegrosPlaces),
+    );
 
 Future<void> loadNegrosPlaces() async {
   try {
@@ -215,14 +217,18 @@ Future<void> loadNegrosPlaces() async {
         .order('place_name');
 
     final List<NegrosPlace> loadedPlaces = response
-        .map((item) => NegrosPlace.fromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => NegrosPlace.fromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .toList();
 
     if (loadedPlaces.isNotEmpty) {
       appNegrosPlacesNotifier.value = loadedPlaces;
     }
   } catch (_) {
-    appNegrosPlacesNotifier.value = List<NegrosPlace>.from(_fallbackNegrosPlaces);
+    appNegrosPlacesNotifier.value = List<NegrosPlace>.from(
+      _fallbackNegrosPlaces,
+    );
   }
 }
 
@@ -242,10 +248,7 @@ class NegrosPlacesDatasource {
 
     return places
         .map(
-          (place) => PlaceModel(
-            id: place.id.toString(),
-            name: place.placeName,
-          ),
+          (place) => PlaceModel(id: place.id.toString(), name: place.placeName),
         )
         .toList();
   }

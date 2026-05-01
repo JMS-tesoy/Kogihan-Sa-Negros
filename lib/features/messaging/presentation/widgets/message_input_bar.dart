@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class MessageInputBar extends StatelessWidget {
-  const MessageInputBar({
-    super.key,
-    this.onSend,
-  });
+  const MessageInputBar({super.key, this.onSend});
 
   final ValueChanged<String>? onSend;
 

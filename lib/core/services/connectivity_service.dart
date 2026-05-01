@@ -2,7 +2,7 @@ import '../network/network_checker.dart';
 
 class ConnectivityService {
   ConnectivityService({NetworkChecker? checker})
-      : _checker = checker ?? const NetworkChecker();
+    : _checker = checker ?? const NetworkChecker();
 
   final NetworkChecker _checker;
 

@@ -18,7 +18,8 @@ class SavedPropertyStorageService {
 
   static Future<Set<String>> loadSavedPropertyIds() async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
-    return preferences.getStringList(StorageConstants.savedPropertyIds)
+    return preferences
+            .getStringList(StorageConstants.savedPropertyIds)
             ?.toSet() ??
         <String>{};
   }

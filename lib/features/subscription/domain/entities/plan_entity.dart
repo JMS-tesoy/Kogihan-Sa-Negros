@@ -1,13 +1,19 @@
+import '../../../../core/enums/subscription_tier.dart';
+
 class PlanEntity {
   const PlanEntity({
     required this.id,
-    required this.name,
-    required this.price,
-    this.description = '',
+    required this.tier,
+    required this.title,
+    required this.priceLabel,
+    required this.billingLabel,
+    required this.features,
   });
 
   final String id;
-  final String name;
-  final double price;
-  final String description;
+  final SubscriptionTier tier;
+  final String title;
+  final String priceLabel;
+  final String billingLabel;
+  final List<String> features;
 }

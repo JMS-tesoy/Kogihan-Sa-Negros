@@ -8,8 +8,8 @@ class PropertyRepositoryImpl implements PropertyRepository {
   PropertyRepositoryImpl({
     PropertiesRemoteDatasource? remoteDatasource,
     PropertiesLocalDatasource? localDatasource,
-  })  : _remoteDatasource = remoteDatasource ?? PropertiesRemoteDatasource(),
-        _localDatasource = localDatasource ?? PropertiesLocalDatasource();
+  }) : _remoteDatasource = remoteDatasource ?? PropertiesRemoteDatasource(),
+       _localDatasource = localDatasource ?? PropertiesLocalDatasource();
 
   final PropertiesRemoteDatasource _remoteDatasource;
   final PropertiesLocalDatasource _localDatasource;

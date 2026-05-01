@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class CurrentSubscriptionBanner extends StatelessWidget {
-  const CurrentSubscriptionBanner({
-    super.key,
-    required this.message,
-  });
+  const CurrentSubscriptionBanner({super.key, required this.message});
 
   final String message;
 

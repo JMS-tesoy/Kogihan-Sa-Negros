@@ -5,7 +5,7 @@ import '../datasources/agent_remote_datasource.dart';
 
 class AgentRepositoryImpl implements AgentRepository {
   AgentRepositoryImpl({AgentRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? AgentRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? AgentRemoteDatasource();
 
   final AgentRemoteDatasource _remoteDatasource;
 

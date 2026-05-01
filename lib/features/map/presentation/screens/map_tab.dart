@@ -27,9 +27,7 @@ const double _mapAutoCardMinZoom = 13.25;
 const double _mapAutoCardFullZoom = 18.0;
 const double _mapAutoCardMinScale = 0.52;
 const double _mapAutoCardPixelRadius = 112.0;
-final Point _negrosIslandCenter = Point(
-  coordinates: Position(123.02, 10.1),
-);
+final Point _negrosIslandCenter = Point(coordinates: Position(123.02, 10.1));
 const double _negrosIslandInitialZoom = 7.35;
 const String _mapTerrainSourceId = 'property-terrain-dem';
 
@@ -162,11 +160,13 @@ List<double>? _boundaryCenterFromText(String? rawValue) {
 class MapTab extends StatefulWidget {
   final Set<Property> savedProperties;
   final ValueChanged<Property> onToggleSave;
+  final String? initialSelectedPropertyId;
 
   const MapTab({
     super.key,
     required this.savedProperties,
     required this.onToggleSave,
+    this.initialSelectedPropertyId,
   });
 
   @override
@@ -210,6 +210,15 @@ class _MapTabState extends State<MapTab> {
   @override
   void initState() {
     super.initState();
+    _selectedPropertyId = widget.initialSelectedPropertyId;
+    final _MappableProperty? initialSelected = _selectedMappedProperty;
+    if (initialSelected != null) {
+      _isSelectedCardVisible =
+          _boundaryPositionsFromText(
+            initialSelected.property.boundaryCoordinates,
+          ) ==
+          null;
+    }
     appPropertiesNotifier.addListener(_handlePropertiesChanged);
     appNegrosPlacesNotifier.addListener(_handleNegrosPlacesChanged);
     _warmMapPropertyImages(
@@ -369,8 +378,8 @@ class _MapTabState extends State<MapTab> {
   Future<void> _toggleMapStyleMode() {
     final _MapStyleMode nextMode =
         _selectedMapStyleMode == _MapStyleMode.monochrome
-            ? _MapStyleMode.satellite
-            : _MapStyleMode.monochrome;
+        ? _MapStyleMode.satellite
+        : _MapStyleMode.monochrome;
 
     _setMapStyleMode(nextMode);
     return Future<void>.value();
@@ -520,9 +529,9 @@ class _MapTabState extends State<MapTab> {
 
   void _showMapMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _promptEnableGpsLocation() async {
@@ -789,9 +798,8 @@ class _MapTabState extends State<MapTab> {
 
     PolylineAnnotationManager? routeManager = _routeAnnotationManager;
     if (routeManager == null) {
-      routeManager = await mapboxMap.annotations.createPolylineAnnotationManager(
-        id: 'property-route',
-      );
+      routeManager = await mapboxMap.annotations
+          .createPolylineAnnotationManager(id: 'property-route');
       _routeAnnotationManager = routeManager;
     }
 
@@ -1015,129 +1023,124 @@ class _MapTabState extends State<MapTab> {
     final TextEditingController searchController = TextEditingController();
 
     try {
-      final NegrosPlace? selectedPlace =
-          await showModalBottomSheet<NegrosPlace>(
-            context: context,
-            showDragHandle: true,
-            isScrollControlled: true,
-            builder: (context) {
-              final ThemeData theme = Theme.of(context);
-              String searchQuery = '';
+      final NegrosPlace?
+      selectedPlace = await showModalBottomSheet<NegrosPlace>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (context) {
+          final ThemeData theme = Theme.of(context);
+          String searchQuery = '';
 
-              return StatefulBuilder(
-                builder: (context, setSheetState) {
-                  final String normalizedQuery = searchQuery
-                      .trim()
-                      .toLowerCase();
-                  final visibleEntries = groupedPlaces.entries
-                      .map((entry) {
-                        if (normalizedQuery.isEmpty) return entry;
+          return StatefulBuilder(
+            builder: (context, setSheetState) {
+              final String normalizedQuery = searchQuery.trim().toLowerCase();
+              final visibleEntries = groupedPlaces.entries
+                  .map((entry) {
+                    if (normalizedQuery.isEmpty) return entry;
 
-                        final List<NegrosPlace> matchingPlaces = entry.value
-                            .where((place) {
-                              final String searchableText =
-                                  '${place.placeName} ${place.province} '
-                                          '${place.location}'
-                                      .toLowerCase();
-                              return searchableText.contains(normalizedQuery);
-                            })
-                            .toList(growable: false);
+                    final List<NegrosPlace> matchingPlaces = entry.value
+                        .where((place) {
+                          final String searchableText =
+                              '${place.placeName} ${place.province} '
+                                      '${place.location}'
+                                  .toLowerCase();
+                          return searchableText.contains(normalizedQuery);
+                        })
+                        .toList(growable: false);
 
-                        return MapEntry<String, List<NegrosPlace>>(
-                          entry.key,
-                          matchingPlaces,
-                        );
-                      })
-                      .where((entry) => entry.value.isNotEmpty)
-                      .toList(growable: false);
+                    return MapEntry<String, List<NegrosPlace>>(
+                      entry.key,
+                      matchingPlaces,
+                    );
+                  })
+                  .where((entry) => entry.value.isNotEmpty)
+                  .toList(growable: false);
 
-                  return SafeArea(
-                    child: FractionallySizedBox(
-                      heightFactor: 0.72,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                        children: [
-                          TextField(
-                            controller: searchController,
-                            autofocus: true,
-                            textInputAction: TextInputAction.search,
-                            onChanged: (value) {
-                              setSheetState(() {
-                                searchQuery = value;
-                              });
-                            },
-                            decoration: InputDecoration(
-                              hintText: 'Search Negros places',
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              suffixIcon: searchQuery.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: 'Clear search',
-                                      icon: const Icon(Icons.close_rounded),
-                                      onPressed: () {
-                                        searchController.clear();
-                                        setSheetState(() {
-                                          searchQuery = '';
-                                        });
-                                      },
-                                    ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+              return SafeArea(
+                child: FractionallySizedBox(
+                  heightFactor: 0.72,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    children: [
+                      TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        textInputAction: TextInputAction.search,
+                        onChanged: (value) {
+                          setSheetState(() {
+                            searchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search Negros places',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: searchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  icon: const Icon(Icons.close_rounded),
+                                  onPressed: () {
+                                    searchController.clear();
+                                    setSheetState(() {
+                                      searchQuery = '';
+                                    });
+                                  },
+                                ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (visibleEntries.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            'No places found',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          if (visibleEntries.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 24),
-                              child: Text(
-                                'No places found',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            )
-                          else
-                            ...visibleEntries.map((entry) {
-                              final List<NegrosPlace> places = entry.value;
+                        )
+                      else
+                        ...visibleEntries.map((entry) {
+                          final List<NegrosPlace> places = entry.value;
 
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 10),
-                                clipBehavior: Clip.antiAlias,
-                                child: ExpansionTile(
-                                  initiallyExpanded:
-                                      normalizedQuery.isNotEmpty,
-                                  leading: const Icon(
-                                    Icons.location_city_outlined,
-                                  ),
-                                  title: Text(entry.key),
-                                  subtitle: Text('${places.length} places'),
-                                  children: places
-                                      .map((place) {
-                                        return ListTile(
-                                          dense: true,
-                                          title: Text(place.placeName),
-                                          subtitle: Text(place.location),
-                                          trailing: const Icon(
-                                            Icons.chevron_right_rounded,
-                                          ),
-                                          onTap: () =>
-                                              Navigator.of(context).pop(place),
-                                        );
-                                      })
-                                      .toList(growable: false),
-                                ),
-                              );
-                            }),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            clipBehavior: Clip.antiAlias,
+                            child: ExpansionTile(
+                              initiallyExpanded: normalizedQuery.isNotEmpty,
+                              leading: const Icon(Icons.location_city_outlined),
+                              title: Text(entry.key),
+                              subtitle: Text('${places.length} places'),
+                              children: places
+                                  .map((place) {
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(place.placeName),
+                                      subtitle: Text(place.location),
+                                      trailing: const Icon(
+                                        Icons.chevron_right_rounded,
+                                      ),
+                                      onTap: () =>
+                                          Navigator.of(context).pop(place),
+                                    );
+                                  })
+                                  .toList(growable: false),
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
               );
             },
           );
+        },
+      );
 
       if (selectedPlace == null) return;
       await _focusOnNegrosPlace(selectedPlace);
@@ -1249,6 +1252,11 @@ class _MapTabState extends State<MapTab> {
     await _syncAnnotations(resetCamera: true);
     await _syncSelectedBoundary();
     await _syncSelectedLabel(); // NEW
+    final _MappableProperty? selected = _selectedMappedProperty;
+    if (selected != null) {
+      unawaited(_focusOnSelectedPropertyBoundary(selected));
+      unawaited(_updateSelectedElevation(selected));
+    }
   }
 
   void _handleAnnotationTap(CircleAnnotation annotation) {
@@ -1554,9 +1562,7 @@ class _MapTabState extends State<MapTab> {
               top: 16,
               left: 16,
               right: 96,
-              child: _MapPlacesSearchBar(
-                onTap: _openNegrosPlacesSheet,
-              ),
+              child: _MapPlacesSearchBar(onTap: _openNegrosPlacesSheet),
             ),
           Positioned(
             top: 16,

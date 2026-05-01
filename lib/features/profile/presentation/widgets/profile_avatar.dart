@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ProfileAvatar extends StatelessWidget {
-  const ProfileAvatar({
-    super.key,
-    this.imageUrl = '',
-  });
+  const ProfileAvatar({super.key, this.imageUrl = ''});
 
   final String imageUrl;
 

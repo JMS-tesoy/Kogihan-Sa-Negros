@@ -4,7 +4,7 @@ import '../datasources/media_remote_datasource.dart';
 
 class MediaRepositoryImpl implements MediaRepository {
   MediaRepositoryImpl({MediaRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? MediaRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? MediaRemoteDatasource();
 
   final MediaRemoteDatasource _remoteDatasource;
 

@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/conversation_entity.dart';
 
 class ConversationTile extends StatelessWidget {
-  const ConversationTile({
-    super.key,
-    required this.conversation,
-    this.onTap,
-  });
+  const ConversationTile({super.key, required this.conversation, this.onTap});
 
   final ConversationEntity conversation;
   final VoidCallback? onTap;

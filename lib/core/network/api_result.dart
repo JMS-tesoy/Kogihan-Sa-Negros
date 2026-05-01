@@ -1,9 +1,5 @@
 class ApiResult<T> {
-  const ApiResult._({
-    this.data,
-    this.message,
-    required this.isSuccess,
-  });
+  const ApiResult._({this.data, this.message, required this.isSuccess});
 
   final T? data;
   final String? message;

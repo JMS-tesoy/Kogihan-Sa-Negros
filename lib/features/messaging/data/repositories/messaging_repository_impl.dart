@@ -6,7 +6,7 @@ import '../models/message_model.dart';
 
 class MessagingRepositoryImpl implements MessagingRepository {
   MessagingRepositoryImpl({MessagingRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? MessagingRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? MessagingRemoteDatasource();
 
   final MessagingRemoteDatasource _remoteDatasource;
 

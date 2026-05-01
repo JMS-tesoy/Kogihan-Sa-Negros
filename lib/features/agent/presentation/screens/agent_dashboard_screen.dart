@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1426,29 +1426,34 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
-  _OptimizedPropertyImages _optimizePropertyImages(Uint8List bytes) {
-    final img.Image? decodedImage = img.decodeImage(bytes);
-    if (decodedImage == null) {
+  Future<_OptimizedPropertyImages> _optimizePropertyImages(
+    Uint8List bytes,
+  ) async {
+    final Uint8List detailBytes = await FlutterImageCompress.compressWithList(
+      bytes,
+      minWidth: 1600,
+      minHeight: 1200,
+      quality: 72,
+      format: CompressFormat.jpeg,
+      autoCorrectionAngle: true,
+    );
+    final Uint8List thumbnailBytes =
+        await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: 560,
+          minHeight: 420,
+          quality: 64,
+          format: CompressFormat.jpeg,
+          autoCorrectionAngle: true,
+        );
+
+    if (detailBytes.isEmpty || thumbnailBytes.isEmpty) {
       throw const FormatException('Unsupported image format.');
     }
 
-    final img.Image orientedImage = img.bakeOrientation(decodedImage);
-    final int thumbnailWidth = orientedImage.width > 560
-        ? 560
-        : orientedImage.width;
-    final img.Image thumbnailImage = img.copyResize(
-      orientedImage,
-      width: thumbnailWidth,
-      interpolation: img.Interpolation.average,
-    );
-
     return _OptimizedPropertyImages(
-      detailBytes: Uint8List.fromList(
-        img.encodeJpg(orientedImage, quality: 72),
-      ),
-      thumbnailBytes: Uint8List.fromList(
-        img.encodeJpg(thumbnailImage, quality: 64),
-      ),
+      detailBytes: detailBytes,
+      thumbnailBytes: thumbnailBytes,
     );
   }
 
@@ -1478,9 +1483,8 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     try {
       final Uint8List bytes = await pickedFile.readAsBytes();
-      final _OptimizedPropertyImages optimizedImages = _optimizePropertyImages(
-        bytes,
-      );
+      final _OptimizedPropertyImages optimizedImages =
+          await _optimizePropertyImages(bytes);
       final int uploadTimestamp = DateTime.now().millisecondsSinceEpoch;
       final String detailFilePath = '${user.id}/$uploadTimestamp-detail.jpg';
       final String thumbnailFilePath = '${user.id}/$uploadTimestamp-thumb.jpg';

@@ -138,8 +138,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final user = Supabase.instance.client.auth.currentUser;
-    final String pageTitle =
-        widget.isPasswordRecovery ? 'Create New Password' : 'Reset Password';
+    final String pageTitle = widget.isPasswordRecovery
+        ? 'Create New Password'
+        : 'Reset Password';
     final String heading = widget.isPasswordRecovery
         ? 'Create a new password'
         : 'Update your password';

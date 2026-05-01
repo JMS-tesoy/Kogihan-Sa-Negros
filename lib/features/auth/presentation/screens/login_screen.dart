@@ -12,10 +12,7 @@ class LoginScreen extends StatelessWidget {
       title: 'Login',
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: AuthForm(
-          submitLabel: 'Login',
-          onSubmit: () {},
-        ),
+        child: AuthForm(submitLabel: 'Login', onSubmit: () {}),
       ),
     );
   }

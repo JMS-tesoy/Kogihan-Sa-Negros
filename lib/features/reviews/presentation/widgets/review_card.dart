@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/review_entity.dart';
 
 class ReviewCard extends StatelessWidget {
-  const ReviewCard({
-    super.key,
-    required this.review,
-  });
+  const ReviewCard({super.key, required this.review});
 
   final ReviewEntity review;
 

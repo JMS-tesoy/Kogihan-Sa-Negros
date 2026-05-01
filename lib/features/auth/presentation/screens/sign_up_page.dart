@@ -127,9 +127,9 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Confirmation email sent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Confirmation email sent.')));
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {

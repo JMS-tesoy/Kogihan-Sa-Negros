@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/utils/currency_formatters.dart';
 
 class PropertyPriceBadge extends StatelessWidget {
-  const PropertyPriceBadge({
-    super.key,
-    required this.price,
-  });
+  const PropertyPriceBadge({super.key, required this.price});
 
   final num price;
 

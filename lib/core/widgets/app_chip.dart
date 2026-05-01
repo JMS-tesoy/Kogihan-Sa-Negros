@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppChip extends StatelessWidget {
-  const AppChip({
-    super.key,
-    required this.label,
-    this.selected = false,
-  });
+  const AppChip({super.key, required this.label, this.selected = false});
 
   final String label;
   final bool selected;

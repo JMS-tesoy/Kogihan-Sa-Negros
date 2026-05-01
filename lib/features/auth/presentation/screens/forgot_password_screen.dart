@@ -18,10 +18,7 @@ class ForgotPasswordScreen extends StatelessWidget {
           children: <Widget>[
             const AppTextField(labelText: 'Email'),
             const SizedBox(height: 20),
-            AppPrimaryButton(
-              label: 'Send reset link',
-              onPressed: () {},
-            ),
+            AppPrimaryButton(label: 'Send reset link', onPressed: () {}),
           ],
         ),
       ),

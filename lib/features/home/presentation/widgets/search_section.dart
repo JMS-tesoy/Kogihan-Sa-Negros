@@ -42,9 +42,9 @@ class SearchSection extends StatelessWidget {
               children: <Widget>[
                 Text(
                   'Filters',
-                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 16),
                 FilterDropdown(

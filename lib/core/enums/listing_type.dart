@@ -1,4 +1,1 @@
-enum ListingType {
-  sale,
-  rent,
-}
+enum ListingType { sale, rent }

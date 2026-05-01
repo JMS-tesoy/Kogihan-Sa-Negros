@@ -55,9 +55,7 @@ class _AgentTeamsScreenState extends State<AgentTeamsScreen> {
         valueListenable: appSubscriptionNotifier,
         builder: (context, subscription, child) {
           if (!subscription.isPremium) {
-            return _PremiumGate(
-              onUpgrade: () => openSubscriptionPage(context),
-            );
+            return _PremiumGate(onUpgrade: () => openSubscriptionPage(context));
           }
           return _TeamsBody(
             controller: _controller,
@@ -70,10 +68,7 @@ class _AgentTeamsScreenState extends State<AgentTeamsScreen> {
 }
 
 class _TeamsBody extends StatelessWidget {
-  const _TeamsBody({
-    required this.controller,
-    required this.onTeamTap,
-  });
+  const _TeamsBody({required this.controller, required this.onTeamTap});
 
   final AgentTeamsController controller;
   final ValueChanged<AgentTeamEntity> onTeamTap;
@@ -83,10 +78,7 @@ class _TeamsBody extends StatelessWidget {
     if (controller.isLoading) return const AppLoadingIndicator();
 
     if (controller.error != null) {
-      return AppErrorView(
-        message: controller.error!,
-        onRetry: controller.load,
-      );
+      return AppErrorView(message: controller.error!, onRetry: controller.load);
     }
 
     if (controller.teams.isEmpty) {
@@ -134,9 +126,9 @@ class _PremiumGate extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               'Premium Feature',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
             Text(

@@ -46,14 +46,13 @@ class _MessagesTabState extends State<MessagesTab> {
     _inboxClockRefreshTimer?.cancel();
 
     final DateTime now = DateTime.now();
-    final Duration delay = Duration(
-      minutes: 1,
-    ) -
-    Duration(
-      seconds: now.second,
-      milliseconds: now.millisecond,
-      microseconds: now.microsecond,
-    );
+    final Duration delay =
+        Duration(minutes: 1) -
+        Duration(
+          seconds: now.second,
+          milliseconds: now.millisecond,
+          microseconds: now.microsecond,
+        );
 
     _inboxClockRefreshTimer = Timer(delay, () {
       if (!mounted) return;
@@ -76,10 +75,7 @@ class _MessagesTabState extends State<MessagesTab> {
     );
   }
 
-  void _setConversationDismissProgress(
-    String conversationId,
-    double progress,
-  ) {
+  void _setConversationDismissProgress(String conversationId, double progress) {
     final double clampedProgress = progress.clamp(0.0, 1.0).toDouble();
     final double currentProgress =
         _dismissProgressByConversationId[conversationId] ?? 0;
@@ -213,9 +209,9 @@ class _MessagesTabState extends State<MessagesTab> {
           children: [
             Text(
               'Inbox',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -405,7 +401,8 @@ class _MessagesTabState extends State<MessagesTab> {
                                               fontSize: 11,
                                               color: conversation.isUnread
                                                   ? palette.accent
-                                                  : colorScheme.onSurfaceVariant,
+                                                  : colorScheme
+                                                        .onSurfaceVariant,
                                               fontWeight: conversation.isUnread
                                                   ? FontWeight.w600
                                                   : FontWeight.normal,

@@ -1,5 +1,1 @@
-enum InquiryStatus {
-  newInquiry,
-  contacted,
-  closed,
-}
+enum InquiryStatus { newInquiry, contacted, closed }

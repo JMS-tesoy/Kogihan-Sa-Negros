@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class StickySearchHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const StickySearchHeaderDelegate({
-    required this.child,
-    required this.height,
-  });
+  const StickySearchHeaderDelegate({required this.child, required this.height});
 
   final Widget child;
   final double height;

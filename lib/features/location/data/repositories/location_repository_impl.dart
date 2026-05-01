@@ -8,8 +8,8 @@ class LocationRepositoryImpl implements LocationRepository {
   LocationRepositoryImpl({
     LocationRemoteDatasource? remoteDatasource,
     NegrosPlacesDatasource? placesDatasource,
-  })  : _remoteDatasource = remoteDatasource ?? LocationRemoteDatasource(),
-        _placesDatasource = placesDatasource ?? NegrosPlacesDatasource();
+  }) : _remoteDatasource = remoteDatasource ?? LocationRemoteDatasource(),
+       _placesDatasource = placesDatasource ?? NegrosPlacesDatasource();
 
   final LocationRemoteDatasource _remoteDatasource;
   final NegrosPlacesDatasource _placesDatasource;

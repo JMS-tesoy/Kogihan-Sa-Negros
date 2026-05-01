@@ -3,7 +3,7 @@ import '../datasources/search_remote_datasource.dart';
 
 class SearchRepositoryImpl implements SearchRepository {
   SearchRepositoryImpl({SearchRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? SearchRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? SearchRemoteDatasource();
 
   final SearchRemoteDatasource _remoteDatasource;
 

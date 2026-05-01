@@ -52,9 +52,8 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
       setState(() {
         _requests = requests
             .map(
-              (request) => request.copyWith(
-                requester: profiles[request.userId],
-              ),
+              (request) =>
+                  request.copyWith(requester: profiles[request.userId]),
             )
             .toList();
         _isLoading = false;
@@ -78,7 +77,8 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
         .select('id, full_name, email, phone, avatar_url')
         .inFilter('id', userIds);
 
-    final Map<String, _RequesterProfile> profiles = <String, _RequesterProfile>{};
+    final Map<String, _RequesterProfile> profiles =
+        <String, _RequesterProfile>{};
     for (final dynamic row in rows) {
       final _RequesterProfile profile = _RequesterProfile.fromJson(
         Map<String, dynamic>.from(row as Map),
@@ -105,7 +105,8 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
 
       await _client
           .from('team_join_requests')
-          .update({'status': 'approved'}).eq('id', request.id);
+          .update({'status': 'approved'})
+          .eq('id', request.id);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,12 +125,13 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
     try {
       await _client
           .from('team_join_requests')
-          .update({'status': 'rejected'}).eq('id', request.id);
+          .update({'status': 'rejected'})
+          .eq('id', request.id);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Join request rejected.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Join request rejected.')));
       await _loadRequests();
     } catch (_) {
       if (!mounted) return;
@@ -142,7 +144,10 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Team Join Requests'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Team Join Requests'),
+        centerTitle: true,
+      ),
       body: _buildBody(),
     );
   }
@@ -217,9 +222,9 @@ class _JoinRequestCard extends StatelessWidget {
           children: <Widget>[
             Text(
               requester?.displayName ?? 'Unknown requester',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text('Team: ${request.teamName}'),
@@ -267,8 +272,9 @@ class _TeamJoinRequest {
   final _RequesterProfile? requester;
 
   factory _TeamJoinRequest.fromJson(Map<String, dynamic> json) {
-    final Map<String, dynamic> teamJson =
-        Map<String, dynamic>.from(json['agent_teams'] as Map? ?? const {});
+    final Map<String, dynamic> teamJson = Map<String, dynamic>.from(
+      json['agent_teams'] as Map? ?? const {},
+    );
     return _TeamJoinRequest(
       id: json['id'] as String? ?? '',
       teamId: json['team_id'] as String? ?? '',

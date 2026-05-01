@@ -453,14 +453,14 @@ Future<void> deleteProperty(String propertyId) async {
       .toList();
 }
 
-Future<void> recordPropertyView(Property property) async {
+Future<bool> recordPropertyView(Property property) async {
   try {
     await Supabase.instance.client.rpc(
       'increment_property_view_count',
       params: {'property_id': property.id},
     );
   } catch (_) {
-    return;
+    return false;
   }
 
   final List<Property> updatedProperties = List<Property>.from(
@@ -470,10 +470,11 @@ Future<void> recordPropertyView(Property property) async {
     (item) => item.id == property.id,
   );
 
-  if (index == -1) return;
+  if (index == -1) return false;
 
   updatedProperties[index] = updatedProperties[index].copyWith(
     viewCount: updatedProperties[index].viewCount + 1,
   );
   appPropertiesNotifier.value = updatedProperties;
+  return true;
 }

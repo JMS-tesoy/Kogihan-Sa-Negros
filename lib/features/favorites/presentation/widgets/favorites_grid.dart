@@ -4,10 +4,7 @@ import '../../../properties/domain/entities/property_entity.dart';
 import '../../../properties/presentation/widgets/property_card.dart';
 
 class FavoritesGrid extends StatelessWidget {
-  const FavoritesGrid({
-    super.key,
-    required this.properties,
-  });
+  const FavoritesGrid({super.key, required this.properties});
 
   final List<PropertyEntity> properties;
 

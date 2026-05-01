@@ -88,8 +88,9 @@ class HomeTab extends StatelessWidget {
     final bool hasSearchQuery = searchController.text.trim().isNotEmpty;
     final bool hasActiveFilters =
         hasSearchQuery || activeFilterChips.isNotEmpty;
-    final String lotsHeaderTitle =
-        hasActiveFilters ? 'Filtered Lots' : 'All Lots';
+    final String lotsHeaderTitle = hasActiveFilters
+        ? 'Filtered Lots'
+        : 'All Lots';
 
     return SafeArea(
       child: CustomScrollView(
@@ -232,27 +233,27 @@ class _LotsFilterSectionState extends State<_LotsFilterSection> {
   _LotFilter _selectedFilter = _LotFilter.all;
 
   List<Property> get _filteredProperties {
-    final Iterable<Property> filteredProperties = widget.properties.where(
-      (property) {
-        final String tag = property.tag.trim().toLowerCase();
-        switch (_selectedFilter) {
-          case _LotFilter.all:
-            return true;
-          case _LotFilter.newlyListed:
-            return tag.contains('new');
-          case _LotFilter.available:
-            return !tag.contains('sold') &&
-                !tag.contains('auction') &&
-                !tag.contains('process') &&
-                !tag.contains('pending') &&
-                !tag.contains('reserved');
-          case _LotFilter.sold:
-            return tag.contains('sold');
-          case _LotFilter.mostViewed:
-            return property.viewCount > 0;
-        }
-      },
-    );
+    final Iterable<Property> filteredProperties = widget.properties.where((
+      property,
+    ) {
+      final String tag = property.tag.trim().toLowerCase();
+      switch (_selectedFilter) {
+        case _LotFilter.all:
+          return true;
+        case _LotFilter.newlyListed:
+          return tag.contains('new');
+        case _LotFilter.available:
+          return !tag.contains('sold') &&
+              !tag.contains('auction') &&
+              !tag.contains('process') &&
+              !tag.contains('pending') &&
+              !tag.contains('reserved');
+        case _LotFilter.sold:
+          return tag.contains('sold');
+        case _LotFilter.mostViewed:
+          return property.viewCount > 0;
+      }
+    });
 
     final List<Property> result = filteredProperties.toList(growable: false);
     if (_selectedFilter == _LotFilter.mostViewed) {
@@ -296,9 +297,9 @@ class _LotsFilterSectionState extends State<_LotsFilterSection> {
         children: <Widget>[
           Text(
             '$_selectedTitle (${filteredProperties.length})',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           SingleChildScrollView(
@@ -322,9 +323,7 @@ class _LotsFilterSectionState extends State<_LotsFilterSection> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text(
-                  'No ${_selectedTitle.toLowerCase()} lots found.',
-                ),
+                child: Text('No ${_selectedTitle.toLowerCase()} lots found.'),
               ),
             )
           else

@@ -26,15 +26,9 @@ class AuthForm extends StatelessWidget {
         ],
         const AppTextField(labelText: 'Email'),
         const SizedBox(height: 12),
-        const AppTextField(
-          labelText: 'Password',
-          obscureText: true,
-        ),
+        const AppTextField(labelText: 'Password', obscureText: true),
         const SizedBox(height: 20),
-        AppPrimaryButton(
-          label: submitLabel,
-          onPressed: onSubmit,
-        ),
+        AppPrimaryButton(label: submitLabel, onPressed: onSubmit),
       ],
     );
   }

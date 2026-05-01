@@ -1,8 +1,5 @@
 class LocationPoint {
-  const LocationPoint({
-    required this.latitude,
-    required this.longitude,
-  });
+  const LocationPoint({required this.latitude, required this.longitude});
 
   final double latitude;
   final double longitude;

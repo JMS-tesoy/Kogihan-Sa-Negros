@@ -5,7 +5,7 @@ import '../models/inquiry_model.dart';
 
 class InquiriesRepositoryImpl implements InquiriesRepository {
   InquiriesRepositoryImpl({InquiriesRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? InquiriesRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? InquiriesRemoteDatasource();
 
   final InquiriesRemoteDatasource _remoteDatasource;
 

@@ -5,7 +5,7 @@ import '../models/profile_model.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   ProfileRepositoryImpl({ProfileRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? ProfileRemoteDatasource();
+    : _remoteDatasource = remoteDatasource ?? ProfileRemoteDatasource();
 
   final ProfileRemoteDatasource _remoteDatasource;
 

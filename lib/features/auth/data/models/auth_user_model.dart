@@ -1,11 +1,7 @@
 import '../../domain/entities/auth_user_entity.dart';
 
 class AuthUserModel extends AuthUserEntity {
-  const AuthUserModel({
-    required super.id,
-    required super.email,
-    super.name,
-  });
+  const AuthUserModel({required super.id, required super.email, super.name});
 
   factory AuthUserModel.fromJson(Map<String, dynamic> json) {
     return AuthUserModel(
@@ -16,10 +12,6 @@ class AuthUserModel extends AuthUserEntity {
   }
 
   Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'id': id,
-      'email': email,
-      'name': name,
-    };
+    return <String, dynamic>{'id': id, 'email': email, 'name': name};
   }
 }

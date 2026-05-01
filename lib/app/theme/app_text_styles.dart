@@ -15,10 +15,7 @@ abstract final class AppTextStyles {
     color: AppColors.textPrimary,
   );
 
-  static const body = TextStyle(
-    fontSize: 16,
-    color: AppColors.textPrimary,
-  );
+  static const body = TextStyle(fontSize: 16, color: AppColors.textPrimary);
 
   static const caption = TextStyle(
     fontSize: 13,

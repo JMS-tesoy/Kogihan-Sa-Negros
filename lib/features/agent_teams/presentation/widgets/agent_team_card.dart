@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/agent_team_entity.dart';
 
 class AgentTeamCard extends StatelessWidget {
-  const AgentTeamCard({
-    super.key,
-    required this.team,
-    required this.onTap,
-  });
+  const AgentTeamCard({super.key, required this.team, required this.onTap});
 
   final AgentTeamEntity team;
   final VoidCallback onTap;
@@ -33,8 +29,9 @@ class AgentTeamCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       team.name,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     if (team.specialization.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 6),

@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/property_image_entity.dart';
 
 class PropertyGallery extends StatelessWidget {
-  const PropertyGallery({
-    super.key,
-    required this.images,
-  });
+  const PropertyGallery({super.key, required this.images});
 
   final List<PropertyImageEntity> images;
 

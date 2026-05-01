@@ -12,7 +12,8 @@ class RecommendedPropertiesCarousel extends StatefulWidget {
   final Set<Property> savedProperties;
   final ValueChanged<Property> onToggleSave;
   final ValueChanged<Property> onOpenDetails;
-  final void Function(BuildContext context, Property property) onPrecacheDetails;
+  final void Function(BuildContext context, Property property)
+  onPrecacheDetails;
 
   const RecommendedPropertiesCarousel({
     super.key,

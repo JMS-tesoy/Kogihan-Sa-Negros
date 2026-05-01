@@ -101,8 +101,7 @@ class _AccountPageState extends State<AccountPage> {
 
       if (!mounted) return;
 
-      final BuyerProfileData savedProfile =
-          await loadCurrentBuyerProfileData();
+      final BuyerProfileData savedProfile = await loadCurrentBuyerProfileData();
 
       if (!mounted) return;
 
@@ -112,9 +111,9 @@ class _AccountPageState extends State<AccountPage> {
         _isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account details updated.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Account details updated.')));
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -257,9 +256,7 @@ class _AccountPageState extends State<AccountPage> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isSaving
-                                  ? null
-                                  : _saveAccountProfile,
+                              onPressed: _isSaving ? null : _saveAccountProfile,
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,

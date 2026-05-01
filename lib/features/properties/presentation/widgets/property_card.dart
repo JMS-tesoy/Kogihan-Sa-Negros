@@ -5,11 +5,7 @@ import 'property_meta_row.dart';
 import 'property_price_badge.dart';
 
 class PropertyCard extends StatelessWidget {
-  const PropertyCard({
-    super.key,
-    required this.property,
-    this.onTap,
-  });
+  const PropertyCard({super.key, required this.property, this.onTap});
 
   final PropertyEntity property;
   final VoidCallback? onTap;

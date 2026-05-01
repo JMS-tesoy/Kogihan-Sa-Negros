@@ -24,15 +24,13 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
     final User? currentUser = Supabase.instance.client.auth.currentUser;
     final String? currentEmail = currentUser?.email?.trim().toLowerCase();
 
-    return widget.team.members.any(
-      (member) {
-        if (currentUser?.id != null && member.userId == currentUser!.id) {
-          return true;
-        }
-        if (currentEmail == null || currentEmail.isEmpty) return false;
-        return member.email?.trim().toLowerCase() == currentEmail;
-      },
-    );
+    return widget.team.members.any((member) {
+      if (currentUser?.id != null && member.userId == currentUser!.id) {
+        return true;
+      }
+      if (currentEmail == null || currentEmail.isEmpty) return false;
+      return member.email?.trim().toLowerCase() == currentEmail;
+    });
   }
 
   @override
@@ -91,9 +89,9 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
       setState(() {
         _joinRequestStatus = 'pending';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Join request sent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Join request sent.')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -127,9 +125,9 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               'Team Members',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           if (widget.team.members.isEmpty)
@@ -243,9 +241,9 @@ class _TeamHeader extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             team.name,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           if (team.specialization.isNotEmpty) ...<Widget>[
@@ -348,10 +346,7 @@ class _MemberTile extends StatelessWidget {
               tooltip: 'Call',
               icon: const Icon(Icons.call_outlined),
               onPressed: () {
-                _openContactLink(
-                  context,
-                  Uri(scheme: 'tel', path: phone),
-                );
+                _openContactLink(context, Uri(scheme: 'tel', path: phone));
               },
             ),
           if (email != null && email.isNotEmpty)
@@ -359,13 +354,7 @@ class _MemberTile extends StatelessWidget {
               tooltip: 'Email',
               icon: const Icon(Icons.mail_outlined),
               onPressed: () {
-                _openContactLink(
-                  context,
-                  Uri(
-                    scheme: 'mailto',
-                    path: email,
-                  ),
-                );
+                _openContactLink(context, Uri(scheme: 'mailto', path: email));
               },
             ),
         ],
