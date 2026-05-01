@@ -105,7 +105,7 @@ class HomeTab extends StatelessWidget {
           SliverAppBar(
             automaticallyImplyLeading: false,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            elevation: 0,
+            elevation: 10,
             floating: true,
             snap: true,
             surfaceTintColor: Colors.transparent,
