@@ -17,7 +17,7 @@ import '../../../../app/config/mapbox_config.dart';
 import '../../../../app/router/instant_route.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
-import '../../../properties/presentation/screens/property_details_inline_screen.dart';
+import '../../../properties/presentation/screens/property_details_screen.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
 
 const int _initialMapAnnotationBatchSize = 8;
@@ -1801,7 +1801,7 @@ class _SelectedMapPropertyCard extends StatelessWidget {
     Navigator.push(
       context,
       instantRoute(
-        PropertyDetailsPage(
+        PropertyDetailsScreen(
           property: property,
           isSaved: isSaved,
           onToggleSave: onToggleSave,

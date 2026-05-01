@@ -4,8 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../../../app/config/app_config.dart';
-import '../../../../app/state/inline_property_details_controller.dart';
-import '../../../../app/state/inline_property_details_state.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/presentation/screens/messages_tab.dart'
     as messaging_screens;
@@ -18,7 +16,6 @@ import '../../../profile/presentation/screens/profile_tab.dart'
 import '../../../profile/presentation/widgets/avatar_options_sheet.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/data/services/saved_property_storage_service.dart';
-import '../../../properties/presentation/screens/property_details_inline_screen.dart';
 import '../../../properties/presentation/screens/saved_tab.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
 import '../../../properties/presentation/widgets/saved_properties_upgrade_sheet.dart';
@@ -319,56 +316,43 @@ class _HomePageViewState extends State<HomePageView> {
       ),
     ];
 
-    return ValueListenableBuilder<InlinePropertyDetailsState?>(
-      valueListenable: appInlinePropertyDetailsNotifier,
-      builder: (context, inlineDetails, child) {
-        return Scaffold(
-          body: inlineDetails == null
-              ? pages[_currentIndex]
-              : PropertyDetailsInlineView(
-                  property: inlineDetails.property,
-                  isSaved: inlineDetails.isSaved,
-                  onToggleSave: inlineDetails.onToggleSave,
-                  onBack: hideInlinePropertyDetails,
-                ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              hideInlinePropertyDetails();
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.map_outlined),
-                selectedIcon: Icon(Icons.map),
-                label: 'Map',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.favorite_border),
-                selectedIcon: Icon(Icons.favorite),
-                label: 'Saved',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.mail_outline),
-                selectedIcon: Icon(Icons.mail),
-                label: 'Inbox',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
+    return Scaffold(
+      body: pages[_currentIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
           ),
-        );
-      },
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: 'Saved',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.mail_outline),
+            selectedIcon: Icon(Icons.mail),
+            label: 'Inbox',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
     );
   }
 }

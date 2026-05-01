@@ -50,11 +50,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       body: CustomScrollView(
         slivers: <Widget>[
           SliverAppBar(
-            expandedHeight: 316,
+            expandedHeight: 280,
             pinned: true,
             stretch: true,
             backgroundColor: colorScheme.surface,
             foregroundColor: colorScheme.onSurface,
+            title: const SizedBox.shrink(),
             actions: <Widget>[
               _SaveButton(isSaved: _isSaved, onTap: _handleToggleSave),
               const SizedBox(width: 8),
@@ -196,110 +197,147 @@ class _PropertyDetailsGalleryState extends State<_PropertyDetailsGallery> {
   Widget build(BuildContext context) {
     final List<String> imageUrls = _imageUrls;
     final List<String> thumbnailUrls = _thumbnailUrls;
+    final double statusTop = MediaQuery.paddingOf(context).top;
+    final double imageHeight = widget.height > statusTop
+        ? widget.height - statusTop
+        : widget.height;
+    final double thumbnailTop = statusTop + kToolbarHeight + 8;
     if (imageUrls.isEmpty) {
-      return buildPropertyDetailsImage(
-        context: context,
-        property: widget.property,
+      return SizedBox(
         height: widget.height,
-        useThumbnail: false,
-        fallbackChild: _GalleryFallback(property: widget.property),
+        width: double.infinity,
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              top: statusTop,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: buildPropertyDetailsImage(
+                context: context,
+                property: widget.property,
+                height: imageHeight,
+                useThumbnail: false,
+                fallbackChild: _GalleryFallback(property: widget.property),
+              ),
+            ),
+            if (statusTop > 0)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: statusTop,
+                child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+              ),
+          ],
+        ),
       );
     }
 
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      children: <Widget>[
-        SizedBox(
-          height: widget.height,
-          width: double.infinity,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              PageView.builder(
-                controller: _pageController,
-                itemCount: imageUrls.length,
-                onPageChanged: (index) => setState(() => _currentIndex = index),
+    return SizedBox(
+      height: widget.height,
+      width: double.infinity,
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            top: statusTop,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: imageUrls.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) {
+                return _GalleryImage(
+                  url: imageUrls[index],
+                  property: widget.property,
+                  height: imageHeight,
+                );
+              },
+            ),
+          ),
+          if (statusTop > 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: statusTop,
+              child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+            ),
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: Transform.scale(
+              scale: 0.65,
+              alignment: Alignment.bottomLeft,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1}/${imageUrls.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 18,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List<Widget>.generate(imageUrls.length, (index) {
+                final bool isActive = index == _currentIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: isActive ? 18 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(
+                      alpha: isActive ? 0.95 : 0.62,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                );
+              }),
+            ),
+          ),
+          Positioned(
+            top: thumbnailTop,
+            right: 7,
+            bottom: 16,
+            child: SizedBox(
+              width: 50,
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: thumbnailUrls.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 7),
                 itemBuilder: (context, index) {
-                  return _GalleryImage(
-                    url: imageUrls[index],
-                    property: widget.property,
-                    height: widget.height,
+                  return _GalleryThumbnail(
+                    url: thumbnailUrls[index],
+                    isSelected: index == _currentIndex,
+                    onTap: () => _showImage(index),
                   );
                 },
               ),
-              Positioned(
-                left: 16,
-                bottom: 16,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.38),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    child: Text(
-                      '${_currentIndex + 1}/${imageUrls.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 92,
-                right: 12,
-                bottom: 16,
-                child: SizedBox(
-                  width: 42,
-                  child: ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: thumbnailUrls.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 7),
-                    itemBuilder: (context, index) {
-                      return _GalleryThumbnail(
-                        url: thumbnailUrls[index],
-                        isSelected: index == _currentIndex,
-                        onTap: () => _showImage(index),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-        Container(
-          height: 36,
-          width: double.infinity,
-          color: colorScheme.surface,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List<Widget>.generate(imageUrls.length, (index) {
-              final bool isActive = index == _currentIndex;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: isActive ? 18 : 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -317,47 +355,59 @@ class _GalleryThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ImageProvider<Object> provider = url.startsWith('http')
-        ? NetworkImage(url)
-        : AssetImage(url);
+    final ImageProvider<Object> provider = ResizeImage(
+      url.startsWith('http') ? NetworkImage(url) : AssetImage(url),
+      width: 96,
+      height: 96,
+    );
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        width: 38,
-        height: 38,
-        padding: const EdgeInsets.all(2),
+        width: 46,
+        height: 46,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: isSelected ? 0.95 : 0.6),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? Colors.white : Colors.transparent,
-            width: 2,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.black.withValues(alpha: 0.2),
+            width: isSelected ? 2 : 1,
           ),
           boxShadow: <BoxShadow>[
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(5),
-          child: Image(
-            image: provider,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return const ColoredBox(
-                color: Colors.black26,
-                child: Icon(
-                  Icons.image_not_supported_outlined,
-                  color: Colors.white,
-                  size: 20,
+          borderRadius: BorderRadius.circular(12),
+          child: ColoredBox(
+            color: Colors.white.withValues(alpha: isSelected ? 0.55 : 0.38),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image(
+                  image: provider,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.low,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const ColoredBox(
+                      color: Colors.black26,
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
@@ -472,6 +522,8 @@ class _PriceHeader extends StatelessWidget {
           Text(
             property.price,
             style: textTheme.headlineMedium?.copyWith(
+              fontSize: 18,
+              height: 1.1,
               fontWeight: FontWeight.w800,
               color: colorScheme.primary,
             ),
@@ -479,7 +531,11 @@ class _PriceHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             property.title,
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            style: textTheme.titleLarge?.copyWith(
+              fontSize: 18,
+              height: 1.2,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 8),
           Row(

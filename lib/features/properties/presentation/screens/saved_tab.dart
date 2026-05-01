@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/state/inline_property_details_controller.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../features/subscription/data/services/subscription_service.dart';
 import '../../data/datasources/shared_properties.dart';
+import 'property_details_screen.dart';
 import '../widgets/property_image.dart';
 
 class SavedTab extends StatelessWidget {
@@ -132,11 +132,15 @@ class SavedTab extends StatelessWidget {
                             ),
                             trailing: Text(property.price),
                             onTap: () {
-                              showInlinePropertyDetails(
-                                context: context,
-                                property: property,
-                                isSaved: true,
-                                onToggleSave: () => onToggleSave(property),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => PropertyDetailsScreen(
+                                    property: property,
+                                    isSaved: true,
+                                    onToggleSave: () => onToggleSave(property),
+                                  ),
+                                ),
                               );
                             },
                           ),
