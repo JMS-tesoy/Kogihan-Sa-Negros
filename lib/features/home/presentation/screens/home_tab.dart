@@ -112,7 +112,7 @@ class HomeTab extends StatelessWidget {
           SliverPersistentHeader(
             pinned: true,
             delegate: StickySearchHeaderDelegate(
-              height: 76,
+              height: 60,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: SearchSection(
@@ -295,13 +295,6 @@ class _LotsFilterSectionState extends State<_LotsFilterSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            '$_selectedTitle (${filteredProperties.length})',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(

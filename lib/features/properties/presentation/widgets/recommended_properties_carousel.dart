@@ -31,18 +31,19 @@ class RecommendedPropertiesCarousel extends StatefulWidget {
 
 class _RecommendedPropertiesCarouselState
     extends State<RecommendedPropertiesCarousel> {
-  late final CarouselController _carouselController;
+  late final PageController _pageController;
   final Set<String> _warmedDetailImageIds = <String>{};
   int _currentPage = 0;
-  static const List<int> _carouselWeights = <int>[1];
-  static const double _activeCardHeight = 265;
+  double _pageOffset = 0;
+  static const double _activeCardHeight = 318;
   static const double _indicatorHeight = 19;
+  static const double _viewportFraction = 0.90;
 
   @override
   void initState() {
     super.initState();
-    _carouselController = CarouselController();
-    _carouselController.addListener(_handleCarouselScroll);
+    _pageController = PageController(viewportFraction: _viewportFraction);
+    _pageController.addListener(_handleCarouselScroll);
     _warmRecommendedDetailImages();
   }
 
@@ -61,29 +62,19 @@ class _RecommendedPropertiesCarouselState
   }
 
   void _handleCarouselScroll() {
-    if (!_carouselController.hasClients || widget.properties.isEmpty) return;
+    if (!_pageController.hasClients || widget.properties.isEmpty) return;
 
-    final ScrollPosition position = _carouselController.position;
-    if (!position.hasViewportDimension || position.viewportDimension == 0) {
-      return;
-    }
-
-    final double itemScrollExtent =
-        position.viewportDimension /
-        _carouselWeights.reduce((value, element) => value + element);
-    if (itemScrollExtent == 0) return;
+    final double nextOffset = _pageController.page ?? _currentPage.toDouble();
 
     final int nextPage = math.max(
       0,
-      math.min(
-        widget.properties.length - 1,
-        (_carouselController.offset / itemScrollExtent).round(),
-      ),
+      math.min(widget.properties.length - 1, nextOffset.round()),
     );
 
-    if (nextPage == _currentPage) return;
+    if (nextPage == _currentPage && nextOffset == _pageOffset) return;
     setState(() {
       _currentPage = nextPage;
+      _pageOffset = nextOffset;
     });
   }
 
@@ -99,17 +90,24 @@ class _RecommendedPropertiesCarouselState
 
     if (_currentPage >= widget.properties.length) {
       _currentPage = widget.properties.length - 1;
+      _pageOffset = _currentPage.toDouble();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_carouselController.hasClients) return;
-        unawaited(_carouselController.animateToItem(_currentPage));
+        if (!mounted || !_pageController.hasClients) return;
+        unawaited(
+          _pageController.animateToPage(
+            _currentPage,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          ),
+        );
       });
     }
   }
 
   @override
   void dispose() {
-    _carouselController.removeListener(_handleCarouselScroll);
-    _carouselController.dispose();
+    _pageController.removeListener(_handleCarouselScroll);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -121,7 +119,7 @@ class _RecommendedPropertiesCarouselState
     final bool hasTeamInfo = widget.properties.any(
       (property) => (property.agentTeamName ?? '').trim().isNotEmpty,
     );
-    final double activeCardHeight = hasTeamInfo ? 292 : _activeCardHeight;
+    final double activeCardHeight = hasTeamInfo ? 344 : _activeCardHeight;
 
     return SizedBox(
       height:
@@ -130,38 +128,52 @@ class _RecommendedPropertiesCarouselState
       child: Column(
         children: [
           Expanded(
-            child: CarouselView.weighted(
-              controller: _carouselController,
-              itemSnapping: true,
-              flexWeights: _carouselWeights,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              itemClipBehavior: Clip.none,
-              enableSplash: false,
-              children: List<Widget>.generate(widget.properties.length, (
-                index,
-              ) {
+            child: PageView.builder(
+              controller: _pageController,
+              clipBehavior: Clip.none,
+              physics: const BouncingScrollPhysics(),
+              itemCount: widget.properties.length,
+              itemBuilder: (context, index) {
                 final Property property = widget.properties[index];
                 final bool isActive = index == _currentPage;
+                final double pageDistance = (_pageOffset - index)
+                    .abs()
+                    .clamp(0.0, 1.0)
+                    .toDouble();
+                final double scale = 1 - (pageDistance * 0.10);
+                final double opacity = 1 - (pageDistance * 0.32);
+                final double verticalOffset = pageDistance * 14;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: activeCardHeight,
-                      child: RecommendedPropertyCard(
-                        property: property,
-                        isSaved: widget.savedProperties.contains(property),
-                        isActive: isActive,
-                        onToggleSave: () => widget.onToggleSave(property),
-                        onOpenDetails: () => widget.onOpenDetails(property),
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Transform.translate(
+                    offset: Offset(0, verticalOffset),
+                    child: Transform.scale(
+                      scale: scale,
+                      alignment: Alignment.topCenter,
+                      child: Opacity(
+                        opacity: opacity,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            height: activeCardHeight,
+                            child: RecommendedPropertyCard(
+                              property: property,
+                              isSaved: widget.savedProperties.contains(
+                                property,
+                              ),
+                              isActive: isActive,
+                              onToggleSave: () => widget.onToggleSave(property),
+                              onOpenDetails: () =>
+                                  widget.onOpenDetails(property),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 );
-              }),
+              },
             ),
           ),
           if (widget.properties.length > 1) ...[
@@ -171,8 +183,9 @@ class _RecommendedPropertiesCarouselState
               children: List.generate(widget.properties.length, (index) {
                 final bool isActive = index == _currentPage;
                 return AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: isActive ? 18 : 7,
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  width: isActive ? 22 : 7,
                   height: 7,
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(

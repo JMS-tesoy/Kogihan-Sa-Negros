@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/widgets/app_background.dart';
 import 'router/app_router.dart';
 import 'state/app_display_preferences.dart'
-    show appFontScaleNotifier, appThemeNotifier;
+    show appFontScaleNotifier, appStarryBackgroundNotifier, appThemeNotifier;
 import 'theme/land_finder_app_theme.dart';
 
 class LandFinderApp extends StatelessWidget {
@@ -29,7 +30,16 @@ class LandFinderApp extends StatelessWidget {
                   data: MediaQuery.of(
                     context,
                   ).copyWith(textScaler: TextScaler.linear(fontScale)),
-                  child: child!,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: appStarryBackgroundNotifier,
+                    builder: (context, starryBackgroundEnabled, child) {
+                      return AppBackground(
+                        enabled: starryBackgroundEnabled,
+                        child: child!,
+                      );
+                    },
+                    child: child!,
+                  ),
                 );
               },
               theme: buildLandFinderLightTheme(),

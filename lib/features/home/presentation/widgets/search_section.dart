@@ -111,10 +111,10 @@ class SearchSection extends StatelessWidget {
     ].where((value) => value != null).length;
     final Color searchSurface = isLightTheme
         ? Color.alphaBlend(
-            theme.colorScheme.primary.withValues(alpha: 0.035),
+            theme.colorScheme.primary.withValues(alpha: 0.075),
             theme.colorScheme.surface,
           )
-        : const Color(0xFFF1F4F6);
+        : const Color.fromARGB(255, 199, 212, 228);
     final Color searchShadow = isLightTheme
         ? theme.colorScheme.shadow.withValues(alpha: 0.06)
         : Colors.black.withValues(alpha: 0.04);
@@ -148,10 +148,15 @@ class SearchSection extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(Icons.search, color: mutedColor),
+          prefixIcon: Icon(Icons.search, color: mutedColor, size: 21),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 44,
+            minHeight: 44,
+          ),
           suffixIcon: IconButton(
             tooltip: 'Filters',
             onPressed: () => _showFilterSheet(context),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             icon: Badge(
               isLabelVisible: activeFilterCount > 0,
               label: Text(activeFilterCount.toString()),
@@ -160,7 +165,7 @@ class SearchSection extends StatelessWidget {
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 18,
-            vertical: 18,
+            vertical: 10,
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),

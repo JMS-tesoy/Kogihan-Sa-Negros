@@ -1582,10 +1582,7 @@ class _NegrosPlacesSheetState extends State<_NegrosPlacesSheet> {
               })
               .toList(growable: false);
 
-          return MapEntry<String, List<NegrosPlace>>(
-            entry.key,
-            matchingPlaces,
-          );
+          return MapEntry<String, List<NegrosPlace>>(entry.key, matchingPlaces);
         })
         .where((entry) => entry.value.isNotEmpty)
         .toList(growable: false);

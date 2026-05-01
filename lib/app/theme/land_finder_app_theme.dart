@@ -27,7 +27,7 @@ ThemeData buildLandFinderLightTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+    scaffoldBackgroundColor: Colors.transparent,
     cardColor: scheme.surface,
     dividerColor: scheme.outlineVariant,
     canvasColor: scheme.surface,
@@ -45,13 +45,46 @@ ThemeData buildLandFinderLightTheme() {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: scheme.surface,
+      elevation: 12,
       indicatorColor: scheme.primaryContainer,
+      shadowColor: scheme.shadow.withValues(alpha: 0.18),
       surfaceTintColor: Colors.transparent,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: scheme.surface,
+      selectedColor: scheme.primaryContainer,
+      disabledColor: scheme.surfaceContainerHighest,
+      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+      secondaryLabelStyle: TextStyle(color: scheme.onPrimaryContainer),
+      side: BorderSide(color: scheme.outlineVariant),
+      elevation: 5,
+      pressElevation: 8,
+      shadowColor: scheme.shadow.withValues(alpha: 0.20),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        elevation: 6,
+        shadowColor: scheme.shadow.withValues(alpha: 0.24),
+        surfaceTintColor: Colors.transparent,
+      ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
+        elevation: 6,
+        shadowColor: scheme.shadow.withValues(alpha: 0.24),
+        surfaceTintColor: Colors.transparent,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: scheme.surface,
+        elevation: 4,
+        shadowColor: scheme.shadow.withValues(alpha: 0.18),
+        side: BorderSide(color: scheme.outlineVariant),
         surfaceTintColor: Colors.transparent,
       ),
     ),
@@ -93,7 +126,7 @@ ThemeData buildLandFinderDarkTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFF0B1120),
+    scaffoldBackgroundColor: Colors.transparent,
     cardColor: scheme.surface,
     dividerColor: scheme.outlineVariant,
     canvasColor: scheme.surface,
@@ -111,13 +144,46 @@ ThemeData buildLandFinderDarkTheme() {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: scheme.surface,
+      elevation: 10,
       indicatorColor: scheme.primaryContainer,
+      shadowColor: Colors.black.withValues(alpha: 0.38),
       surfaceTintColor: Colors.transparent,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: scheme.surface,
+      selectedColor: scheme.primaryContainer,
+      disabledColor: scheme.surfaceContainerHighest,
+      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+      secondaryLabelStyle: TextStyle(color: scheme.onPrimaryContainer),
+      side: BorderSide(color: scheme.outlineVariant),
+      elevation: 4,
+      pressElevation: 7,
+      shadowColor: Colors.black.withValues(alpha: 0.42),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        elevation: 5,
+        shadowColor: Colors.black.withValues(alpha: 0.42),
+        surfaceTintColor: Colors.transparent,
+      ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
+        elevation: 5,
+        shadowColor: Colors.black.withValues(alpha: 0.42),
+        surfaceTintColor: Colors.transparent,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: scheme.surface,
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.36),
+        side: BorderSide(color: scheme.outlineVariant),
         surfaceTintColor: Colors.transparent,
       ),
     ),

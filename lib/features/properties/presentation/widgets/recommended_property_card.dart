@@ -26,6 +26,12 @@ class RecommendedPropertyCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      elevation: isActive ? 10 : 2,
+      shadowColor: theme.colorScheme.shadow.withValues(
+        alpha: isActive ? 0.24 : 0.10,
+      ),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: InkWell(
         onTap: onOpenDetails,
         child: Column(
@@ -36,7 +42,7 @@ class RecommendedPropertyCard extends StatelessWidget {
                 buildPropertyDetailsImage(
                   context: context,
                   property: property,
-                  height: isActive ? 172 : 140,
+                  height: isActive ? 206 : 152,
                   useThumbnail: true,
                   fallbackChild: const Center(
                     child: Icon(
@@ -72,7 +78,7 @@ class RecommendedPropertyCard extends StatelessWidget {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(2),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -80,49 +86,64 @@ class RecommendedPropertyCard extends StatelessWidget {
                     property.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.12,
+                      letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   Text(
                     property.price,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
+                    style: theme.textTheme.titleSmall?.copyWith(
                       color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    property.location,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.place_rounded,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          property.location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   if (isActive &&
                       agentTeamName != null &&
                       agentTeamName.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
                         Icon(
-                          Icons.groups_outlined,
-                          size: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
+                          Icons.verified_user_outlined,
+                          size: 13,
+                          color: theme.colorScheme.primary,
                         ),
-                        const SizedBox(width: 3),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             agentTeamName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),

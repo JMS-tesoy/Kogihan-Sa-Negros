@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../app/state/app_display_preferences.dart'
     as app_display_preferences;
 import '../../../../app/state/app_display_preferences.dart'
-    show appFontScaleNotifier, appThemeNotifier;
+    show appFontScaleNotifier, appStarryBackgroundNotifier, appThemeNotifier;
 import '../../../../app/state/app_pin_code.dart';
 import '../../../../core/constants/storage_constants.dart';
 import '../../../../features/auth/presentation/screens/change_password_screen.dart';
@@ -29,6 +29,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notifyNewProperties = true;
   bool _notifyPriceDrops = true;
   bool _notifyMessages = true;
+  bool _starryBackgroundEnabled = false;
   double _currentFontSizeScale = 1.0;
 
   @override
@@ -45,6 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ? ThemeMode.dark
         : ThemeMode.light;
     _currentFontSizeScale = appFontScaleNotifier.value;
+    _starryBackgroundEnabled = appStarryBackgroundNotifier.value;
     unawaited(_loadPreferredThemeMode());
   }
 
@@ -391,6 +393,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     'This is an example text. Adjust the slider above to see the font size change.',
                     textScaler: TextScaler.linear(_currentFontSizeScale),
                   ),
+                ),
+                _settingsDivider(),
+                _buildAppearanceSwitchTile(
+                  title: 'Starry Background',
+                  subtitle: 'Use the night-sky style behind app screens',
+                  value: _starryBackgroundEnabled,
+                  isChild: true,
+                  onChanged: (value) {
+                    setState(() {
+                      _starryBackgroundEnabled = value;
+                      appStarryBackgroundNotifier.value = value;
+                    });
+                    unawaited(
+                      app_display_preferences
+                          .AppDisplayPreferences.persistStarryBackgroundPreference(
+                        value,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

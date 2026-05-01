@@ -112,9 +112,7 @@ class _SplashBackground extends StatelessWidget {
           Positioned(
             top: 130,
             left: 30,
-            child: _MiniDot(
-              color: colorScheme.primary.withValues(alpha: 0.20),
-            ),
+            child: _MiniDot(color: colorScheme.primary.withValues(alpha: 0.20)),
           ),
           Positioned(
             right: 42,
@@ -137,10 +135,7 @@ class _SplashBackground extends StatelessWidget {
 }
 
 class _SplashContent extends StatelessWidget {
-  const _SplashContent({
-    required this.isOpening,
-    required this.onContinue,
-  });
+  const _SplashContent({required this.isOpening, required this.onContinue});
 
   final bool isOpening;
   final VoidCallback onContinue;
@@ -160,10 +155,7 @@ class _SplashContent extends StatelessWidget {
         const SizedBox(height: 22),
         const _TrustRow(),
         const SizedBox(height: 34),
-        _ContinueButton(
-          isOpening: isOpening,
-          onPressed: onContinue,
-        ),
+        _ContinueButton(isOpening: isOpening, onPressed: onContinue),
       ],
     );
   }
@@ -179,38 +171,19 @@ class _SplashLogo extends StatelessWidget {
     return Container(
       width: 112,
       height: 112,
-      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(34),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.65),
-        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.12),
-            blurRadius: 28,
-            offset: const Offset(0, 16),
+            color: colorScheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              colorScheme.primary,
-              colorScheme.tertiary,
-            ],
-          ),
-        ),
-        child: Icon(
-          Icons.real_estate_agent_rounded,
-          size: 54,
-          color: colorScheme.onPrimary,
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: Image.asset('asset/ksn_logo.png', fit: BoxFit.cover),
       ),
     );
   }
@@ -360,11 +333,7 @@ class _FeatureItem extends StatelessWidget {
             color: colorScheme.primaryContainer.withValues(alpha: 0.86),
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(
-            icon,
-            size: 22,
-            color: colorScheme.primary,
-          ),
+          child: Icon(icon, size: 22, color: colorScheme.primary),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -405,28 +374,16 @@ class _TrustRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: <Widget>[
-        _TrustBadge(
-          icon: Icons.verified_rounded,
-          label: 'Verified details',
-        ),
-        _TrustBadge(
-          icon: Icons.map_rounded,
-          label: 'Map-ready',
-        ),
-        _TrustBadge(
-          icon: Icons.chat_bubble_rounded,
-          label: 'Quick inquiry',
-        ),
+        _TrustBadge(icon: Icons.verified_rounded, label: 'Verified details'),
+        _TrustBadge(icon: Icons.map_rounded, label: 'Map-ready'),
+        _TrustBadge(icon: Icons.chat_bubble_rounded, label: 'Quick inquiry'),
       ],
     );
   }
 }
 
 class _TrustBadge extends StatelessWidget {
-  const _TrustBadge({
-    required this.icon,
-    required this.label,
-  });
+  const _TrustBadge({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -448,11 +405,7 @@ class _TrustBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            icon,
-            size: 15,
-            color: colorScheme.primary,
-          ),
+          Icon(icon, size: 15, color: colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             label,
@@ -468,10 +421,7 @@ class _TrustBadge extends StatelessWidget {
 }
 
 class _ContinueButton extends StatelessWidget {
-  const _ContinueButton({
-    required this.isOpening,
-    required this.onPressed,
-  });
+  const _ContinueButton({required this.isOpening, required this.onPressed});
 
   final bool isOpening;
   final VoidCallback onPressed;
@@ -497,9 +447,7 @@ class _ContinueButton extends StatelessWidget {
             : const Icon(Icons.arrow_forward_rounded),
         label: Text(
           isOpening ? 'Opening...' : 'Continue',
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
     );
@@ -507,10 +455,7 @@ class _ContinueButton extends StatelessWidget {
 }
 
 class _GlowCircle extends StatelessWidget {
-  const _GlowCircle({
-    required this.size,
-    required this.color,
-  });
+  const _GlowCircle({required this.size, required this.color});
 
   final double size;
   final Color color;
@@ -520,18 +465,13 @@ class _GlowCircle extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
 }
 
 class _MiniDot extends StatelessWidget {
-  const _MiniDot({
-    required this.color,
-  });
+  const _MiniDot({required this.color});
 
   final Color color;
 
@@ -540,10 +480,7 @@ class _MiniDot extends StatelessWidget {
     return Container(
       width: 9,
       height: 9,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
 }

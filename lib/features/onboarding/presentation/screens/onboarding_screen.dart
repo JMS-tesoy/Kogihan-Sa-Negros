@@ -23,23 +23,28 @@ const List<_OnboardingPage> _pages = <_OnboardingPage>[
     icon: Icons.map_outlined,
     title: 'Browse Lots',
     subtitle:
-        'Explore hundreds of land listings across Negros Island. Filter by location, size, and budget to find exactly what you need.',
+        'Search Negros land listings by location, lot type, and nearby areas.',
     color: Color(0xFF2563EB),
   ),
   _OnboardingPage(
     icon: Icons.favorite_border_rounded,
     title: 'Save Favorites',
-    subtitle:
-        'Bookmark the lots you love and compare them anytime. Upgrade to Premium for unlimited saves.',
+    subtitle: 'Keep promising lots in one place so you can compare them later.',
     color: Color(0xFF7C3AED),
   ),
   _OnboardingPage(
     icon: Icons.groups_2_outlined,
-    title: 'Connect with Agents',
+    title: 'Message Agents',
     subtitle:
-        'Message verified agent teams directly from the app. Get expert guidance from local professionals.',
+        'Contact verified agents for property details, viewing, and next steps.',
     color: Color(0xFF059669),
   ),
+];
+
+const List<String> _ctaLabels = <String>[
+  'Explore lots',
+  'Save favorites',
+  'Start searching',
 ];
 
 class OnboardingScreen extends StatefulWidget {
@@ -133,14 +138,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           Container(
                             width: 32,
                             height: 32,
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(
-                              Icons.landscape_rounded,
-                              size: 18,
-                              color: colorScheme.primary,
+                            child: Image.asset(
+                              'asset/ksn_logo.png',
+                              fit: BoxFit.cover,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -231,8 +235,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
                             child: Text(
-                              isLast ? 'Get Started' : 'Next',
-                              key: ValueKey<bool>(isLast),
+                              _ctaLabels[_currentIndex],
+                              key: ValueKey<int>(_currentIndex),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -340,6 +344,65 @@ class _OnboardingPageView extends StatelessWidget {
               height: 1.65,
             ),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Why KSN? Focused on Negros land listings only.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          const Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _OnboardingFeatureChip(
+                icon: Icons.map_rounded,
+                label: 'Map search',
+              ),
+              _OnboardingFeatureChip(
+                icon: Icons.verified_rounded,
+                label: 'Verified agents',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingFeatureChip extends StatelessWidget {
+  const _OnboardingFeatureChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.60),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

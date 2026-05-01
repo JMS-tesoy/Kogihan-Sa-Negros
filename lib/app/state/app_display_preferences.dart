@@ -7,6 +7,7 @@ final ValueNotifier<ThemeMode> appThemeNotifier = ValueNotifier(
   ThemeMode.system,
 );
 final ValueNotifier<double> appFontScaleNotifier = ValueNotifier(1.0);
+final ValueNotifier<bool> appStarryBackgroundNotifier = ValueNotifier(false);
 
 Future<void> initializeAppThemePreference() async {
   final SharedPreferences preferences = await SharedPreferences.getInstance();
@@ -18,6 +19,8 @@ Future<void> initializeAppThemePreference() async {
   appThemeNotifier.value = followSystemTheme
       ? ThemeMode.system
       : (preferredThemeMode == 'dark' ? ThemeMode.dark : ThemeMode.light);
+  appStarryBackgroundNotifier.value =
+      preferences.getBool(StorageConstants.starryBackgroundEnabled) ?? false;
 }
 
 Future<void> persistFollowSystemThemePreference(bool enabled) async {
@@ -49,6 +52,14 @@ class AppDisplayPreferences {
     await preferences.setString(
       StorageConstants.preferredThemeMode,
       themeMode == ThemeMode.dark ? 'dark' : 'light',
+    );
+  }
+
+  static Future<void> persistStarryBackgroundPreference(bool enabled) async {
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(
+      StorageConstants.starryBackgroundEnabled,
+      enabled,
     );
   }
 }
