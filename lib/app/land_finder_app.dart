@@ -19,6 +19,7 @@ class LandFinderApp extends StatelessWidget {
         return ValueListenableBuilder<double>(
           valueListenable: appFontScaleNotifier,
           builder: (context, fontScale, child) {
+            final double safeFontScale = fontScale.clamp(0.9, 1.15).toDouble();
             return MaterialApp(
               title: 'Land Finder',
               debugShowCheckedModeBanner: false,
@@ -29,7 +30,7 @@ class LandFinderApp extends StatelessWidget {
                 return MediaQuery(
                   data: MediaQuery.of(
                     context,
-                  ).copyWith(textScaler: TextScaler.linear(fontScale)),
+                  ).copyWith(textScaler: TextScaler.linear(safeFontScale)),
                   child: ValueListenableBuilder<bool>(
                     valueListenable: appStarryBackgroundNotifier,
                     builder: (context, starryBackgroundEnabled, child) {

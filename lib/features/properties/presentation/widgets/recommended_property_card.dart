@@ -9,6 +9,8 @@ class RecommendedPropertyCard extends StatelessWidget {
   final bool isActive;
   final VoidCallback onToggleSave;
   final VoidCallback onOpenDetails;
+  final double activeImageHeight;
+  final double inactiveImageHeight;
 
   const RecommendedPropertyCard({
     super.key,
@@ -17,6 +19,8 @@ class RecommendedPropertyCard extends StatelessWidget {
     required this.isActive,
     required this.onToggleSave,
     required this.onOpenDetails,
+    required this.activeImageHeight,
+    required this.inactiveImageHeight,
   });
 
   @override
@@ -42,7 +46,7 @@ class RecommendedPropertyCard extends StatelessWidget {
                 buildPropertyDetailsImage(
                   context: context,
                   property: property,
-                  height: isActive ? 206 : 152,
+                  height: isActive ? activeImageHeight : inactiveImageHeight,
                   useThumbnail: true,
                   fallbackChild: const Center(
                     child: Icon(

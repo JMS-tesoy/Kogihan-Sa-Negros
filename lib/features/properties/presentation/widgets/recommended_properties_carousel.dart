@@ -35,7 +35,6 @@ class _RecommendedPropertiesCarouselState
   final Set<String> _warmedDetailImageIds = <String>{};
   int _currentPage = 0;
   double _pageOffset = 0;
-  static const double _activeCardHeight = 318;
   static const double _indicatorHeight = 19;
   static const double _viewportFraction = 0.90;
 
@@ -116,10 +115,24 @@ class _RecommendedPropertiesCarouselState
     if (widget.properties.isEmpty) return const SizedBox.shrink();
 
     final ThemeData theme = Theme.of(context);
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final double textScale = MediaQuery.textScalerOf(
+      context,
+    ).scale(1).clamp(0.9, 1.15).toDouble();
     final bool hasTeamInfo = widget.properties.any(
       (property) => (property.agentTeamName ?? '').trim().isNotEmpty,
     );
-    final double activeCardHeight = hasTeamInfo ? 344 : _activeCardHeight;
+    final double baseCardHeight = (screenWidth * 0.82)
+        .clamp(292.0, 328.0)
+        .toDouble();
+    final double activeCardHeight =
+        baseCardHeight + (hasTeamInfo ? 24 : 0) + ((textScale - 1) * 42);
+    final double activeImageHeight = (screenWidth * 0.52)
+        .clamp(178.0, 210.0)
+        .toDouble();
+    final double inactiveImageHeight = (activeImageHeight * 0.74)
+        .clamp(132.0, 156.0)
+        .toDouble();
 
     return SizedBox(
       height:
@@ -166,6 +179,8 @@ class _RecommendedPropertiesCarouselState
                               onToggleSave: () => widget.onToggleSave(property),
                               onOpenDetails: () =>
                                   widget.onOpenDetails(property),
+                              activeImageHeight: activeImageHeight,
+                              inactiveImageHeight: inactiveImageHeight,
                             ),
                           ),
                         ),

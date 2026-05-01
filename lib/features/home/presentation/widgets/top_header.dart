@@ -124,11 +124,15 @@ class TopHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isLightTheme = theme.brightness == Brightness.light;
+    final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
+    final double logoSize = isCompactPhone ? 42 : 48;
+    final double actionSize = isCompactPhone ? 42 : 48;
+    final double horizontalGap = isCompactPhone ? 10 : 12;
 
     return Row(
       children: <Widget>[
-        const KsnHeaderLogo(),
-        const SizedBox(width: 12),
+        KsnHeaderLogo(size: logoSize),
+        SizedBox(width: horizontalGap),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,26 +141,30 @@ class TopHeader extends StatelessWidget {
                 'Kogihan Sa Negros',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style:
+                    (isCompactPhone
+                            ? theme.textTheme.titleLarge
+                            : theme.textTheme.headlineSmall)
+                        ?.copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: isCompactPhone ? 4 : 6),
               Text(
                 'Explore premium lots and investment-ready land.',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                style:
+                    (isCompactPhone
+                            ? theme.textTheme.bodySmall
+                            : theme.textTheme.bodyMedium)
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: horizontalGap),
         Container(
-          width: 48,
-          height: 48,
+          width: actionSize,
+          height: actionSize,
           decoration: BoxDecoration(
             color: isLightTheme
                 ? Color.alphaBlend(
@@ -164,7 +172,7 @@ class TopHeader extends StatelessWidget {
                     theme.cardColor,
                   )
                 : theme.cardColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(isCompactPhone ? 14 : 16),
             boxShadow: <BoxShadow>[
               BoxShadow(
                 color: isLightTheme

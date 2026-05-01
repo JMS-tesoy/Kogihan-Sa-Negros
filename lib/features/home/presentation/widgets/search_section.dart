@@ -104,6 +104,9 @@ class SearchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isLightTheme = theme.brightness == Brightness.light;
+    final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
+    final double iconBoxSize = isCompactPhone ? 40 : 44;
+    final double verticalPadding = isCompactPhone ? 8 : 10;
     final int activeFilterCount = <String?>[
       selectedLocation,
       selectedLotSize,
@@ -149,23 +152,26 @@ class SearchSection extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
           prefixIcon: Icon(Icons.search, color: mutedColor, size: 21),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 44,
+          prefixIconConstraints: BoxConstraints(
+            minWidth: iconBoxSize,
+            minHeight: iconBoxSize,
           ),
           suffixIcon: IconButton(
             tooltip: 'Filters',
             onPressed: () => _showFilterSheet(context),
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            constraints: BoxConstraints(
+              minWidth: iconBoxSize,
+              minHeight: iconBoxSize,
+            ),
             icon: Badge(
               isLabelVisible: activeFilterCount > 0,
               label: Text(activeFilterCount.toString()),
               child: Icon(Icons.tune_rounded, color: mutedColor),
             ),
           ),
-          contentPadding: const EdgeInsets.symmetric(
+          contentPadding: EdgeInsets.symmetric(
             horizontal: 18,
-            vertical: 10,
+            vertical: verticalPadding,
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),

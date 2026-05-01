@@ -65,6 +65,12 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final bool isCompactPhone = screenWidth < 360;
+    final double horizontalPadding = isCompactPhone ? 12 : 16;
+    final double toolbarHeight = isCompactPhone ? 74 : 84;
+    final double searchBottomPadding = isCompactPhone ? 12 : 16;
+    final double searchHeaderHeight = isCompactPhone ? 54 : 60;
     final List<Property> recommendedProperties = properties
         .take(6)
         .toList(growable: false);
@@ -103,18 +109,28 @@ class HomeTab extends StatelessWidget {
             floating: true,
             snap: true,
             surfaceTintColor: Colors.transparent,
-            toolbarHeight: 84,
-            flexibleSpace: const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: TopHeader(),
+            toolbarHeight: toolbarHeight,
+            flexibleSpace: Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                10,
+                horizontalPadding,
+                10,
+              ),
+              child: const TopHeader(),
             ),
           ),
           SliverPersistentHeader(
             pinned: true,
             delegate: StickySearchHeaderDelegate(
-              height: 60,
+              height: searchHeaderHeight,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  searchBottomPadding,
+                ),
                 child: SearchSection(
                   searchController: searchController,
                   onSearchChanged: onSearchChanged,
@@ -132,7 +148,12 @@ class HomeTab extends StatelessWidget {
           ),
           if (activeFilterChips.isNotEmpty)
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                0,
+                horizontalPadding,
+                12,
+              ),
               sliver: SliverToBoxAdapter(
                 child: Wrap(
                   spacing: 8,
@@ -150,7 +171,7 @@ class HomeTab extends StatelessWidget {
               ),
             ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             sliver: SliverToBoxAdapter(
               child: SectionHeader(
                 title: 'Recommended Properties',
