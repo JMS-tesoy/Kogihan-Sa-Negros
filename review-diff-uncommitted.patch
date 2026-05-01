@@ -1,0 +1,678 @@
+diff --git a/lib/features/properties/presentation/widgets/recommended_properties_carousel.dart b/lib/features/properties/presentation/widgets/recommended_properties_carousel.dart
+index 07f02ed..25843dc 100644
+--- a/lib/features/properties/presentation/widgets/recommended_properties_carousel.dart
++++ b/lib/features/properties/presentation/widgets/recommended_properties_carousel.dart
+@@ -12,8 +12,7 @@ class RecommendedPropertiesCarousel extends StatefulWidget {
+   final Set<Property> savedProperties;
+   final ValueChanged<Property> onToggleSave;
+   final ValueChanged<Property> onOpenDetails;
+-  final void Function(BuildContext context, Property property)
+-  onPrecacheDetails;
++  final void Function(BuildContext context, Property property) onPrecacheDetails;
+ 
+   const RecommendedPropertiesCarousel({
+     super.key,
+@@ -33,8 +32,10 @@ class _RecommendedPropertiesCarouselState
+     extends State<RecommendedPropertiesCarousel> {
+   late final PageController _pageController;
+   final Set<String> _warmedDetailImageIds = <String>{};
++
+   int _currentPage = 0;
+   double _pageOffset = 0;
++
+   static const double _indicatorHeight = 19;
+   static const double _viewportFraction = 0.90;
+ 
+@@ -71,6 +72,7 @@ class _RecommendedPropertiesCarouselState
+     );
+ 
+     if (nextPage == _currentPage && nextOffset == _pageOffset) return;
++
+     setState(() {
+       _currentPage = nextPage;
+       _pageOffset = nextOffset;
+@@ -90,8 +92,10 @@ class _RecommendedPropertiesCarouselState
+     if (_currentPage >= widget.properties.length) {
+       _currentPage = widget.properties.length - 1;
+       _pageOffset = _currentPage.toDouble();
++
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (!mounted || !_pageController.hasClients) return;
++
+         unawaited(
+           _pageController.animateToPage(
+             _currentPage,
+@@ -119,43 +123,46 @@ class _RecommendedPropertiesCarouselState
+     final double textScale = MediaQuery.textScalerOf(
+       context,
+     ).scale(1).clamp(0.9, 1.15).toDouble();
++
+     final bool hasTeamInfo = widget.properties.any(
+-      (property) => (property.agentTeamName ?? '').trim().isNotEmpty,
++      (Property property) => (property.agentTeamName ?? '').trim().isNotEmpty,
+     );
+-    final double baseCardHeight = (screenWidth * 0.82)
+-        .clamp(292.0, 328.0)
+-        .toDouble();
++
+     final double activeCardHeight =
+-        baseCardHeight + (hasTeamInfo ? 24 : 0) + ((textScale - 1) * 42);
+-    final double activeImageHeight = (screenWidth * 0.52)
+-        .clamp(178.0, 210.0)
+-        .toDouble();
+-    final double inactiveImageHeight = (activeImageHeight * 0.74)
+-        .clamp(132.0, 156.0)
+-        .toDouble();
++        (screenWidth * 1.05).clamp(380.0, 430.0).toDouble() +
++        (hasTeamInfo ? 18 : 0) +
++        ((textScale - 1) * 36);
++
++    final double activeImageHeight =
++        (screenWidth * 0.43).clamp(150.0, 178.0).toDouble();
++
++    final double inactiveImageHeight =
++        (activeImageHeight * 0.76).clamp(118.0, 138.0).toDouble();
+ 
+     return SizedBox(
+       height:
+           activeCardHeight +
+           (widget.properties.length > 1 ? _indicatorHeight : 0),
+       child: Column(
+-        children: [
++        children: <Widget>[
+           Expanded(
+             child: PageView.builder(
+               controller: _pageController,
+               clipBehavior: Clip.none,
+               physics: const BouncingScrollPhysics(),
+               itemCount: widget.properties.length,
+-              itemBuilder: (context, index) {
++              itemBuilder: (BuildContext context, int index) {
+                 final Property property = widget.properties[index];
+                 final bool isActive = index == _currentPage;
++
+                 final double pageDistance = (_pageOffset - index)
+                     .abs()
+                     .clamp(0.0, 1.0)
+                     .toDouble();
+-                final double scale = 1 - (pageDistance * 0.10);
+-                final double opacity = 1 - (pageDistance * 0.32);
+-                final double verticalOffset = pageDistance * 14;
++
++                final double scale = 1 - (pageDistance * 0.08);
++                final double opacity = 1 - (pageDistance * 0.24);
++                final double verticalOffset = pageDistance * 12;
+ 
+                 return Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 3),
+@@ -191,12 +198,15 @@ class _RecommendedPropertiesCarouselState
+               },
+             ),
+           ),
+-          if (widget.properties.length > 1) ...[
++          if (widget.properties.length > 1) ...<Widget>[
+             const SizedBox(height: 12),
+             Row(
+               mainAxisAlignment: MainAxisAlignment.center,
+-              children: List.generate(widget.properties.length, (index) {
++              children: List<Widget>.generate(widget.properties.length, (
++                int index,
++              ) {
+                 final bool isActive = index == _currentPage;
++
+                 return AnimatedContainer(
+                   duration: const Duration(milliseconds: 260),
+                   curve: Curves.easeOutCubic,
+@@ -217,4 +227,4 @@ class _RecommendedPropertiesCarouselState
+       ),
+     );
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/lib/features/properties/presentation/widgets/recommended_property_card.dart b/lib/features/properties/presentation/widgets/recommended_property_card.dart
+index 81c6a0e..4c493d4 100644
+--- a/lib/features/properties/presentation/widgets/recommended_property_card.dart
++++ b/lib/features/properties/presentation/widgets/recommended_property_card.dart
+@@ -26,140 +26,424 @@ class RecommendedPropertyCard extends StatelessWidget {
+   @override
+   Widget build(BuildContext context) {
+     final ThemeData theme = Theme.of(context);
++    final String availabilityLabel = _availabilityLabel(property);
++    final Color availabilityColor = _availabilityColor(
++      context,
++      availabilityLabel,
++    );
+     final String? agentTeamName = property.agentTeamName?.trim();
++    final double imageHeight = isActive ? activeImageHeight : inactiveImageHeight;
+ 
+-    return Card(
+-      clipBehavior: Clip.antiAlias,
+-      elevation: isActive ? 10 : 2,
+-      shadowColor: theme.colorScheme.shadow.withValues(
+-        alpha: isActive ? 0.24 : 0.10,
++    return AnimatedContainer(
++      duration: const Duration(milliseconds: 260),
++      curve: Curves.easeOutCubic,
++      decoration: BoxDecoration(
++        color: theme.colorScheme.surface,
++        borderRadius: BorderRadius.circular(24),
++        border: Border.all(
++          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.85),
++          width: 1,
++        ),
++        boxShadow: <BoxShadow>[
++          BoxShadow(
++            color: Colors.black.withValues(alpha: isActive ? 0.22 : 0.10),
++            blurRadius: isActive ? 22 : 12,
++            spreadRadius: isActive ? 1 : 0,
++            offset: Offset(0, isActive ? 10 : 5),
++          ),
++          BoxShadow(
++            color: Colors.black.withValues(alpha: isActive ? 0.10 : 0.05),
++            blurRadius: 6,
++            offset: const Offset(0, 2),
++          ),
++        ],
+       ),
+-      surfaceTintColor: Colors.transparent,
+-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+-      child: InkWell(
+-        onTap: onOpenDetails,
+-        child: Column(
+-          crossAxisAlignment: CrossAxisAlignment.start,
+-          children: [
+-            Stack(
+-              children: [
+-                buildPropertyDetailsImage(
+-                  context: context,
+-                  property: property,
+-                  height: isActive ? activeImageHeight : inactiveImageHeight,
+-                  useThumbnail: true,
+-                  fallbackChild: const Center(
+-                    child: Icon(
+-                      Icons.landscape_rounded,
+-                      color: Colors.white,
+-                      size: 34,
+-                    ),
+-                  ),
+-                ),
+-                Positioned(
+-                  top: 6,
+-                  right: 6,
+-                  child: InkWell(
+-                    borderRadius: BorderRadius.circular(999),
+-                    onTap: onToggleSave,
+-                    child: Container(
+-                      width: 30,
+-                      height: 30,
+-                      decoration: BoxDecoration(
+-                        color: theme.cardColor,
+-                        shape: BoxShape.circle,
++      child: Material(
++        color: theme.colorScheme.surface,
++        clipBehavior: Clip.antiAlias,
++        shape: RoundedRectangleBorder(
++          borderRadius: BorderRadius.circular(24),
++        ),
++        child: InkWell(
++          onTap: onOpenDetails,
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: <Widget>[
++              _ImageHeader(
++                property: property,
++                imageHeight: imageHeight,
++                isSaved: isSaved,
++                onToggleSave: onToggleSave,
++                availabilityLabel: availabilityLabel,
++                availabilityColor: availabilityColor,
++              ),
++              Expanded(
++                child: Padding(
++                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
++                  child: Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: <Widget>[
++                      Text(
++                        property.title,
++                        maxLines: 1,
++                        overflow: TextOverflow.ellipsis,
++                        style: theme.textTheme.titleMedium?.copyWith(
++                          fontWeight: FontWeight.w900,
++                          height: 1.1,
++                          letterSpacing: -0.25,
++                        ),
+                       ),
+-                      child: Icon(
+-                        isSaved
+-                            ? Icons.favorite
+-                            : Icons.favorite_border_rounded,
+-                        size: 18,
+-                        color: isSaved ? Colors.red : theme.iconTheme.color,
++                      const SizedBox(height: 6),
++                      _LocationLabel(location: property.location),
++                      const SizedBox(height: 8),
++                      _PriceLabel(price: property.price),
++                      const SizedBox(height: 8),
++                      Wrap(
++                        spacing: 7,
++                        runSpacing: 7,
++                        children: <Widget>[
++                          _InfoChip(
++                            icon: Icons.check_circle_outline_rounded,
++                            label: availabilityLabel,
++                            foregroundColor: availabilityColor,
++                            backgroundColor: availabilityColor.withValues(
++                              alpha: 0.12,
++                            ),
++                          ),
++                          _InfoChip(
++                            icon: Icons.square_foot_outlined,
++                            label: property.size,
++                            foregroundColor: theme.colorScheme.onSurfaceVariant,
++                            backgroundColor:
++                                theme.colorScheme.surfaceContainerHighest,
++                          ),
++                        ],
+                       ),
+-                    ),
++                      if (isActive &&
++                          agentTeamName != null &&
++                          agentTeamName.isNotEmpty) ...<Widget>[
++                        const SizedBox(height: 8),
++                        _AgentTeamLabel(agentTeamName: agentTeamName),
++                      ],
++                    ],
+                   ),
+                 ),
+-              ],
++              ),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++}
++
++class _ImageHeader extends StatelessWidget {
++  const _ImageHeader({
++    required this.property,
++    required this.imageHeight,
++    required this.isSaved,
++    required this.onToggleSave,
++    required this.availabilityLabel,
++    required this.availabilityColor,
++  });
++
++  final Property property;
++  final double imageHeight;
++  final bool isSaved;
++  final VoidCallback onToggleSave;
++  final String availabilityLabel;
++  final Color availabilityColor;
++
++  @override
++  Widget build(BuildContext context) {
++    final ThemeData theme = Theme.of(context);
++
++    return SizedBox(
++      height: imageHeight,
++      width: double.infinity,
++      child: Stack(
++        fit: StackFit.expand,
++        children: <Widget>[
++          buildPropertyDetailsImage(
++            context: context,
++            property: property,
++            height: imageHeight,
++            useThumbnail: true,
++            fallbackChild: const Center(
++              child: Icon(
++                Icons.landscape_rounded,
++                color: Colors.white,
++                size: 34,
++              ),
+             ),
+-            Padding(
+-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Text(
+-                    property.title,
+-                    maxLines: 2,
+-                    overflow: TextOverflow.ellipsis,
+-                    style: theme.textTheme.titleMedium?.copyWith(
+-                      fontWeight: FontWeight.w800,
+-                      height: 1.12,
+-                      letterSpacing: -0.2,
+-                    ),
++          ),
++          DecoratedBox(
++            decoration: BoxDecoration(
++              gradient: LinearGradient(
++                begin: Alignment.topCenter,
++                end: Alignment.bottomCenter,
++                colors: <Color>[
++                  Colors.black.withValues(alpha: 0.05),
++                  Colors.black.withValues(alpha: 0.34),
++                ],
++              ),
++            ),
++          ),
++          Positioned(
++            top: 10,
++            left: 10,
++            child: Container(
++              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
++              decoration: BoxDecoration(
++                color: theme.colorScheme.surface.withValues(alpha: 0.94),
++                borderRadius: BorderRadius.circular(999),
++              ),
++              child: Row(
++                mainAxisSize: MainAxisSize.min,
++                children: <Widget>[
++                  Icon(
++                    Icons.auto_awesome_rounded,
++                    size: 14,
++                    color: theme.colorScheme.primary,
+                   ),
+-                  const SizedBox(height: 6),
++                  const SizedBox(width: 5),
+                   Text(
+-                    property.price,
+-                    maxLines: 1,
+-                    overflow: TextOverflow.ellipsis,
+-                    style: theme.textTheme.titleSmall?.copyWith(
+-                      color: theme.colorScheme.primary,
++                    'Recommended',
++                    style: theme.textTheme.labelSmall?.copyWith(
+                       fontWeight: FontWeight.w900,
+                     ),
+                   ),
+-                  const SizedBox(height: 6),
+-                  Row(
+-                    children: [
+-                      Icon(
+-                        Icons.place_rounded,
+-                        size: 14,
+-                        color: theme.colorScheme.onSurfaceVariant,
+-                      ),
+-                      const SizedBox(width: 4),
+-                      Expanded(
+-                        child: Text(
+-                          property.location,
+-                          maxLines: 1,
+-                          overflow: TextOverflow.ellipsis,
+-                          style: theme.textTheme.bodySmall?.copyWith(
+-                            color: theme.colorScheme.onSurfaceVariant,
+-                            fontWeight: FontWeight.w600,
+-                          ),
+-                        ),
+-                      ),
+-                    ],
+-                  ),
+-                  if (isActive &&
+-                      agentTeamName != null &&
+-                      agentTeamName.isNotEmpty) ...[
+-                    const SizedBox(height: 5),
+-                    Row(
+-                      children: [
+-                        Icon(
+-                          Icons.verified_user_outlined,
+-                          size: 13,
+-                          color: theme.colorScheme.primary,
+-                        ),
+-                        const SizedBox(width: 4),
+-                        Expanded(
+-                          child: Text(
+-                            agentTeamName,
+-                            maxLines: 1,
+-                            overflow: TextOverflow.ellipsis,
+-                            style: theme.textTheme.bodySmall?.copyWith(
+-                              color: theme.colorScheme.primary,
+-                              fontWeight: FontWeight.w700,
+-                            ),
+-                          ),
+-                        ),
+-                      ],
+-                    ),
+-                  ],
+                 ],
+               ),
+             ),
+-          ],
++          ),
++          Positioned(
++            top: 10,
++            right: 10,
++            child: InkWell(
++              borderRadius: BorderRadius.circular(999),
++              onTap: onToggleSave,
++              child: Container(
++                width: 34,
++                height: 34,
++                decoration: BoxDecoration(
++                  color: theme.colorScheme.surface.withValues(alpha: 0.96),
++                  shape: BoxShape.circle,
++                ),
++                child: Icon(
++                  isSaved ? Icons.favorite : Icons.favorite_border_rounded,
++                  size: 19,
++                  color: isSaved ? Colors.red : theme.iconTheme.color,
++                ),
++              ),
++            ),
++          ),
++          Positioned(
++            left: 10,
++            bottom: 10,
++            child: Container(
++              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
++              decoration: BoxDecoration(
++                color: availabilityColor.withValues(alpha: 0.94),
++                borderRadius: BorderRadius.circular(999),
++              ),
++              child: Text(
++                availabilityLabel,
++                style: theme.textTheme.labelSmall?.copyWith(
++                  color: Colors.white,
++                  fontWeight: FontWeight.w900,
++                ),
++              ),
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
++class _LocationLabel extends StatelessWidget {
++  const _LocationLabel({required this.location});
++
++  final String location;
++
++  @override
++  Widget build(BuildContext context) {
++    final ThemeData theme = Theme.of(context);
++
++    return Row(
++      children: <Widget>[
++        Icon(
++          Icons.place_rounded,
++          size: 15,
++          color: theme.colorScheme.onSurfaceVariant,
++        ),
++        const SizedBox(width: 4),
++        Expanded(
++          child: Text(
++            location,
++            maxLines: 1,
++            overflow: TextOverflow.ellipsis,
++            style: theme.textTheme.bodySmall?.copyWith(
++              color: theme.colorScheme.onSurfaceVariant,
++              fontWeight: FontWeight.w700,
++            ),
++          ),
+         ),
++      ],
++    );
++  }
++}
++
++class _PriceLabel extends StatelessWidget {
++  const _PriceLabel({required this.price});
++
++  final String price;
++
++  @override
++  Widget build(BuildContext context) {
++    final ThemeData theme = Theme.of(context);
++
++    return Container(
++      width: double.infinity,
++      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
++      decoration: BoxDecoration(
++        color: theme.colorScheme.primary.withValues(alpha: 0.08),
++        borderRadius: BorderRadius.circular(14),
++        border: Border.all(
++          color: theme.colorScheme.primary.withValues(alpha: 0.12),
++        ),
++      ),
++      child: Row(
++        children: <Widget>[
++          Text(
++            'Price',
++            style: theme.textTheme.labelSmall?.copyWith(
++              color: theme.colorScheme.primary,
++              fontWeight: FontWeight.w800,
++            ),
++          ),
++          const SizedBox(width: 8),
++          Expanded(
++            child: Text(
++              price,
++              maxLines: 1,
++              overflow: TextOverflow.ellipsis,
++              textAlign: TextAlign.right,
++              style: theme.textTheme.titleSmall?.copyWith(
++                color: theme.colorScheme.primary,
++                fontWeight: FontWeight.w900,
++                letterSpacing: -0.2,
++              ),
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
++class _InfoChip extends StatelessWidget {
++  const _InfoChip({
++    required this.icon,
++    required this.label,
++    required this.foregroundColor,
++    required this.backgroundColor,
++  });
++
++  final IconData icon;
++  final String label;
++  final Color foregroundColor;
++  final Color backgroundColor;
++
++  @override
++  Widget build(BuildContext context) {
++    final ThemeData theme = Theme.of(context);
++
++    return Container(
++      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
++      decoration: BoxDecoration(
++        color: backgroundColor,
++        borderRadius: BorderRadius.circular(999),
++      ),
++      child: Row(
++        mainAxisSize: MainAxisSize.min,
++        children: <Widget>[
++          Icon(icon, size: 14, color: foregroundColor),
++          const SizedBox(width: 5),
++          Text(
++            label,
++            maxLines: 1,
++            overflow: TextOverflow.ellipsis,
++            style: theme.textTheme.labelSmall?.copyWith(
++              color: foregroundColor,
++              fontWeight: FontWeight.w800,
++            ),
++          ),
++        ],
+       ),
+     );
+   }
+ }
++
++class _AgentTeamLabel extends StatelessWidget {
++  const _AgentTeamLabel({required this.agentTeamName});
++
++  final String agentTeamName;
++
++  @override
++  Widget build(BuildContext context) {
++    final ThemeData theme = Theme.of(context);
++
++    return Container(
++      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
++      decoration: BoxDecoration(
++        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
++        borderRadius: BorderRadius.circular(13),
++      ),
++      child: Row(
++        children: <Widget>[
++          Icon(
++            Icons.verified_user_outlined,
++            size: 14,
++            color: theme.colorScheme.primary,
++          ),
++          const SizedBox(width: 6),
++          Expanded(
++            child: Text(
++              'Handled by $agentTeamName',
++              maxLines: 1,
++              overflow: TextOverflow.ellipsis,
++              style: theme.textTheme.bodySmall?.copyWith(
++                color: theme.colorScheme.primary,
++                fontWeight: FontWeight.w800,
++              ),
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
++String _availabilityLabel(Property property) {
++  final String tag = property.tag.trim().toLowerCase();
++
++  if (tag.contains('sold')) return 'Sold';
++  if (tag.contains('auction')) return 'For Auction';
++
++  return 'Available';
++}
++
++Color _availabilityColor(BuildContext context, String label) {
++  final ColorScheme colorScheme = Theme.of(context).colorScheme;
++
++  switch (label) {
++    case 'Sold':
++      return colorScheme.error;
++    case 'For Auction':
++      return const Color(0xFFF59E0B);
++    default:
++      return colorScheme.primary;
++  }
++}
+\ No newline at end of file

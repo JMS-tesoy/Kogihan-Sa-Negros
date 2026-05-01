@@ -1,15 +1,18 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../subscription/data/services/subscription_service.dart';
 
 class ProfileAvatar extends StatelessWidget {
-  const ProfileAvatar({super.key, this.imageUrl = ''});
+  const ProfileAvatar({super.key, this.imageUrl = '', this.radius = 40});
 
   final String imageUrl;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme cs = Theme.of(context).colorScheme;
+    final bool hasImage = imageUrl.isNotEmpty;
 
     return ValueListenableBuilder<UserSubscription>(
       valueListenable: appSubscriptionNotifier,
@@ -21,11 +24,18 @@ class ProfileAvatar extends StatelessWidget {
               clipBehavior: Clip.none,
               children: <Widget>[
                 CircleAvatar(
-                  radius: 40,
-                  backgroundImage: imageUrl.isEmpty
+                  radius: radius,
+                  backgroundColor: cs.primaryContainer,
+                  backgroundImage: hasImage
+                      ? CachedNetworkImageProvider(imageUrl)
+                      : null,
+                  child: hasImage
                       ? null
-                      : NetworkImage(imageUrl),
-                  child: imageUrl.isEmpty ? const Icon(Icons.person) : null,
+                      : Icon(
+                          Icons.person,
+                          size: radius,
+                          color: cs.onPrimaryContainer,
+                        ),
                 ),
                 if (subscription.isPremium)
                   Positioned(

@@ -513,7 +513,7 @@ class _MapTabState extends State<MapTab> {
         textField: selected.property.price,
         textSize: 13.0,
         textColor: Colors.white.toARGB32(),
-        textHaloColor: selected.property.imageColor.toARGB32(),
+        textHaloColor: const Color(0xFF2563EB).toARGB32(),
         textHaloWidth: 2.5,
         textOffset: [0.0, -2.4],
       ),
@@ -1071,15 +1071,16 @@ class _MapTabState extends State<MapTab> {
 
   CircleAnnotationOptions _buildAnnotation(_MappableProperty item) {
     final bool isSelected = item.property.id == _selectedPropertyId;
+    final int markerColor = isSelected
+        ? const Color(0xFFFFD166).toARGB32()
+        : const Color(0xFF2563EB).toARGB32();
 
     return CircleAnnotationOptions(
       geometry: item.point,
-      circleColor: item.property.imageColor.toARGB32(),
-      circleRadius: isSelected ? 8.0 : 5.0,
-      circleStrokeColor: isSelected
-          ? const Color(0xFFFFD166).toARGB32()
-          : Colors.white.toARGB32(),
-      circleStrokeWidth: isSelected ? 2.5 : 1.5,
+      circleColor: markerColor,
+      circleRadius: isSelected ? 8.5 : 5.8,
+      circleStrokeColor: Colors.white.toARGB32(),
+      circleStrokeWidth: isSelected ? 2.8 : 1.8,
       circleOpacity: 1.0,
       customData: <String, Object>{'propertyId': item.property.id},
     );

@@ -192,9 +192,21 @@ class _HomePageViewState extends State<HomePageView> {
     final Uint8List? imageBytes = await AvatarPickerService.pickCameraAvatar();
     if (imageBytes == null) return;
 
-    setState(() {
-      _applyProfileAvatarState(ProfileAvatarState.visible(imageBytes));
-    });
+    try {
+      await ProfileAvatarService.saveAvatarForCurrentUser(imageBytes);
+      if (!mounted) return;
+      setState(() {
+        _applyProfileAvatarState(ProfileAvatarState.visible(imageBytes));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avatar saved to your profile.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save avatar: $error')));
+    }
   }
 
   void _showAvatarOptions() {

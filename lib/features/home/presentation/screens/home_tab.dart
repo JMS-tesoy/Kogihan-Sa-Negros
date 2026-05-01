@@ -276,7 +276,7 @@ class _LotsFilterSectionState extends State<_LotsFilterSection> {
       }
     });
 
-    final List<Property> result = filteredProperties.toList(growable: false);
+    final List<Property> result = filteredProperties.toList();
     if (_selectedFilter == _LotFilter.mostViewed) {
       result.sort(
         (first, second) => second.viewCount.compareTo(first.viewCount),
