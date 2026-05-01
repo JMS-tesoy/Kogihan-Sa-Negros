@@ -146,9 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           const SizedBox(width: 8),
                           Text(
                             'KSN',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: colorScheme.onSurface,
@@ -314,11 +312,7 @@ class _OnboardingPageView extends StatelessWidget {
                       color: page.color.withValues(alpha: 0.22),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      page.icon,
-                      size: 40,
-                      color: page.color,
-                    ),
+                    child: Icon(page.icon, size: 40, color: page.color),
                   ),
                 ),
               ),
@@ -330,10 +324,10 @@ class _OnboardingPageView extends StatelessWidget {
           Text(
             page.title,
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: colorScheme.onSurface,
-                  letterSpacing: -0.5,
-                ),
+              fontWeight: FontWeight.w800,
+              color: colorScheme.onSurface,
+              letterSpacing: -0.5,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -342,9 +336,9 @@ class _OnboardingPageView extends StatelessWidget {
           Text(
             page.subtitle,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  height: 1.65,
-                ),
+              color: colorScheme.onSurfaceVariant,
+              height: 1.65,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
