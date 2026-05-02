@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/route_names.dart';
 import '../../../subscription/data/services/subscription_service.dart';
@@ -1266,19 +1267,43 @@ class _ContactBar extends StatelessWidget {
     _openInquiry(context);
   }
 
-  void _handleCallTap(BuildContext context, bool isPremium) {
+  // FIXED: now actually launches the phone dialer instead of showing a snackbar
+  Future<void> _handleCallTap(BuildContext context, bool isPremium) async {
     if (!isPremium) {
       _openPremiumRequiredPrompt(context);
       return;
     }
+
     final String phone = (property.agentPhone ?? '').trim();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          phone.isEmpty ? 'No agent phone number is available.' : phone,
+
+    // No phone number stored for this listing
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No agent phone number is available for this listing.'),
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    // Strip all non-digit characters except leading + for international format
+    final String sanitized = phone.startsWith('+')
+        ? '+${phone.substring(1).replaceAll(RegExp(r'[^0-9]'), '')}'
+        : phone.replaceAll(RegExp(r'[^0-9]'), '');
+
+    final Uri telUri = Uri(scheme: 'tel', path: sanitized);
+
+    final bool canDial = await canLaunchUrl(telUri);
+    if (!context.mounted) return;
+
+    if (!canDial) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cannot open dialer. Agent number: $phone')),
+      );
+      return;
+    }
+
+    await launchUrl(telUri);
   }
 
   @override

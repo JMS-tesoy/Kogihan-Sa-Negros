@@ -401,17 +401,24 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       context: context,
       builder: (context) => _MemberFormDialog(member: member),
     );
+
     if (result == null) return;
 
     try {
       final Map<String, dynamic> values = {
         'name': result.name,
-        'user_id': result.userId.isEmpty ? null : result.userId,
-        'role': result.role,
-        'avatar_url': result.avatarUrl.isEmpty ? null : result.avatarUrl,
-        'phone': result.phone.isEmpty ? null : result.phone,
-        'email': result.email.isEmpty ? null : result.email,
+        'role': result.role.trim().isEmpty ? 'Member' : result.role.trim(),
+        'avatar_url': result.avatarUrl.trim().isEmpty
+            ? null
+            : result.avatarUrl.trim(),
+        'phone': result.phone.trim().isEmpty ? null : result.phone.trim(),
+        'email': result.email.trim().isEmpty ? null : result.email.trim(),
       };
+
+      final String userId = result.userId.trim();
+      if (userId.isNotEmpty) {
+        values['user_id'] = userId;
+      }
 
       if (member == null) {
         await _client.from('team_members').insert({
@@ -423,20 +430,35 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       }
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(member == null ? 'Member added.' : 'Member updated.'),
         ),
       );
+
       await _loadMembers();
-    } catch (_) {
+    } on PostgrestException catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             member == null
-                ? 'Failed to add member.'
-                : 'Failed to update member.',
+                ? 'Failed to add member: ${error.message}'
+                : 'Failed to update member: ${error.message}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            member == null
+                ? 'Failed to add member: $error'
+                : 'Failed to update member: $error',
           ),
         ),
       );
@@ -487,7 +509,7 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
         TextButton.icon(
           onPressed: () => _openMemberForm(),
           icon: const Icon(Icons.person_add_outlined),
-          label: const Text('Add'),
+          label: const Text('Add Member'),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),

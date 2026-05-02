@@ -54,4 +54,5 @@ cheatsheet prompt/
 # Supabase local temp files
 supabase/.temp/
 
-home.png
+/home.png
+lib_updated_full.txt

@@ -1,6 +1,5 @@
 abstract final class AuthConfig {
-  static const redirectUrl =
-      'com.example.flutterapplication1://login-callback/';
+  static const redirectUrl = 'kogihansanegros://login-callback/';
 
   static const devAgentShortcutUsername = '1q1q';
   static const devAgentShortcutPassword = '1q1q';
