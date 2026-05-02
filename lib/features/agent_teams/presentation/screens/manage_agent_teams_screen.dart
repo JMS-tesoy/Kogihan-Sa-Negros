@@ -3,6 +3,55 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/agent_team_entity.dart';
 
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+class _TeamRequest {
+  const _TeamRequest({
+    required this.id,
+    required this.userId,
+    required this.teamId,
+    required this.teamName,
+    required this.requesterName,
+    required this.requesterEmail,
+    required this.status,
+    this.createdAt,
+  });
+
+  factory _TeamRequest.fromJson(Map<String, dynamic> json) {
+    final Object? team = json['agent_teams'];
+    final Object? profile = json['profiles'];
+    return _TeamRequest(
+      id: json['id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      teamId: json['team_id'] as String? ?? '',
+      teamName: team is Map
+          ? (team['name']?.toString().trim() ?? 'Unknown Team')
+          : 'Unknown Team',
+      requesterName: profile is Map
+          ? (profile['full_name']?.toString().trim() ?? 'Unknown')
+          : 'Unknown',
+      requesterEmail: profile is Map
+          ? (profile['email']?.toString().trim() ?? '')
+          : '',
+      status: (json['status'] ?? 'pending').toString().trim(),
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
+    );
+  }
+
+  final String id;
+  final String userId;
+  final String teamId;
+  final String teamName;
+  final String requesterName;
+  final String requesterEmail;
+  final String status;
+  final DateTime? createdAt;
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 class ManageAgentTeamsScreen extends StatefulWidget {
   const ManageAgentTeamsScreen({super.key});
 
@@ -10,7 +59,60 @@ class ManageAgentTeamsScreen extends StatefulWidget {
   State<ManageAgentTeamsScreen> createState() => _ManageAgentTeamsScreenState();
 }
 
-class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
+class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Teams'),
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: cs.primary,
+          unselectedLabelColor: cs.onSurfaceVariant,
+          indicatorColor: cs.primary,
+          tabs: const <Widget>[
+            Tab(icon: Icon(Icons.groups_rounded), text: 'Agent Teams'),
+            Tab(icon: Icon(Icons.person_search_rounded), text: 'Team Requests'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const <Widget>[_AgentTeamsTab(), _TeamRequestsTab()],
+      ),
+    );
+  }
+}
+
+// ─── Agent Teams Tab ──────────────────────────────────────────────────────────
+
+class _AgentTeamsTab extends StatefulWidget {
+  const _AgentTeamsTab();
+
+  @override
+  State<_AgentTeamsTab> createState() => _AgentTeamsTabState();
+}
+
+class _AgentTeamsTabState extends State<_AgentTeamsTab> {
   final SupabaseClient _client = Supabase.instance.client;
   List<AgentTeamEntity> _teams = const <AgentTeamEntity>[];
   bool _isLoading = true;
@@ -27,13 +129,11 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
       _isLoading = true;
       _error = null;
     });
-
     try {
       final List<dynamic> rows = await _client
           .from('agent_teams')
           .select('id, name, description, logo_url, specialization')
           .order('name');
-
       if (!mounted) return;
       setState(() {
         _teams = rows
@@ -74,13 +174,11 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
         'specialization': result.specialization,
         'logo_url': result.logoUrl.isEmpty ? null : result.logoUrl,
       };
-
       if (team == null) {
         await _client.from('agent_teams').insert(values);
       } else {
         await _client.from('agent_teams').update(values).eq('id', team.id);
       }
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -135,20 +233,15 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Manage Teams'), centerTitle: true),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openTeamForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('New Team'),
-      ),
-      body: _buildBody(),
+  Future<void> _openMembersDialog(AgentTeamEntity team) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _TeamMembersDialog(team: team),
     );
   }
 
-  Widget _buildBody() {
+  @override
+  Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -173,43 +266,382 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
     }
 
     if (_teams.isEmpty) {
-      return const Center(child: Text('No teams yet.'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text('No teams yet.'),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _openTeamForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('New Team'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: <Widget>[
+        RefreshIndicator(
+          onRefresh: _loadTeams,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            itemCount: _teams.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final AgentTeamEntity team = _teams[index];
+              return Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  title: Text(team.name),
+                  subtitle: Text(
+                    team.specialization.isEmpty
+                        ? 'No specialization'
+                        : team.specialization,
+                  ),
+                  trailing: Wrap(
+                    spacing: 4,
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: 'Members',
+                        icon: const Icon(Icons.groups_outlined),
+                        onPressed: () => _openMembersDialog(team),
+                      ),
+                      IconButton(
+                        tooltip: 'Edit',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _openTeamForm(team: team),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _deleteTeam(team),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'add_team_fab',
+            onPressed: () => _openTeamForm(),
+            icon: const Icon(Icons.add),
+            label: const Text('New Team'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Team Requests Tab ────────────────────────────────────────────────────────
+
+class _TeamRequestsTab extends StatefulWidget {
+  const _TeamRequestsTab();
+
+  @override
+  State<_TeamRequestsTab> createState() => _TeamRequestsTabState();
+}
+
+class _TeamRequestsTabState extends State<_TeamRequestsTab> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<_TeamRequest> _requests = const <_TeamRequest>[];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRequests();
+  }
+
+  Future<void> _loadRequests() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final List<dynamic> rows = await _client
+          .from('team_requests')
+          .select('*, agent_teams(id, name), profiles(full_name, email)')
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+      if (!mounted) return;
+      setState(() {
+        _requests = rows
+            .map(
+              (row) =>
+                  _TeamRequest.fromJson(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load team requests.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _respond({
+    required _TeamRequest request,
+    required bool approve,
+  }) async {
+    try {
+      await _client
+          .from('team_requests')
+          .update({'status': approve ? 'approved' : 'rejected'})
+          .eq('id', request.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approve
+                ? '${request.requesterName} approved to join ${request.teamName}.'
+                : 'Request from ${request.requesterName} rejected.',
+          ),
+        ),
+      );
+      await _loadRequests();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Action failed.')));
+    }
+  }
+
+  Future<void> _confirmRespond({
+    required _TeamRequest request,
+    required bool approve,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(approve ? 'Approve Request' : 'Reject Request'),
+        content: Text(
+          approve
+              ? 'Allow ${request.requesterName} to join "${request.teamName}"?'
+              : 'Reject ${request.requesterName}\'s request to join "${request.teamName}"?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: approve
+                ? null
+                : FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+            child: Text(approve ? 'Approve' : 'Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _respond(request: request, approve: approve);
+  }
+
+  String _timeAgo(DateTime? dt) {
+    if (dt == null) return '';
+    final Duration diff = DateTime.now().difference(dt.toLocal());
+    if (diff.inDays > 0) return '${diff.inDays}d ago';
+    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+    return 'Just now';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadRequests,
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_requests.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.check_circle_outline_rounded,
+              size: 52,
+              color: Colors.teal.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'All caught up!',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'No pending join requests.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
-      onRefresh: _loadTeams,
+      onRefresh: _loadRequests,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        itemCount: _teams.length,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        itemCount: _requests.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final AgentTeamEntity team = _teams[index];
+          final _TeamRequest req = _requests[index];
           return Card(
             margin: EdgeInsets.zero,
-            child: ListTile(
-              title: Text(team.name),
-              subtitle: Text(
-                team.specialization.isEmpty
-                    ? 'No specialization'
-                    : team.specialization,
-              ),
-              trailing: Wrap(
-                spacing: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  IconButton(
-                    tooltip: 'Members',
-                    icon: const Icon(Icons.groups_outlined),
-                    onPressed: () => _openMembersDialog(team),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: cs.primaryContainer,
+                        child: Icon(
+                          Icons.person_outline_rounded,
+                          color: cs.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              req.requesterName.isEmpty
+                                  ? 'Unknown'
+                                  : req.requesterName,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (req.requesterEmail.isNotEmpty)
+                              Text(
+                                req.requesterEmail,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        _timeAgo(req.createdAt),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: 'Edit',
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _openTeamForm(team: team),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: <Widget>[
+                      const Icon(
+                        Icons.groups_rounded,
+                        size: 14,
+                        color: Colors.teal,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Requesting to join ',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          req.teamName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.teal,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: 'Delete',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _deleteTeam(team),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _confirmRespond(request: req, approve: false),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: cs.error,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'Reject',
+                            style: TextStyle(color: cs.error),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: cs.error.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              _confirmRespond(request: req, approve: true),
+                          icon: const Icon(Icons.check_rounded, size: 18),
+                          label: const Text('Approve'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -219,14 +651,9 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen> {
       ),
     );
   }
-
-  Future<void> _openMembersDialog(AgentTeamEntity team) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _TeamMembersDialog(team: team),
-    );
-  }
 }
+
+// ─── Team Form Dialog ─────────────────────────────────────────────────────────
 
 class _TeamFormDialog extends StatefulWidget {
   const _TeamFormDialog({this.team});
@@ -269,7 +696,6 @@ class _TeamFormDialogState extends State<_TeamFormDialog> {
   void _submit() {
     final String name = _nameController.text.trim();
     if (name.isEmpty) return;
-
     Navigator.pop(
       context,
       _TeamFormResult(
@@ -342,6 +768,8 @@ class _TeamFormResult {
   final String logoUrl;
 }
 
+// ─── Team Members Dialog ──────────────────────────────────────────────────────
+
 class _TeamMembersDialog extends StatefulWidget {
   const _TeamMembersDialog({required this.team});
 
@@ -368,14 +796,12 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       _isLoading = true;
       _error = null;
     });
-
     try {
       final List<dynamic> rows = await _client
           .from('team_members')
           .select('id, user_id, name, role, avatar_url, phone, email')
           .eq('team_id', widget.team.id)
           .order('name');
-
       if (!mounted) return;
       setState(() {
         _members = rows
@@ -401,7 +827,6 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       context: context,
       builder: (context) => _MemberFormDialog(member: member),
     );
-
     if (result == null) return;
 
     try {
@@ -414,12 +839,10 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
         'phone': result.phone.trim().isEmpty ? null : result.phone.trim(),
         'email': result.email.trim().isEmpty ? null : result.email.trim(),
       };
-
       final String userId = result.userId.trim();
       if (userId.isNotEmpty) {
         values['user_id'] = userId;
       }
-
       if (member == null) {
         await _client.from('team_members').insert({
           ...values,
@@ -428,19 +851,15 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       } else {
         await _client.from('team_members').update(values).eq('id', member.id);
       }
-
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(member == null ? 'Member added.' : 'Member updated.'),
         ),
       );
-
       await _loadMembers();
     } on PostgrestException catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -452,7 +871,6 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
       );
     } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -526,7 +944,6 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-
     if (_error != null) {
       return SizedBox(
         height: 120,
@@ -545,14 +962,12 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
         ),
       );
     }
-
     if (_members.isEmpty) {
       return const SizedBox(
         height: 120,
         child: Center(child: Text('No members yet.')),
       );
     }
-
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 360),
       child: ListView.separated(
@@ -590,6 +1005,8 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
     );
   }
 }
+
+// ─── Member Form Dialog ───────────────────────────────────────────────────────
 
 class _MemberFormDialog extends StatefulWidget {
   const _MemberFormDialog({this.member});
@@ -634,7 +1051,6 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
   void _submit() {
     final String name = _nameController.text.trim();
     if (name.isEmpty) return;
-
     Navigator.pop(
       context,
       _MemberFormResult(
@@ -708,6 +1124,8 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
     );
   }
 }
+
+// ─── Data Classes ─────────────────────────────────────────────────────────────
 
 class _EditableTeamMember {
   const _EditableTeamMember({

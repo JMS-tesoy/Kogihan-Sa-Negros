@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../../app/bootstrap/land_finder_app_bootstrap.dart';
 import '../../../home/presentation/widgets/top_header.dart';
 import '../../data/services/auth_session_service.dart';
 import '../helpers/auth_error_messages.dart';
@@ -63,6 +63,8 @@ class _LoginPageViewState extends State<LoginPageView> {
 
     _isRouting = true;
     try {
+      await onUserLoggedIn();
+      if (!mounted) return;
       await routeAuthenticatedUser(
         context,
         user: user,

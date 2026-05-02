@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/location/data/datasources/negros_places_datasource.dart';
+import '../../features/notifications/notification_service.dart';
 import '../../features/properties/data/datasources/shared_properties.dart';
 import '../../features/subscription/data/services/subscription_service.dart';
 import '../config/mapbox_config.dart';
@@ -23,6 +25,20 @@ Future<void> initializeLandFinderAppBootstrap() async {
 
   if (MapboxConfig.accessToken.isNotEmpty) {
     MapboxOptions.setAccessToken(MapboxConfig.accessToken);
+  }
+
+  // Firebase must be initialized before Supabase so the FCM token
+  // is available when NotificationService registers it after login.
+  try {
+    await Firebase.initializeApp();
+    developer.log('✅ Firebase initialized', name: 'Firebase');
+  } catch (e, stackTrace) {
+    developer.log(
+      '❌ Firebase initialization failed',
+      name: 'Firebase',
+      error: e,
+      stackTrace: stackTrace,
+    );
   }
 
   try {
@@ -44,4 +60,16 @@ Future<void> initializeLandFinderAppBootstrap() async {
 
   await SubscriptionService.initialize();
   await initializeAppThemePreference();
+}
+
+/// Call this after the user successfully logs in.
+/// Registers the FCM token with Supabase so the device receives notifications.
+Future<void> onUserLoggedIn() async {
+  await NotificationService.initialize();
+}
+
+/// Call this before signing the user out.
+/// Removes the FCM token from Supabase so the device stops receiving notifications.
+Future<void> onUserLoggedOut() async {
+  await NotificationService.clearTokenOnLogout();
 }

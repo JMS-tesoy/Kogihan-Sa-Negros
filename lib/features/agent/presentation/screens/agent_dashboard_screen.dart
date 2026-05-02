@@ -9,9 +9,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../app/router/route_names.dart';
+//import '../../../../app/router/route_names.dart';
 import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
-import '../../../agent_teams/presentation/screens/team_join_requests_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -336,17 +335,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
     await _loadInquiries(showLoader: false);
   }
 
-  void _openAgentTeamsPage() {
-    Navigator.of(context).pushNamed(RouteNames.agentTeams);
-  }
-
-  Future<void> _openTeamJoinRequestsPage() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const TeamJoinRequestsScreen()),
-    );
-  }
-
   Future<void> _openManageTeamsPage() async {
     await Navigator.push(
       context,
@@ -584,30 +572,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
           const SizedBox(height: 12),
           _buildDashboardActionCard(
             context: context,
-            icon: Icons.groups_rounded,
-            accentColor: Colors.green,
-            title: 'Agent Teams',
-            subtitle: 'View team members and collaboration groups.',
-            badgeText: 'Premium',
-            onTap: _openAgentTeamsPage,
-          ),
-          const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.how_to_reg_rounded,
-            accentColor: Colors.purple,
-            title: 'Team Requests',
-            subtitle: 'Approve or reject pending join requests.',
-            badgeText: 'Admin',
-            onTap: _openTeamJoinRequestsPage,
-          ),
-          const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
             icon: Icons.admin_panel_settings_outlined,
             accentColor: Colors.teal,
             title: 'Manage Teams',
-            subtitle: 'Create, edit, or delete agent teams.',
+            subtitle:
+                'View members, handle join requests, and manage agent teams.',
             badgeText: 'Admin',
             onTap: _openManageTeamsPage,
           ),

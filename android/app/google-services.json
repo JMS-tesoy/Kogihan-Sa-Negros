@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "11752246210",
+    "project_id": "ksn-land-finder",
+    "storage_bucket": "ksn-land-finder.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:11752246210:android:cf593a7dbbc926c537245b",
+        "android_client_info": {
+          "package_name": "com.ksn.kogihan_sa_negros"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbIDlj0CcDSu2Q742PTyI7p03EJbs-26E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

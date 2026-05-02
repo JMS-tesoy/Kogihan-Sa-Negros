@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import '../../../../app/bootstrap/land_finder_app_bootstrap.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,8 +8,9 @@ import '../../../../app/config/auth_config.dart';
 class AuthSessionService {
   const AuthSessionService._();
 
-  static Future<void> signOutCurrentUser() {
-    return Supabase.instance.client.auth.signOut();
+  static Future<void> signOutCurrentUser() async {
+    await onUserLoggedOut();
+    await Supabase.instance.client.auth.signOut();
   }
 
   static Future<User?> signInWithPassword({
