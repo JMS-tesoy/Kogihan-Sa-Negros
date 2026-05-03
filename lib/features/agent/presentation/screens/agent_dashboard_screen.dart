@@ -1019,43 +1019,26 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   Future<List<TeamChatTeam>> _fetchMyTeams() async {
     if (_currentUserId.isEmpty) return const <TeamChatTeam>[];
 
-    try {
-      final List<dynamic> memberRows = await _client
-          .from('team_members')
-          .select('team:team_id(id, name, specialization, logo_url)')
-          .eq('user_id', _currentUserId);
+    final List<dynamic> memberRows = await _client
+        .from('team_members')
+        .select('team:team_id(id, name, specialization, logo_url)')
+        .eq('user_id', _currentUserId);
 
-      final List<TeamChatTeam> memberTeams =
-          memberRows
-              .map((row) {
-                final Map<String, dynamic> item = Map<String, dynamic>.from(
-                  row as Map,
-                );
-                final Object? team = item['team'];
-                if (team is! Map) return null;
-                return TeamChatTeam.fromMap(Map<String, dynamic>.from(team));
-              })
-              .whereType<TeamChatTeam>()
-              .where((team) => team.id.isNotEmpty)
-              .toList()
-            ..sort((a, b) => a.name.compareTo(b.name));
+    return memberRows
+        .map((row) {
+          final Map<String, dynamic> item = Map<String, dynamic>.from(
+            row as Map,
+          );
 
-      if (memberTeams.isNotEmpty) return memberTeams;
-    } catch (_) {
-      // Fall through to the admin-friendly team list below.
-    }
+          final Object? team = item['team'];
+          if (team is! Map) return null;
 
-    final List<dynamic> rows = await _client
-        .from('agent_teams')
-        .select('id, name, specialization, logo_url')
-        .order('name');
-
-    return rows
-        .map(
-          (row) => TeamChatTeam.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
+          return TeamChatTeam.fromMap(Map<String, dynamic>.from(team));
+        })
+        .whereType<TeamChatTeam>()
         .where((team) => team.id.isNotEmpty)
-        .toList();
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<void> _openTeamChat(TeamChatTeam team) async {
@@ -1126,7 +1109,7 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Create a team or add your account as a team member first.',
+            'You need to be a linked member of a team before you can use its team inbox.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

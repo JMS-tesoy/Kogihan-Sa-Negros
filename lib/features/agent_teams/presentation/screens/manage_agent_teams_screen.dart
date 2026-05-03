@@ -437,10 +437,7 @@ class _MemberCountBadge extends StatelessWidget {
 // ─── Team Requests Tab ────────────────────────────────────────────────────────
 
 class _TeamRequestsTab extends StatefulWidget {
-  const _TeamRequestsTab({
-    super.key,
-    required this.onRequestResolved,
-  });
+  const _TeamRequestsTab({super.key, required this.onRequestResolved});
 
   final Future<void> Function() onRequestResolved;
 
@@ -549,14 +546,14 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
             .limit(1);
 
         if (existingMembers.isEmpty) {
-          final String profileName =
-              (profile?['full_name'] as String? ?? '').trim();
+          final String profileName = (profile?['full_name'] as String? ?? '')
+              .trim();
           final String fallbackName = request.requesterName.trim();
           final String memberName = profileName.isNotEmpty
               ? profileName
               : fallbackName.isNotEmpty && fallbackName != 'Unknown'
-                  ? fallbackName
-                  : 'Agent';
+              ? fallbackName
+              : 'Agent';
 
           await _client.from('team_members').insert({
             'team_id': request.teamId,
@@ -573,7 +570,9 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
       await _client
           .from('team_join_requests')
           .update({'status': approve ? 'approved' : 'rejected'})
-          .eq('id', request.id);
+          .eq('id', request.id)
+          .eq('team_id', request.teamId)
+          .eq('user_id', request.userId);
 
       await _loadRequests();
       await widget.onRequestResolved();

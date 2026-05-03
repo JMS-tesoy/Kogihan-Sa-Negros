@@ -18,17 +18,28 @@ class AgentTeamDetailScreen extends StatefulWidget {
 class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
   bool _isCheckingJoinRequest = true;
   bool _isSubmittingJoinRequest = false;
+  bool _isCurrentUserMemberFromDatabase = false;
   String? _joinRequestStatus;
 
   bool get _isCurrentUserMember {
     final User? currentUser = Supabase.instance.client.auth.currentUser;
     final String? currentEmail = currentUser?.email?.trim().toLowerCase();
 
+    if (currentUser == null) return false;
+
+    if (_isCurrentUserMemberFromDatabase) return true;
+
+    if (_joinRequestStatus?.trim().toLowerCase() == 'approved') {
+      return true;
+    }
+
     return widget.team.members.any((member) {
-      if (currentUser?.id != null && member.userId == currentUser!.id) {
+      if (member.userId == currentUser.id) {
         return true;
       }
+
       if (currentEmail == null || currentEmail.isEmpty) return false;
+
       return member.email?.trim().toLowerCase() == currentEmail;
     });
   }
@@ -40,8 +51,10 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
   }
 
   Future<void> _loadJoinRequestStatus() async {
-    final User? user = Supabase.instance.client.auth.currentUser;
-    if (user == null || _isCurrentUserMember) {
+    final SupabaseClient client = Supabase.instance.client;
+    final User? user = client.auth.currentUser;
+
+    if (user == null) {
       if (!mounted) return;
       setState(() {
         _isCheckingJoinRequest = false;
@@ -50,7 +63,24 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
     }
 
     try {
-      final Map<String, dynamic>? response = await Supabase.instance.client
+      final Map<String, dynamic>? existingMember = await client
+          .from('team_members')
+          .select('id')
+          .eq('team_id', widget.team.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (existingMember != null) {
+        if (!mounted) return;
+        setState(() {
+          _isCurrentUserMemberFromDatabase = true;
+          _joinRequestStatus = 'approved';
+          _isCheckingJoinRequest = false;
+        });
+        return;
+      }
+
+      final Map<String, dynamic>? response = await client
           .from('team_join_requests')
           .select('status')
           .eq('team_id', widget.team.id)
@@ -58,15 +88,22 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
           .maybeSingle();
 
       if (!mounted) return;
+
       setState(() {
+        _isCurrentUserMemberFromDatabase = false;
         _joinRequestStatus = response?['status'] as String?;
         _isCheckingJoinRequest = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+
       setState(() {
         _isCheckingJoinRequest = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to check join status: $error')),
+      );
     }
   }
 
@@ -81,24 +118,49 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
     });
 
     try {
+      final Map<String, dynamic>? existingMember = await client
+          .from('team_members')
+          .select('id')
+          .eq('team_id', widget.team.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (existingMember != null) {
+        if (!mounted) return;
+        setState(() {
+          _isCurrentUserMemberFromDatabase = true;
+          _joinRequestStatus = 'approved';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are already in this team.')),
+        );
+        return;
+      }
+
       final Map<String, dynamic>? existingRequest = await client
           .from('team_join_requests')
-          .select('id, status')
+          .select('id, team_id, user_id, status')
           .eq('team_id', widget.team.id)
           .eq('user_id', user.id)
           .maybeSingle();
 
       if (existingRequest != null) {
-        final String status = existingRequest['status'] as String? ?? 'pending';
+        final String status =
+            (existingRequest['status'] as String? ?? 'pending')
+                .trim()
+                .toLowerCase();
 
         if (status == 'pending') {
           if (!mounted) return;
           setState(() {
             _joinRequestStatus = 'pending';
           });
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('You already have a pending request.'),
+              content: Text(
+                'You already have a pending request for this team.',
+              ),
             ),
           );
           return;
@@ -109,8 +171,11 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
           setState(() {
             _joinRequestStatus = 'approved';
           });
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You are already approved.')),
+            const SnackBar(
+              content: Text('You are already approved for this team.'),
+            ),
           );
           return;
         }
@@ -118,7 +183,9 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
         await client
             .from('team_join_requests')
             .update({'status': 'pending'})
-            .eq('id', existingRequest['id']);
+            .eq('id', existingRequest['id'])
+            .eq('team_id', widget.team.id)
+            .eq('user_id', user.id);
       } else {
         await client.from('team_join_requests').insert({
           'team_id': widget.team.id,
@@ -155,35 +222,40 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.team.name), centerTitle: true),
-      body: ListView(
-        children: <Widget>[
-          _TeamHeader(team: widget.team),
-          _JoinRequestSection(
-            isCurrentUserMember: _isCurrentUserMember,
-            isChecking: _isCheckingJoinRequest,
-            isSubmitting: _isSubmittingJoinRequest,
-            status: _joinRequestStatus,
-            onRequestToJoin: _requestToJoin,
-          ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              'Team Members',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      body: RefreshIndicator(
+        onRefresh: _loadJoinRequestStatus,
+        child: ListView(
+          children: <Widget>[
+            _TeamHeader(team: widget.team),
+            _JoinRequestSection(
+              isCurrentUserMember: _isCurrentUserMember,
+              isChecking: _isCheckingJoinRequest,
+              isSubmitting: _isSubmittingJoinRequest,
+              status: _joinRequestStatus,
+              onRequestToJoin: _requestToJoin,
             ),
-          ),
-          if (widget.team.members.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: Text('No members listed yet.')),
-            )
-          else
-            ...widget.team.members.map((member) => _MemberTile(member: member)),
-          const SizedBox(height: 32),
-        ],
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Team Members',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (widget.team.members.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(child: Text('No members listed yet.')),
+              )
+            else
+              ...widget.team.members.map(
+                (member) => _MemberTile(member: member),
+              ),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -206,16 +278,7 @@ class _JoinRequestSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isCurrentUserMember) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: FilledButton.icon(
-          onPressed: null,
-          icon: const Icon(Icons.verified_user_outlined),
-          label: const Text('Already in this team'),
-        ),
-      );
-    }
+    final String normalizedStatus = status?.trim().toLowerCase() ?? '';
 
     if (isChecking) {
       return const Padding(
@@ -224,7 +287,39 @@ class _JoinRequestSection extends StatelessWidget {
       );
     }
 
-    if (status == 'pending') {
+    if (isCurrentUserMember || normalizedStatus == 'approved') {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.verified_rounded,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'You are already approved for this team.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (normalizedStatus == 'pending') {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: FilledButton.icon(
