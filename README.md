@@ -117,11 +117,16 @@ The DTD URI is tied to the current running app session. If you stop and rerun th
   ```bash
   flutter build apk
   flutter build apk --release --target-platform android-arm64   (for latest android)
+  flutter build apk --release --split-per-abi --target-platform android-arm64
   ```
 - **Build for iOS (IPA - requires macOS):**
   ```bash
   flutter build ios
   ```
+
+
+
+
 
 ### Things to Be Aware Of
 
