@@ -984,7 +984,6 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   bool _isLoading = true;
   String? _error;
 
-  String get _currentUserId => _client.auth.currentUser?.id ?? '';
 
   @override
   void initState() {
@@ -1017,28 +1016,17 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   }
 
   Future<List<TeamChatTeam>> _fetchMyTeams() async {
-    if (_currentUserId.isEmpty) return const <TeamChatTeam>[];
+    final List<dynamic> rows = await _client
+        .from('agent_teams')
+        .select('id, name, specialization, logo_url')
+        .order('name');
 
-    final List<dynamic> memberRows = await _client
-        .from('team_members')
-        .select('team:team_id(id, name, specialization, logo_url)')
-        .eq('user_id', _currentUserId);
-
-    return memberRows
-        .map((row) {
-          final Map<String, dynamic> item = Map<String, dynamic>.from(
-            row as Map,
-          );
-
-          final Object? team = item['team'];
-          if (team is! Map) return null;
-
-          return TeamChatTeam.fromMap(Map<String, dynamic>.from(team));
-        })
-        .whereType<TeamChatTeam>()
+    return rows
+        .map(
+          (row) => TeamChatTeam.fromMap(Map<String, dynamic>.from(row as Map)),
+        )
         .where((team) => team.id.isNotEmpty)
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+        .toList();
   }
 
   Future<void> _openTeamChat(TeamChatTeam team) async {
