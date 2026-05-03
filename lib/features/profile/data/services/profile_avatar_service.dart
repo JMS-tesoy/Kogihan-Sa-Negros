@@ -30,7 +30,7 @@ class ProfileAvatarService {
     } catch (_) {}
   }
 
-  static Future<void> saveAvatarForCurrentUser(Uint8List imageBytes) async {
+  static Future<String> saveAvatarForCurrentUser(Uint8List imageBytes) async {
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       throw StateError('Please sign in again before uploading your avatar.');
@@ -59,6 +59,8 @@ class ProfileAvatarService {
       'id': user.id,
       'avatar_url': avatarUrl,
     }, onConflict: 'id');
+
+    return avatarUrl;
   }
 
   static Future<void> removeAvatarForCurrentUser() async {

@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-//import '../../../../app/router/route_names.dart';
+import '../../../../app/router/route_names.dart';
 import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
@@ -342,6 +342,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  Future<void> _openAgentProfilePage() async {
+    await Navigator.of(context).pushNamed(RouteNames.profile);
+  }
+
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
     await updateProperty(updatedProperty);
   }
@@ -525,19 +529,57 @@ class _AdminHomePageState extends State<AdminHomePage> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Workspace',
-            style: theme.textTheme.headlineSmall?.copyWith(
+            'Quick Overview',
+            style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Handle listings and buyer conversations from one place.',
+            'A quick snapshot of your current dashboard activity.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildOverviewTile(
+                context: context,
+                value: '${_properties.length}',
+                label: 'Listings',
+                icon: Icons.home_work_rounded,
+                accentColor: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              _buildOverviewTile(
+                context: context,
+                value: '$_unreadInquiryCount',
+                label: 'Unread',
+                icon: Icons.mark_email_unread_rounded,
+                accentColor: Colors.blue,
+              ),
+              const SizedBox(width: 12),
+              _buildOverviewTile(
+                context: context,
+                value: '${_inquiries.length}',
+                label: 'Threads',
+                icon: Icons.forum_rounded,
+                accentColor: Colors.orange,
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          _buildDashboardActionCard(
+            context: context,
+            icon: Icons.person_outline_rounded,
+            accentColor: Colors.purple,
+            title: 'Agent Profile',
+            subtitle: 'View and update your profile details.',
+            badgeText: 'Profile',
+            onTap: _openAgentProfilePage,
+          ),
+          const SizedBox(height: 12),
           _buildDashboardActionCard(
             context: context,
             icon: Icons.add_home_work_rounded,
@@ -579,48 +621,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 'View members, handle join requests, and manage agent teams.',
             badgeText: 'Admin',
             onTap: _openManageTeamsPage,
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Quick Overview',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'A quick snapshot of your current dashboard activity.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _buildOverviewTile(
-                context: context,
-                value: '${_properties.length}',
-                label: 'Listings',
-                icon: Icons.home_work_rounded,
-                accentColor: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 12),
-              _buildOverviewTile(
-                context: context,
-                value: '$_unreadInquiryCount',
-                label: 'Unread',
-                icon: Icons.mark_email_unread_rounded,
-                accentColor: Colors.blue,
-              ),
-              const SizedBox(width: 12),
-              _buildOverviewTile(
-                context: context,
-                value: '${_inquiries.length}',
-                label: 'Threads',
-                icon: Icons.forum_rounded,
-                accentColor: Colors.orange,
-              ),
-            ],
           ),
         ],
       ),

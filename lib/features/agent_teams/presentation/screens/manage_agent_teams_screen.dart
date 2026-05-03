@@ -115,6 +115,7 @@ class _AgentTeamsTab extends StatefulWidget {
 class _AgentTeamsTabState extends State<_AgentTeamsTab> {
   final SupabaseClient _client = Supabase.instance.client;
   List<AgentTeamEntity> _teams = const <AgentTeamEntity>[];
+  Map<String, int> _memberCounts = const <String, int>{};
   bool _isLoading = true;
   String? _error;
 
@@ -132,13 +133,35 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
     try {
       final List<dynamic> rows = await _client
           .from('agent_teams')
-          .select('id, name, description, logo_url, specialization')
+          .select(
+            'id, name, description, logo_url, specialization, '
+            'team_members(count)',
+          )
           .order('name');
       if (!mounted) return;
+
+      final Map<String, int> memberCounts = <String, int>{};
+      for (final row in rows) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final String id = map['id'] as String? ?? '';
+        final Object? members = map['team_members'];
+        int count = 0;
+
+        if (members is List && members.isNotEmpty) {
+          final Object? first = members.first;
+          if (first is Map && first['count'] != null) {
+            count = (first['count'] as num).toInt();
+          }
+        }
+
+        memberCounts[id] = count;
+      }
+
       setState(() {
         _teams = rows
             .map((row) => _teamFromJson(Map<String, dynamic>.from(row as Map)))
             .toList();
+        _memberCounts = memberCounts;
         _isLoading = false;
       });
     } catch (_) {
@@ -296,10 +319,17 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
                 margin: EdgeInsets.zero,
                 child: ListTile(
                   title: Text(team.name),
-                  subtitle: Text(
-                    team.specialization.isEmpty
-                        ? 'No specialization'
-                        : team.specialization,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        team.specialization.isEmpty
+                            ? 'No specialization'
+                            : team.specialization,
+                      ),
+                      const SizedBox(height: 6),
+                      _MemberCountBadge(count: _memberCounts[team.id] ?? 0),
+                    ],
                   ),
                   trailing: Wrap(
                     spacing: 4,
@@ -337,6 +367,33 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MemberCountBadge extends StatelessWidget {
+  const _MemberCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        count == 1 ? '1 member' : '$count members',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: cs.onSecondaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

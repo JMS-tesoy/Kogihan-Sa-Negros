@@ -32,6 +32,7 @@ class ProfileRemoteDatasource {
       'full_name': profile.name.isEmpty ? null : profile.name,
       'email': profile.email.isEmpty ? null : profile.email,
       'phone': profile.phone.isEmpty ? null : profile.phone,
+      'avatar_url': profile.avatarUrl.isEmpty ? null : profile.avatarUrl,
     }, onConflict: 'id');
   }
 }

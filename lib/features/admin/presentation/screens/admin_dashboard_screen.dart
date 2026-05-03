@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/widgets/app_scaffold_shell.dart';
@@ -60,32 +59,6 @@ class _AgentProfile {
   }
 }
 
-class _AgentTeam {
-  final String id;
-  final String name;
-  final int memberCount;
-
-  const _AgentTeam({
-    required this.id,
-    required this.name,
-    this.memberCount = 0,
-  });
-
-  factory _AgentTeam.fromMap(Map<String, dynamic> map) {
-    return _AgentTeam(
-      id: map['id']?.toString() ?? '',
-      name: (map['name'] ?? '').toString().trim(),
-      memberCount: _toInt(map['member_count']),
-    );
-  }
-
-  static int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-}
-
 class _AppUser {
   final String id;
   final String fullName;
@@ -139,19 +112,27 @@ class _TeamRequest {
     final Object? team = map['agent_teams'];
     final Object? profile = map['profiles'];
 
+    Map<String, dynamic>? teamMap;
+    if (team is Map) {
+      teamMap = Map<String, dynamic>.from(team);
+    } else if (team is List && team.isNotEmpty) {
+      teamMap = Map<String, dynamic>.from(team.first);
+    }
+
+    Map<String, dynamic>? profileMap;
+    if (profile is Map) {
+      profileMap = Map<String, dynamic>.from(profile);
+    } else if (profile is List && profile.isNotEmpty) {
+      profileMap = Map<String, dynamic>.from(profile.first);
+    }
+
     return _TeamRequest(
       id: map['id']?.toString() ?? '',
       userId: map['user_id']?.toString() ?? '',
       teamId: map['team_id']?.toString() ?? '',
-      teamName: team is Map
-          ? (team['name']?.toString().trim() ?? 'Unknown Team')
-          : 'Unknown Team',
-      requesterName: profile is Map
-          ? (profile['full_name']?.toString().trim() ?? 'Unknown')
-          : 'Unknown',
-      requesterEmail: profile is Map
-          ? (profile['email']?.toString().trim() ?? '')
-          : '',
+      teamName: teamMap?['name']?.toString().trim() ?? 'Unknown Team',
+      requesterName: profileMap?['full_name']?.toString().trim() ?? 'Unknown',
+      requesterEmail: profileMap?['email']?.toString().trim() ?? '',
       status: (map['status'] ?? 'pending').toString().trim(),
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
@@ -173,16 +154,6 @@ Future<List<_AgentProfile>> _fetchAgentProfiles() async {
       .map(
         (item) => _AgentProfile.fromMap(Map<String, dynamic>.from(item as Map)),
       )
-      .toList();
-}
-
-Future<List<_AgentTeam>> _fetchTeams() async {
-  final List<dynamic> response = await _db
-      .from('agent_teams')
-      .select('*')
-      .order('name');
-  return response
-      .map((item) => _AgentTeam.fromMap(Map<String, dynamic>.from(item as Map)))
       .toList();
 }
 
@@ -245,325 +216,198 @@ Future<void> _deleteProfile(String id) async {
   await _db.from('profiles').delete().eq('id', id);
 }
 
-Future<void> _upsertTeam({String? id, required String name}) async {
-  final Map<String, dynamic> payload = {'name': name.trim()};
-  if (id != null && id.trim().isNotEmpty) {
-    await _db.from('agent_teams').update(payload).eq('id', id);
-  } else {
-    await _db.from('agent_teams').insert(payload);
-  }
-}
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 
-Future<void> _deleteTeam(String id) async {
-  await _db.from('agent_teams').delete().eq('id', id);
-}
-
-Future<Map<String, int>> _fetchDashboardStats() async {
-  final List<dynamic> profiles = await _db.from('profiles').select('id, role');
-  final List<dynamic> teams = await _db.from('agent_teams').select('id');
-  final List<dynamic> properties = await _db.from('properties').select('id');
-
-  final int agentCount = profiles
-      .where((p) => (p['role']?.toString() ?? '') == 'agent')
-      .length;
-
-  return {
-    'total_profiles': profiles.length,
-    'agents': agentCount,
-    'teams': teams.length,
-    'properties': properties.length,
-  };
-}
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: AppScaffoldShell(
-        title: 'Admin Dashboard',
-        body: Column(
-          children: <Widget>[
-            const TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              tabs: <Widget>[
-                Tab(icon: Icon(Icons.dashboard_rounded), text: 'Overview'),
-                Tab(icon: Icon(Icons.person_rounded), text: 'Agents'),
-                Tab(icon: Icon(Icons.groups_rounded), text: 'Teams'),
-                Tab(icon: Icon(Icons.people_alt_rounded), text: 'Users'),
-              ],
-            ),
-            const Expanded(
-              child: TabBarView(
-                children: <Widget>[
-                  _OverviewTab(),
-                  _AgentsTab(),
-                  _TeamsTab(),
-                  _UsersTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-
-class _OverviewTab extends StatefulWidget {
-  const _OverviewTab();
-
-  @override
-  State<_OverviewTab> createState() => _OverviewTabState();
-}
-
-class _OverviewTabState extends State<_OverviewTab> {
-  Map<String, int>? _stats;
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final Map<String, int> stats = await _fetchDashboardStats();
-      if (!mounted) return;
-      setState(() {
-        _stats = stats;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  int _tabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme cs = theme.colorScheme;
+    final ColorScheme cs = Theme.of(context).colorScheme;
 
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return _ErrorView(message: _error!, onRetry: _load);
-    }
-
-    final Map<String, int> stats = _stats!;
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          Text(
-            'Platform Overview',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Live snapshot of your app data.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 20),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.4,
-            children: <Widget>[
-              _StatCard(
-                label: 'Total Profiles',
-                value: '${stats['total_profiles'] ?? 0}',
-                icon: Icons.person_outline_rounded,
-                color: cs.primary,
-              ),
-              _StatCard(
-                label: 'Agents',
-                value: '${stats['agents'] ?? 0}',
-                icon: Icons.badge_outlined,
-                color: Colors.orange,
-              ),
-              _StatCard(
-                label: 'Teams',
-                value: '${stats['teams'] ?? 0}',
-                icon: Icons.groups_outlined,
-                color: Colors.teal,
-              ),
-              _StatCard(
-                label: 'Listings',
-                value: '${stats['properties'] ?? 0}',
-                icon: Icons.home_work_outlined,
-                color: Colors.purple,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const _SectionHeader(
-            title: 'Quick Actions',
-            subtitle: 'Common admin operations.',
-          ),
-          const SizedBox(height: 12),
-          _QuickActionTile(
-            icon: Icons.person_add_rounded,
-            label: 'Add Agent Profile',
-            color: cs.primary,
-            onTap: () => _openAgentForm(context),
-          ),
-          const SizedBox(height: 10),
-          _QuickActionTile(
-            icon: Icons.group_add_rounded,
-            label: 'Add Team',
-            color: Colors.teal,
-            onTap: () => _openTeamForm(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openAgentForm(BuildContext context) async {
-    final List<_AgentTeam> teams = await _fetchTeams();
-    if (!context.mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _AgentFormSheet(teams: teams, profile: null),
-    );
-    _load();
-  }
-
-  Future<void> _openTeamForm(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _TeamFormSheet(team: null),
-    );
-    _load();
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return AppScaffoldShell(
+      title: 'Admin Dashboard',
+      showBackButton: true,
+      floatingActionButton: _tabIndex == 0
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                _showNewProfileDialog(context);
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Agent'),
+            )
+          : null,
+      body: Column(
         children: <Widget>[
           Container(
-            width: 36,
-            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: cs.surfaceContainerHighest,
+              border: Border(
+                bottom: BorderSide(color: cs.outlineVariant, width: 0.5),
+              ),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
+            child: Row(
+              children: <Widget>[
+                _TabButton(
+                  label: 'Agents',
+                  isSelected: _tabIndex == 0,
+                  onTap: () => setState(() => _tabIndex = 0),
+                ),
+                _TabButton(
+                  label: 'Requests',
+                  isSelected: _tabIndex == 1,
+                  onTap: () => setState(() => _tabIndex = 1),
+                ),
+                _TabButton(
+                  label: 'Users',
+                  isSelected: _tabIndex == 2,
+                  onTap: () => setState(() => _tabIndex = 2),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: IndexedStack(
+              index: _tabIndex,
+              children: const <Widget>[
+                _AgentsTab(),
+                _RequestsTab(),
+                _UsersTab(),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  void _showNewProfileDialog(BuildContext context) {
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    final TextEditingController fullNameCtrl = TextEditingController();
+    final TextEditingController emailCtrl = TextEditingController();
+    final TextEditingController phoneCtrl = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('New Agent Profile'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextFormField(
+                  controller: fullNameCtrl,
+                  decoration: const InputDecoration(labelText: 'Full Name'),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneCtrl,
+                  decoration: const InputDecoration(labelText: 'Phone'),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(ctx).pop();
+                  try {
+                    await _upsertProfile(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      fullName: fullNameCtrl.text,
+                      email: emailCtrl.text,
+                      phone: phoneCtrl.text,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Agent profile created.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
-class _QuickActionTile extends StatelessWidget {
-  final IconData icon;
+// ─── Custom Tab Button ───────────────────────────────────────────────────────
+
+class _TabButton extends StatelessWidget {
   final String label;
-  final Color color;
+  final bool isSelected;
   final VoidCallback onTap;
 
-  const _QuickActionTile({
-    required this.icon,
+  const _TabButton({
     required this.label,
-    required this.color,
+    required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: ListTile(
+    return Expanded(
+      child: GestureDetector(
         onTap: onTap,
-        leading: Container(
-          width: 42,
-          height: 42,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? cs.primary : Colors.transparent,
+                width: 2.5,
+              ),
+            ),
           ),
-          child: Icon(icon, color: color),
-        ),
-        title: Text(
-          label,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
+          child: Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: isSelected ? cs.primary : cs.onSurfaceVariant,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ),
-        trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
@@ -580,7 +424,6 @@ class _AgentsTab extends StatefulWidget {
 
 class _AgentsTabState extends State<_AgentsTab> {
   List<_AgentProfile> _profiles = const <_AgentProfile>[];
-  List<_AgentTeam> _teams = const <_AgentTeam>[];
   bool _isLoading = true;
   String? _error;
   String _search = '';
@@ -591,7 +434,8 @@ class _AgentsTabState extends State<_AgentsTab> {
     return _profiles.where((p) {
       return p.fullName.toLowerCase().contains(q) ||
           p.email.toLowerCase().contains(q) ||
-          p.phone.toLowerCase().contains(q);
+          (p.teamName?.toLowerCase().contains(q) ?? false) ||
+          (p.phone.toLowerCase().contains(q));
     }).toList();
   }
 
@@ -608,11 +452,9 @@ class _AgentsTabState extends State<_AgentsTab> {
     });
     try {
       final List<_AgentProfile> profiles = await _fetchAgentProfiles();
-      final List<_AgentTeam> teams = await _fetchTeams();
       if (!mounted) return;
       setState(() {
         _profiles = profiles;
-        _teams = teams;
         _isLoading = false;
       });
     } catch (e) {
@@ -624,54 +466,144 @@ class _AgentsTabState extends State<_AgentsTab> {
     }
   }
 
-  Future<void> _openForm({_AgentProfile? profile}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _AgentFormSheet(teams: _teams, profile: profile),
+  void _showEditDialog(_AgentProfile profile) {
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    final TextEditingController fullNameCtrl = TextEditingController(
+      text: profile.fullName,
     );
-    _load();
-  }
+    final TextEditingController emailCtrl = TextEditingController(
+      text: profile.email,
+    );
+    final TextEditingController phoneCtrl = TextEditingController(
+      text: profile.phone,
+    );
+    final TextEditingController avatarCtrl = TextEditingController(
+      text: profile.avatarUrl ?? '',
+    );
 
-  Future<void> _confirmDelete(_AgentProfile profile) async {
-    final bool? confirmed = await showDialog<bool>(
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Agent'),
-        content: Text(
-          'Remove "${profile.fullName}" from profiles? This cannot be undone.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Edit Agent'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextFormField(
+                    controller: fullNameCtrl,
+                    decoration: const InputDecoration(labelText: 'Full Name'),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: phoneCtrl,
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: avatarCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Avatar URL (opt)',
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: const Text('Delete'),
           ),
-        ],
-      ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final bool? confirm = await showDialog<bool>(
+                  context: ctx,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Delete Agent?'),
+                    content: const Text('This action cannot be undone.'),
+                    actions: <Widget>[
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm ?? false) {
+                  if (!ctx.mounted) return;
+                  Navigator.of(ctx).pop();
+                  try {
+                    await _deleteProfile(profile.id);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Agent deleted.')),
+                      );
+                      _load();
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                }
+              },
+              child: const Text('Delete'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(ctx).pop();
+                  try {
+                    await _upsertProfile(
+                      id: profile.id,
+                      fullName: fullNameCtrl.text,
+                      email: emailCtrl.text,
+                      phone: phoneCtrl.text,
+                      avatarUrl: avatarCtrl.text.trim().isEmpty
+                          ? null
+                          : avatarCtrl.text.trim(),
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Agent updated.')),
+                      );
+                      _load();
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
-    if (confirmed != true || !mounted) return;
-
-    try {
-      await _deleteProfile(profile.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${profile.fullName} removed.')));
-      _load();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
-    }
   }
 
   @override
@@ -693,34 +625,22 @@ class _AgentsTabState extends State<_AgentsTab> {
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search agents...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    filled: true,
-                    fillColor: cs.surfaceContainerHighest,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  onChanged: (value) => setState(() => _search = value),
-                ),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search agents...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: cs.surfaceContainerHighest,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
               ),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add'),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
               ),
-            ],
+            ),
+            onChanged: (value) => setState(() => _search = value),
           ),
         ),
         const SizedBox(height: 8),
@@ -728,7 +648,7 @@ class _AgentsTabState extends State<_AgentsTab> {
           Expanded(
             child: Center(
               child: Text(
-                _search.isEmpty ? 'No agent profiles yet.' : 'No results.',
+                _search.isEmpty ? 'No agents found.' : 'No results.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: cs.onSurfaceVariant,
                 ),
@@ -742,703 +662,68 @@ class _AgentsTabState extends State<_AgentsTab> {
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 itemCount: filtered.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final _AgentProfile profile = filtered[index];
-                  return _AgentProfileCard(
-                    profile: profile,
-                    onEdit: () => _openForm(profile: profile),
-                    onDelete: () => _confirmDelete(profile),
-                  );
-                },
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _AgentProfileCard extends StatelessWidget {
-  final _AgentProfile profile;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _AgentProfileCard({
-    required this.profile,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme cs = theme.colorScheme;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Avatar
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: cs.primaryContainer,
-              backgroundImage:
-                  profile.avatarUrl != null &&
-                      profile.avatarUrl!.startsWith('http')
-                  ? NetworkImage(profile.avatarUrl!)
-                  : null,
-              child:
-                  profile.avatarUrl == null ||
-                      !profile.avatarUrl!.startsWith('http')
-                  ? Icon(
-                      Icons.person_outline_rounded,
-                      color: cs.primary,
-                      size: 28,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          profile.fullName.isEmpty
-                              ? 'No name set'
-                              : profile.fullName,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      if ((profile.role ?? '').isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: cs.secondaryContainer,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            profile.role!,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: cs.onSecondaryContainer,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  _ContactLine(
-                    icon: Icons.mail_outline_rounded,
-                    value: profile.email.isEmpty ? '— no email' : profile.email,
-                    cs: cs,
-                    textTheme: theme.textTheme,
-                  ),
-                  _ContactLine(
-                    icon: Icons.call_outlined,
-                    value: profile.phone.isEmpty ? '— no phone' : profile.phone,
-                    cs: cs,
-                    textTheme: theme.textTheme,
-                    highlight: profile.phone.isEmpty,
-                  ),
-                  if (profile.teamName != null)
-                    _ContactLine(
-                      icon: Icons.groups_outlined,
-                      value: profile.teamName!,
-                      cs: cs,
-                      textTheme: theme.textTheme,
-                    ),
-                ],
-              ),
-            ),
-            // Actions
-            Column(
-              children: <Widget>[
-                IconButton(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_rounded),
-                  tooltip: 'Edit',
-                  iconSize: 20,
-                ),
-                IconButton(
-                  onPressed: onDelete,
-                  icon: Icon(Icons.delete_outline_rounded, color: cs.error),
-                  tooltip: 'Delete',
-                  iconSize: 20,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ContactLine extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final ColorScheme cs;
-  final TextTheme textTheme;
-  final bool highlight;
-
-  const _ContactLine({
-    required this.icon,
-    required this.value,
-    required this.cs,
-    required this.textTheme,
-    this.highlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 14, color: cs.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              value,
-              style: textTheme.bodySmall?.copyWith(
-                color: highlight ? cs.error : cs.onSurfaceVariant,
-                fontStyle: highlight ? FontStyle.italic : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AgentFormSheet extends StatefulWidget {
-  final List<_AgentTeam> teams;
-  final _AgentProfile? profile;
-
-  const _AgentFormSheet({required this.teams, required this.profile});
-
-  @override
-  State<_AgentFormSheet> createState() => _AgentFormSheetState();
-}
-
-class _AgentFormSheetState extends State<_AgentFormSheet> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _emailController;
-  late final TextEditingController _phoneController;
-  late final TextEditingController _avatarUrlController;
-
-  String? _selectedTeamId;
-  String _selectedRole = 'agent';
-  bool _isSaving = false;
-
-  static const List<String> _roles = <String>['agent', 'admin', 'moderator'];
-
-  bool get _isEditing => widget.profile != null;
-
-  @override
-  void initState() {
-    super.initState();
-    final _AgentProfile? profile = widget.profile;
-    _nameController = TextEditingController(text: profile?.fullName ?? '');
-    _emailController = TextEditingController(text: profile?.email ?? '');
-    _phoneController = TextEditingController(text: profile?.phone ?? '');
-    _avatarUrlController = TextEditingController(
-      text: profile?.avatarUrl ?? '',
-    );
-    _selectedTeamId = profile?.teamId;
-    _selectedRole = profile?.role ?? 'agent';
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _avatarUrlController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
-    try {
-      await _upsertProfile(
-        id: widget.profile?.id ?? _db.auth.currentUser!.id,
-        fullName: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        avatarUrl: _avatarUrlController.text.trim().isNotEmpty
-            ? _avatarUrlController.text.trim()
-            : null,
-        teamId: _selectedTeamId,
-        role: _selectedRole,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Profile updated.' : 'Profile created.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        0,
-        16,
-        MediaQuery.viewInsetsOf(context).bottom + 24,
-      ),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                _isEditing ? 'Edit Agent' : 'New Agent',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              const _FormLabel(text: 'Full Name'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _nameController,
-                decoration: _inputDecoration(
-                  hint: 'e.g. Joh Sah',
-                  icon: Icons.person_outline_rounded,
-                ),
-                validator: (value) =>
-                    (value ?? '').trim().isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 14),
-
-              const _FormLabel(text: 'Email'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: _inputDecoration(
-                  hint: 'agent@example.com',
-                  icon: Icons.mail_outline_rounded,
-                ),
-                validator: (value) =>
-                    (value ?? '').trim().isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 14),
-
-              const _FormLabel(text: 'Phone Number'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: <TextInputFormatter>[
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s()]')),
-                ],
-                decoration: _inputDecoration(
-                  hint: '+63 917 123 4567',
-                  icon: Icons.call_outlined,
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              const _FormLabel(text: 'Avatar URL (optional)'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _avatarUrlController,
-                keyboardType: TextInputType.url,
-                decoration: _inputDecoration(
-                  hint: 'https://...',
-                  icon: Icons.image_outlined,
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              const _FormLabel(text: 'Team (optional)'),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String?>(
-                initialValue: _selectedTeamId,
-                decoration: _inputDecoration(
-                  hint: 'No team assigned',
-                  icon: Icons.groups_outlined,
-                ),
-                items: <DropdownMenuItem<String?>>[
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('— None —'),
-                  ),
-                  ...widget.teams.map(
-                    (team) => DropdownMenuItem<String?>(
-                      value: team.id,
-                      child: Text(team.name),
-                    ),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _selectedTeamId = value),
-              ),
-              const SizedBox(height: 14),
-
-              const _FormLabel(text: 'Role'),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedRole,
-                decoration: _inputDecoration(
-                  hint: 'Select role',
-                  icon: Icons.badge_outlined,
-                ),
-                items: _roles
-                    .map(
-                      (role) => DropdownMenuItem<String>(
-                        value: role,
-                        child: Text(role),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedRole = value ?? 'agent'),
-              ),
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _isSaving ? null : _save,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_rounded),
-                  label: Text(_isEditing ? 'Save Changes' : 'Create Profile'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required String hint,
-    required IconData icon,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      prefixIcon: Icon(icon),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-    );
-  }
-}
-
-class _FormLabel extends StatelessWidget {
-  final String text;
-
-  const _FormLabel({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(
-        context,
-      ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-    );
-  }
-}
-
-// ─── Teams Tab (Manage Teams) ─────────────────────────────────────────────────
-// Contains two sub-tabs: Agent Teams & Team Requests
-
-class _TeamsTab extends StatefulWidget {
-  const _TeamsTab();
-
-  @override
-  State<_TeamsTab> createState() => _TeamsTabState();
-}
-
-class _TeamsTabState extends State<_TeamsTab>
-    with SingleTickerProviderStateMixin {
-  late final TabController _subTabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _subTabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _subTabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme cs = theme.colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        // Sub-tab header
-        Container(
-          color: cs.surface,
-          child: TabBar(
-            controller: _subTabController,
-            labelColor: cs.primary,
-            unselectedLabelColor: cs.onSurfaceVariant,
-            indicatorColor: cs.primary,
-            indicatorSize: TabBarIndicatorSize.tab,
-            dividerColor: cs.outlineVariant,
-            tabs: const <Widget>[
-              Tab(
-                icon: Icon(Icons.groups_rounded),
-                text: 'Agent Teams',
-                iconMargin: EdgeInsets.only(bottom: 2),
-              ),
-              Tab(
-                icon: Icon(Icons.person_search_rounded),
-                text: 'Team Requests',
-                iconMargin: EdgeInsets.only(bottom: 2),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _subTabController,
-            children: const <Widget>[
-              _AgentTeamsSection(),
-              _TeamRequestsSection(),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Agent Teams Section ──────────────────────────────────────────────────────
-
-class _AgentTeamsSection extends StatefulWidget {
-  const _AgentTeamsSection();
-
-  @override
-  State<_AgentTeamsSection> createState() => _AgentTeamsSectionState();
-}
-
-class _AgentTeamsSectionState extends State<_AgentTeamsSection> {
-  List<_AgentTeam> _teams = const <_AgentTeam>[];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final List<_AgentTeam> teams = await _fetchTeams();
-      if (!mounted) return;
-      setState(() {
-        _teams = teams;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _openForm({_AgentTeam? team}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _TeamFormSheet(team: team),
-    );
-    _load();
-  }
-
-  Future<void> _confirmDelete(_AgentTeam team) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Team'),
-        content: Text('Remove "${team.name}"? This cannot be undone.'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    try {
-      await _deleteTeam(team.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('"${team.name}" removed.')));
-      _load();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return _ErrorView(message: _error!, onRetry: _load);
-    }
-
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  '${_teams.length} team(s)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add Team'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (_teams.isEmpty)
-          Expanded(
-            child: Center(
-              child: Text(
-                'No teams yet. Add your first team.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: _teams.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final _AgentTeam team = _teams[index];
                   return Card(
                     margin: EdgeInsets.zero,
                     child: ListTile(
-                      leading: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.teal.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.groups_rounded,
-                          color: Colors.teal,
-                        ),
+                      onTap: () => _showEditDialog(profile),
+                      leading: CircleAvatar(
+                        backgroundColor: cs.primaryContainer,
+                        backgroundImage:
+                            profile.avatarUrl != null &&
+                                profile.avatarUrl!.isNotEmpty
+                            ? NetworkImage(profile.avatarUrl!)
+                            : null,
+                        child:
+                            profile.avatarUrl == null ||
+                                profile.avatarUrl!.isEmpty
+                            ? Icon(
+                                Icons.person_outline_rounded,
+                                color: cs.onPrimaryContainer,
+                              )
+                            : null,
                       ),
                       title: Text(
-                        team.name,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                        profile.fullName.isEmpty
+                            ? '(no name)'
+                            : profile.fullName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      subtitle: Text('ID: ${team.id}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          IconButton(
-                            icon: const Icon(Icons.edit_rounded),
-                            onPressed: () => _openForm(team: team),
-                            iconSize: 20,
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline_rounded,
-                              color: theme.colorScheme.error,
+                          Text(
+                            profile.email.isEmpty ? '—' : profile.email,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
                             ),
-                            onPressed: () => _confirmDelete(team),
-                            iconSize: 20,
                           ),
+                          if (profile.teamName != null &&
+                              profile.teamName!.isNotEmpty)
+                            Row(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.group_outlined,
+                                  size: 13,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  profile.teamName!,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: cs.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
+                      trailing: const Icon(Icons.edit_outlined, size: 20),
                     ),
                   );
                 },
@@ -1450,16 +735,16 @@ class _AgentTeamsSectionState extends State<_AgentTeamsSection> {
   }
 }
 
-// ─── Team Requests Section ────────────────────────────────────────────────────
+// ─── Requests Tab ─────────────────────────────────────────────────────────────
 
-class _TeamRequestsSection extends StatefulWidget {
-  const _TeamRequestsSection();
+class _RequestsTab extends StatefulWidget {
+  const _RequestsTab();
 
   @override
-  State<_TeamRequestsSection> createState() => _TeamRequestsSectionState();
+  State<_RequestsTab> createState() => _RequestsTabState();
 }
 
-class _TeamRequestsSectionState extends State<_TeamRequestsSection> {
+class _RequestsTabState extends State<_RequestsTab> {
   List<_TeamRequest> _requests = const <_TeamRequest>[];
   bool _isLoading = true;
   String? _error;
@@ -1491,20 +776,34 @@ class _TeamRequestsSectionState extends State<_TeamRequestsSection> {
     }
   }
 
-  Future<void> _respond({
-    required _TeamRequest request,
-    required bool approve,
-  }) async {
-    final String status = approve ? 'approved' : 'rejected';
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '—';
+    final DateTime local = dt.toLocal();
+    const List<String> months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[local.month - 1]} ${local.day}, ${local.year}';
+  }
+
+  void _handleRequest(_TeamRequest req, String status) async {
     try {
-      await _respondToTeamRequest(requestId: request.id, status: status);
+      await _respondToTeamRequest(requestId: req.id, status: status);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            approve
-                ? '${request.requesterName} approved to join ${request.teamName}.'
-                : 'Request from ${request.requesterName} rejected.',
+            status == 'approved' ? 'Request approved.' : 'Request rejected.',
           ),
         ),
       );
@@ -1513,51 +812,8 @@ class _TeamRequestsSectionState extends State<_TeamRequestsSection> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Action failed: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-
-  Future<void> _confirmRespond({
-    required _TeamRequest request,
-    required bool approve,
-  }) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(approve ? 'Approve Request' : 'Reject Request'),
-        content: Text(
-          approve
-              ? 'Allow ${request.requesterName} to join "${request.teamName}"?'
-              : 'Reject ${request.requesterName}\'s request to join "${request.teamName}"?',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: approve
-                ? null
-                : FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-            child: Text(approve ? 'Approve' : 'Reject'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await _respond(request: request, approve: approve);
-  }
-
-  String _timeAgo(DateTime? dt) {
-    if (dt == null) return '';
-    final Duration diff = DateTime.now().difference(dt.toLocal());
-    if (diff.inDays > 0) return '${diff.inDays}d ago';
-    if (diff.inHours > 0) return '${diff.inHours}h ago';
-    if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
-    return 'Just now';
   }
 
   @override
@@ -1573,314 +829,120 @@ class _TeamRequestsSectionState extends State<_TeamRequestsSection> {
       return _ErrorView(message: _error!, onRetry: _load);
     }
 
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  _requests.isEmpty
-                      ? 'No pending requests'
-                      : '${_requests.length} pending request(s)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Refresh',
-              ),
-            ],
+    if (_requests.isEmpty) {
+      return Center(
+        child: Text(
+          'No pending requests.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurfaceVariant,
           ),
         ),
-        if (_requests.isEmpty)
-          Expanded(
-            child: Center(
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: _requests.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final _TeamRequest req = _requests[index];
+          return Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 48,
-                    color: Colors.teal.withValues(alpha: 0.5),
+                  Row(
+                    children: <Widget>[
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: cs.tertiaryContainer,
+                        child: Icon(
+                          Icons.person_add_alt_outlined,
+                          size: 18,
+                          color: cs.onTertiaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              req.requesterName,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              req.requesterEmail,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'All caught up!',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(Icons.group_outlined, size: 16, color: cs.primary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            req.teamName,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _formatDate(req.createdAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'No pending join requests at this time.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      OutlinedButton.icon(
+                        onPressed: () => _handleRequest(req, 'rejected'),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: const Text('Reject'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cs.error,
+                          side: BorderSide(color: cs.error),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () => _handleRequest(req, 'approved'),
+                        icon: const Icon(Icons.check_rounded, size: 18),
+                        label: const Text('Approve'),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          )
-        else
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                itemCount: _requests.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final _TeamRequest req = _requests[index];
-                  return Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: cs.primaryContainer,
-                                child: Icon(
-                                  Icons.person_outline_rounded,
-                                  color: cs.primary,
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      req.requesterName.isEmpty
-                                          ? 'Unknown'
-                                          : req.requesterName,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                    if (req.requesterEmail.isNotEmpty)
-                                      Text(
-                                        req.requesterEmail,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: cs.onSurfaceVariant,
-                                            ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                _timeAgo(req.createdAt),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: <Widget>[
-                              Icon(
-                                Icons.groups_rounded,
-                                size: 14,
-                                color: Colors.teal,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Requesting to join ',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  req.teamName,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.teal,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _confirmRespond(
-                                    request: req,
-                                    approve: false,
-                                  ),
-                                  icon: Icon(
-                                    Icons.close_rounded,
-                                    color: cs.error,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    'Reject',
-                                    style: TextStyle(color: cs.error),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                      color: cs.error.withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: () => _confirmRespond(
-                                    request: req,
-                                    approve: true,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.check_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Approve'),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.teal,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ─── Team Form Sheet ──────────────────────────────────────────────────────────
-
-class _TeamFormSheet extends StatefulWidget {
-  final _AgentTeam? team;
-
-  const _TeamFormSheet({required this.team});
-
-  @override
-  State<_TeamFormSheet> createState() => _TeamFormSheetState();
-}
-
-class _TeamFormSheetState extends State<_TeamFormSheet> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  bool _isSaving = false;
-
-  bool get _isEditing => widget.team != null;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.team?.name ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
-    try {
-      await _upsertTeam(id: widget.team?.id, name: _nameController.text.trim());
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEditing ? 'Team updated.' : 'Team created.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        0,
-        16,
-        MediaQuery.viewInsetsOf(context).bottom + 24,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              _isEditing ? 'Edit Team' : 'New Team',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const _FormLabel(text: 'Team Name'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                hintText: 'e.g. KSN Verified Agents',
-                prefixIcon: const Icon(Icons.groups_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) =>
-                  (value ?? '').trim().isEmpty ? 'Required' : null,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: Text(_isEditing ? 'Save Changes' : 'Create Team'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -2083,38 +1145,6 @@ class _UsersTabState extends State<_UsersTab> {
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-// ─── Shared Widgets ───────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionHeader({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          title,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
       ],
     );
   }

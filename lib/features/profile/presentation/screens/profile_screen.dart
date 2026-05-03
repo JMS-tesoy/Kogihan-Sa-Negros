@@ -40,9 +40,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Agent Profile'),
+        centerTitle: true,
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _controller.load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
@@ -77,67 +88,246 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           final ProfileEntity? profile = _controller.profile;
+          final String name = profile?.name.trim() ?? '';
+          final String email = profile?.email.trim() ?? '';
+          final String phone = profile?.phone.trim() ?? '';
+          final int completedFields = <String>[
+            name,
+            email,
+            phone,
+          ].where((value) => value.isNotEmpty).length;
+          final double completion = completedFields / 3;
+          final bool isComplete = completedFields == 3;
+          final Color progressColor = isComplete ? Colors.green : cs.primary;
 
           return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Center(
-                child: ProfileAvatar(
-                  imageUrl: profile?.avatarUrl ?? '',
-                  radius: 48,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            children: <Widget>[
+              _ProfileHero(
+                profile: profile,
+                completion: completion,
+                onEdit: () => _openEditProfile(context),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Icon(Icons.verified_user_outlined, color: cs.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Profile Strength',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${(completion * 100).round()}%',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: progressColor,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          minHeight: 8,
+                          value: completion,
+                          color: progressColor,
+                          backgroundColor: cs.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        isComplete
+                            ? 'Your contact profile is complete.'
+                            : 'Add missing details so clients can reach you.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              if (profile != null) ...[
-                Center(
-                  child: Text(
-                    profile.name.isNotEmpty ? profile.name : 'No name set',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+              Text(
+                'Contact Details',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                if (profile.email.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Text(
-                      profile.email,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-              const SizedBox(height: 32),
-              Card(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.edit_outlined),
-                      title: const Text('Edit Profile'),
-                      subtitle: const Text('Update your name and phone'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        await Navigator.of(
-                          context,
-                        ).pushNamed(RouteNames.editProfile);
-                        if (!mounted) return;
-                        _controller.load();
-                      },
-                    ),
-                    if (profile != null && profile.phone.isNotEmpty)
-                      ListTile(
-                        leading: const Icon(Icons.phone_outlined),
-                        title: const Text('Phone'),
-                        subtitle: Text(profile.phone),
-                      ),
-                  ],
-                ),
+              ),
+              const SizedBox(height: 8),
+              _ProfileInfoTile(
+                icon: Icons.badge_outlined,
+                label: 'Full Name',
+                value: name.isEmpty ? 'No name set' : name,
+                isMissing: name.isEmpty,
+              ),
+              const SizedBox(height: 8),
+              _ProfileInfoTile(
+                icon: Icons.mail_outline_rounded,
+                label: 'Email',
+                value: email.isEmpty ? 'No email set' : email,
+                isMissing: email.isEmpty,
+              ),
+              const SizedBox(height: 8),
+              _ProfileInfoTile(
+                icon: Icons.phone_outlined,
+                label: 'Phone',
+                value: phone.isEmpty ? 'No phone set' : phone,
+                isMissing: phone.isEmpty,
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _openEditProfile(BuildContext context) async {
+    await Navigator.of(context).pushNamed(RouteNames.editProfile);
+    if (!mounted) return;
+    _controller.load();
+  }
+}
+
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero({
+    required this.profile,
+    required this.completion,
+    required this.onEdit,
+  });
+
+  final ProfileEntity? profile;
+  final double completion;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+    final String name = profile?.name.trim() ?? '';
+    final String email = profile?.email.trim() ?? '';
+    final bool isComplete = completion >= 1;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: <Widget>[
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: <Widget>[
+                ProfileAvatar(imageUrl: profile?.avatarUrl ?? '', radius: 54),
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 3),
+                  ),
+                  child: Icon(
+                    isComplete
+                        ? Icons.verified_rounded
+                        : Icons.priority_high_rounded,
+                    color: cs.onPrimary,
+                    size: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              name.isEmpty ? 'No name set' : name,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              email.isEmpty ? 'No email set' : email,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: FilledButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit Profile'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileInfoTile extends StatelessWidget {
+  const _ProfileInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isMissing,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isMissing;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: isMissing ? cs.errorContainer : cs.secondaryContainer,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: isMissing ? cs.onErrorContainer : cs.onSecondaryContainer,
+          ),
+        ),
+        title: Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+        subtitle: Text(
+          value,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: isMissing ? cs.error : cs.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        trailing: Icon(
+          isMissing ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+          color: isMissing ? cs.error : cs.primary,
+        ),
       ),
     );
   }
