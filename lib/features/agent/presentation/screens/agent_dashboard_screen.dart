@@ -8,6 +8,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/route_names.dart';
 import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
@@ -948,6 +949,11 @@ class TeamChatMessage {
     required this.senderName,
     required this.body,
     required this.createdAt,
+    this.attachmentUrl,
+    this.attachmentPath,
+    this.attachmentName,
+    this.attachmentMimeType,
+    this.attachmentSizeBytes,
   });
 
   factory TeamChatMessage.fromMap(Map<String, dynamic> map) {
@@ -960,6 +966,11 @@ class TeamChatMessage {
       createdAt:
           DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
+      attachmentUrl: map['attachment_url'] as String?,
+      attachmentPath: map['attachment_path'] as String?,
+      attachmentName: map['attachment_name'] as String?,
+      attachmentMimeType: map['attachment_mime_type'] as String?,
+      attachmentSizeBytes: _parseAttachmentSize(map['attachment_size_bytes']),
     );
   }
 
@@ -969,6 +980,25 @@ class TeamChatMessage {
   final String senderName;
   final String body;
   final DateTime createdAt;
+  final String? attachmentUrl;
+  final String? attachmentPath;
+  final String? attachmentName;
+  final String? attachmentMimeType;
+  final int? attachmentSizeBytes;
+
+  bool get hasAttachment => (attachmentUrl ?? '').trim().isNotEmpty;
+  bool get attachmentIsImage =>
+      (attachmentMimeType ?? '').toLowerCase().startsWith('image/');
+  String get attachmentDisplayName {
+    final String name = (attachmentName ?? '').trim();
+    return name.isNotEmpty ? name : 'Attachment';
+  }
+}
+
+int? _parseAttachmentSize(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
 }
 
 class TeamInboxPage extends StatefulWidget {
@@ -983,7 +1013,6 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   List<TeamChatTeam> _teams = const <TeamChatTeam>[];
   bool _isLoading = true;
   String? _error;
-
 
   @override
   void initState() {
@@ -1097,7 +1126,7 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'You need to be a linked member of a team before you can use its team inbox.',
+            'Create at least one team before using the admin Team Inbox.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -1164,6 +1193,7 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
   List<TeamChatMessage> _messages = const <TeamChatMessage>[];
   bool _isLoading = true;
   bool _isSending = false;
+  bool _isAttaching = false;
   String? _error;
 
   String get _currentUserId => _client.auth.currentUser?.id ?? '';
@@ -1237,7 +1267,9 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     try {
       final List<dynamic> rows = await _client
           .from('team_messages')
-          .select('id, team_id, sender_id, sender_name, body, created_at')
+          .select(
+            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
+          )
           .eq('team_id', widget.team.id)
           .order('created_at', ascending: false)
           .limit(_messageLimit);
@@ -1284,17 +1316,32 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     });
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage({ChatAttachment? attachment}) async {
     final String body = _messageController.text.trim();
-    if (body.isEmpty || _isSending || _currentUserId.isEmpty) return;
+    if ((body.isEmpty && attachment == null) ||
+        _isSending ||
+        _currentUserId.isEmpty) {
+      return;
+    }
+
+    final String bodyToSend = body.isNotEmpty
+        ? body
+        : attachment != null
+        ? 'Sent an attachment'
+        : '';
 
     final TeamChatMessage optimisticMessage = TeamChatMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
       teamId: widget.team.id,
       senderId: _currentUserId,
       senderName: _currentUserDisplayName,
-      body: body,
+      body: bodyToSend,
       createdAt: DateTime.now(),
+      attachmentUrl: attachment?.url,
+      attachmentPath: attachment?.path,
+      attachmentName: attachment?.name,
+      attachmentMimeType: attachment?.mimeType,
+      attachmentSizeBytes: attachment?.sizeBytes,
     );
 
     setState(() {
@@ -1305,15 +1352,20 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     _scrollToBottom();
 
     try {
+      final Map<String, dynamic> insertPayload = <String, dynamic>{
+        'team_id': widget.team.id,
+        'sender_id': _currentUserId,
+        'sender_name': _currentUserDisplayName,
+        'body': bodyToSend,
+        if (attachment != null) ...attachment.toMessageColumns(),
+      };
+
       final Map<String, dynamic> row = await _client
           .from('team_messages')
-          .insert({
-            'team_id': widget.team.id,
-            'sender_id': _currentUserId,
-            'sender_name': _currentUserDisplayName,
-            'body': body,
-          })
-          .select('id, team_id, sender_id, sender_name, body, created_at')
+          .insert(insertPayload)
+          .select(
+            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
+          )
           .single();
 
       final TeamChatMessage sentMessage = TeamChatMessage.fromMap(row);
@@ -1346,6 +1398,42 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     }
   }
 
+  Future<void> _pickAndSendAttachment() async {
+    if (_isSending || _isAttaching) return;
+
+    setState(() {
+      _isAttaching = true;
+    });
+
+    try {
+      final ChatAttachment? attachment =
+          await MessagingService.pickAndUploadAttachment(folder: 'team-inbox');
+      if (!mounted || attachment == null) return;
+      await _sendMessage(attachment: attachment);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAttaching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openAttachment(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open attachment.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -1375,6 +1463,14 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: Row(
                 children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Attach file',
+                    onPressed: _isSending || _isAttaching
+                        ? null
+                        : _pickAndSendAttachment,
+                    icon: const Icon(Icons.attach_file_rounded),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _messageController,
@@ -1393,7 +1489,9 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: _isSending ? null : _sendMessage,
+                    onPressed: _isSending || _isAttaching
+                        ? null
+                        : () => _sendMessage(),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(48, 48),
                       shape: RoundedRectangleBorder(
@@ -1401,7 +1499,7 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
                       ),
                       padding: EdgeInsets.zero,
                     ),
-                    child: _isSending
+                    child: _isSending || _isAttaching
                         ? const SizedBox(
                             width: 18,
                             height: 18,
@@ -1536,18 +1634,109 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
               ),
               const SizedBox(height: 3),
             ],
-            Text(
-              message.body,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: foregroundColor,
-                height: 1.35,
+            if (message.hasAttachment) ...[
+              _buildTeamAttachmentPreview(
+                context: context,
+                message: message,
+                foregroundColor: foregroundColor,
               ),
-            ),
+              if (_shouldShowTeamMessageBody(message))
+                const SizedBox(height: 8),
+            ],
+            if (_shouldShowTeamMessageBody(message))
+              Text(
+                message.body,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: foregroundColor,
+                  height: 1.35,
+                ),
+              ),
             const SizedBox(height: 4),
             Text(
               timeLabel,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: foregroundColor.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _shouldShowTeamMessageBody(TeamChatMessage message) {
+    final String body = message.body.trim();
+    if (body.isEmpty) return false;
+    return !(message.hasAttachment && body == 'Sent an attachment');
+  }
+
+  Widget _buildTeamAttachmentPreview({
+    required BuildContext context,
+    required TeamChatMessage message,
+    required Color foregroundColor,
+  }) {
+    final String attachmentUrl = message.attachmentUrl ?? '';
+    final String attachmentName = message.attachmentDisplayName;
+
+    if (message.attachmentIsImage) {
+      return InkWell(
+        onTap: () => _openAttachment(attachmentUrl),
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            attachmentUrl,
+            width: 220,
+            height: 150,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildTeamFileAttachmentCard(
+                attachmentName: attachmentName,
+                foregroundColor: foregroundColor,
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return _buildTeamFileAttachmentCard(
+      attachmentName: attachmentName,
+      foregroundColor: foregroundColor,
+      onTap: () => _openAttachment(attachmentUrl),
+    );
+  }
+
+  Widget _buildTeamFileAttachmentCard({
+    required String attachmentName,
+    required Color foregroundColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: foregroundColor.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: foregroundColor.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.attach_file_rounded, color: foregroundColor, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                attachmentName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -3601,6 +3790,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
   late final TextEditingController _replyController;
   late final ScrollController _messagesScrollController;
   bool _isSending = false;
+  bool _isAttaching = false;
   bool _isLoadingMessages = true;
   bool _isLoadingMoreMessages = false;
   bool _hasMoreMessages = true;
@@ -3813,17 +4003,28 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     });
   }
 
-  Future<void> _sendReply() async {
+  Future<void> _sendReply({ChatAttachment? attachment}) async {
     final String replyText = _replyController.text.trim();
-    if (replyText.isEmpty || _isSending) return;
+    if ((replyText.isEmpty && attachment == null) || _isSending) return;
+
+    final String optimisticBody = replyText.isNotEmpty
+        ? replyText
+        : attachment != null
+        ? 'Sent an attachment'
+        : '';
 
     final ConversationMessage optimisticMessage = ConversationMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
       conversationId: widget.inquiry.primaryConversationId,
       senderId: _currentUserId,
-      body: replyText,
+      body: optimisticBody,
       createdAt: DateTime.now(),
       readAt: null,
+      attachmentUrl: attachment?.url,
+      attachmentPath: attachment?.path,
+      attachmentName: attachment?.name,
+      attachmentMimeType: attachment?.mimeType,
+      attachmentSizeBytes: attachment?.sizeBytes,
     );
 
     setState(() {
@@ -3838,6 +4039,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
           await MessagingService.sendMessage(
             conversationId: widget.inquiry.primaryConversationId,
             body: replyText,
+            attachment: attachment,
           );
 
       if (!mounted) return;
@@ -3864,6 +4066,42 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
           _isSending = false;
         });
       }
+    }
+  }
+
+  Future<void> _pickAndSendReplyAttachment() async {
+    if (_isSending || _isAttaching) return;
+
+    setState(() {
+      _isAttaching = true;
+    });
+
+    try {
+      final ChatAttachment? attachment =
+          await MessagingService.pickAndUploadAttachment(folder: 'buyer-agent');
+      if (!mounted || attachment == null) return;
+      await _sendReply(attachment: attachment);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAttaching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openConversationAttachment(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open attachment.')),
+      );
     }
   }
 
@@ -3990,6 +4228,83 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     }
   }
 
+  bool _shouldShowConversationBody(ConversationMessage message) {
+    final String body = message.body.trim();
+    if (body.isEmpty) return false;
+    return !(message.hasAttachment && body == 'Sent an attachment');
+  }
+
+  Widget _buildConversationAttachmentPreview({
+    required ConversationMessage message,
+    required Color textColor,
+  }) {
+    final String attachmentUrl = message.attachmentUrl ?? '';
+    final String attachmentName = message.attachmentDisplayName;
+
+    if (message.attachmentIsImage) {
+      return InkWell(
+        onTap: () => _openConversationAttachment(attachmentUrl),
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            attachmentUrl,
+            width: 220,
+            height: 150,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildConversationFileAttachmentCard(
+                attachmentName: attachmentName,
+                textColor: textColor,
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return _buildConversationFileAttachmentCard(
+      attachmentName: attachmentName,
+      textColor: textColor,
+      onTap: () => _openConversationAttachment(attachmentUrl),
+    );
+  }
+
+  Widget _buildConversationFileAttachmentCard({
+    required String attachmentName,
+    required Color textColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: textColor.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: textColor.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.attach_file_rounded, color: textColor, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                attachmentName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -4088,10 +4403,25 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            message.body,
-                                            style: TextStyle(color: textColor),
-                                          ),
+                                          if (message.hasAttachment) ...[
+                                            _buildConversationAttachmentPreview(
+                                              message: message,
+                                              textColor: textColor,
+                                            ),
+                                            if (_shouldShowConversationBody(
+                                              message,
+                                            ))
+                                              const SizedBox(height: 8),
+                                          ],
+                                          if (_shouldShowConversationBody(
+                                            message,
+                                          ))
+                                            Text(
+                                              message.body,
+                                              style: TextStyle(
+                                                color: textColor,
+                                              ),
+                                            ),
                                           const SizedBox(height: 8),
                                           Text(
                                             isAgentMessage
@@ -4124,6 +4454,14 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Row(
                 children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Attach file',
+                    onPressed: _isSending || _isAttaching
+                        ? null
+                        : _pickAndSendReplyAttachment,
+                    icon: const Icon(Icons.attach_file_rounded),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _replyController,
@@ -4153,7 +4491,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                       duration: const Duration(milliseconds: 180),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
-                      child: _isSending
+                      child: _isSending || _isAttaching
                           ? SizedBox(
                               key: const ValueKey('sending'),
                               width: 18,
@@ -4167,7 +4505,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
                             )
                           : IconButton(
                               key: const ValueKey('send'),
-                              onPressed: _sendReply,
+                              onPressed: _isSending || _isAttaching
+                                  ? null
+                                  : () => _sendReply(),
                               icon: Icon(
                                 Icons.send_rounded,
                                 color: Theme.of(context).colorScheme.onPrimary,

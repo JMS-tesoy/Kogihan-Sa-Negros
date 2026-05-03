@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -175,6 +178,32 @@ class ConversationSummary {
   }
 }
 
+class ChatAttachment {
+  const ChatAttachment({
+    required this.url,
+    required this.path,
+    required this.name,
+    required this.mimeType,
+    required this.sizeBytes,
+  });
+
+  final String url;
+  final String path;
+  final String name;
+  final String mimeType;
+  final int sizeBytes;
+
+  Map<String, dynamic> toMessageColumns() {
+    return <String, dynamic>{
+      'attachment_url': url,
+      'attachment_path': path,
+      'attachment_name': name,
+      'attachment_mime_type': mimeType,
+      'attachment_size_bytes': sizeBytes,
+    };
+  }
+}
+
 class ConversationMessage {
   final String id;
   final String conversationId;
@@ -182,6 +211,11 @@ class ConversationMessage {
   final String body;
   final DateTime createdAt;
   final DateTime? readAt;
+  final String? attachmentUrl;
+  final String? attachmentPath;
+  final String? attachmentName;
+  final String? attachmentMimeType;
+  final int? attachmentSizeBytes;
 
   const ConversationMessage({
     required this.id,
@@ -190,10 +224,22 @@ class ConversationMessage {
     required this.body,
     required this.createdAt,
     required this.readAt,
+    this.attachmentUrl,
+    this.attachmentPath,
+    this.attachmentName,
+    this.attachmentMimeType,
+    this.attachmentSizeBytes,
   });
 
   bool isFrom(String userId) => senderId == userId;
   bool get isPending => id.startsWith('local-');
+  bool get hasAttachment => (attachmentUrl ?? '').trim().isNotEmpty;
+  bool get attachmentIsImage =>
+      (attachmentMimeType ?? '').toLowerCase().startsWith('image/');
+  String get attachmentDisplayName {
+    final String name = (attachmentName ?? '').trim();
+    return name.isNotEmpty ? name : 'Attachment';
+  }
 
   factory ConversationMessage.fromMap(Map<String, dynamic> map) {
     return ConversationMessage(
@@ -203,6 +249,11 @@ class ConversationMessage {
       body: (map['body'] as String?) ?? '',
       createdAt: _parseDateTime(map['created_at']) ?? DateTime.now(),
       readAt: _parseDateTime(map['read_at']),
+      attachmentUrl: map['attachment_url'] as String?,
+      attachmentPath: map['attachment_path'] as String?,
+      attachmentName: map['attachment_name'] as String?,
+      attachmentMimeType: map['attachment_mime_type'] as String?,
+      attachmentSizeBytes: _parseInt(map['attachment_size_bytes']),
     );
   }
 }
@@ -212,6 +263,8 @@ class MessagingService {
 
   static final SupabaseClient _client = Supabase.instance.client;
   static const int initialMessagePageSize = 24;
+  static const String attachmentBucket = 'chat-attachments';
+  static const int maxAttachmentSizeBytes = 15 * 1024 * 1024;
   static List<ConversationSummary> _conversationSummariesCache = const [];
   static final Map<String, List<ConversationMessage>>
   _conversationMessagesCache = <String, List<ConversationMessage>>{};
@@ -235,6 +288,55 @@ class MessagingService {
 
     if (response == null) return null;
     return MessagingProfile.fromMap(response);
+  }
+
+  static Future<ChatAttachment?> pickAndUploadAttachment({
+    required String folder,
+  }) async {
+    final FilePickerResult? result = await FilePicker.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      type: FileType.any,
+    );
+
+    if (result == null || result.files.isEmpty) return null;
+
+    final PlatformFile file = result.files.single;
+    final Uint8List? bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('Unable to read the selected attachment.');
+    }
+
+    if (file.size > maxAttachmentSizeBytes) {
+      throw StateError('Attachment must be 15 MB or smaller.');
+    }
+
+    final User user = _currentUser;
+    final String safeName = _safeFileName(file.name);
+    final String safeFolder = _safePathSegment(folder);
+    final String objectPath =
+        '$safeFolder/${user.id}/${DateTime.now().microsecondsSinceEpoch}-$safeName';
+    final String mimeType = _mimeTypeForFileName(safeName);
+
+    await _client.storage
+        .from(attachmentBucket)
+        .uploadBinary(
+          objectPath,
+          bytes,
+          fileOptions: FileOptions(contentType: mimeType),
+        );
+
+    final String publicUrl = _client.storage
+        .from(attachmentBucket)
+        .getPublicUrl(objectPath);
+
+    return ChatAttachment(
+      url: publicUrl,
+      path: objectPath,
+      name: safeName,
+      mimeType: mimeType,
+      sizeBytes: file.size,
+    );
   }
 
   static List<ConversationSummary> getCachedConversationSummaries() {
@@ -403,15 +505,30 @@ class MessagingService {
   static Future<ConversationMessage> sendMessage({
     required String conversationId,
     required String body,
+    ChatAttachment? attachment,
   }) async {
     final User user = _currentUser;
+    final String trimmedBody = body.trim();
+    final String bodyToInsert = trimmedBody.isNotEmpty
+        ? trimmedBody
+        : attachment != null
+        ? 'Sent an attachment'
+        : '';
+
+    if (bodyToInsert.isEmpty) {
+      throw StateError('Message cannot be empty.');
+    }
+
+    final Map<String, dynamic> insertPayload = <String, dynamic>{
+      'conversation_id': conversationId,
+      'sender_id': user.id,
+      'body': bodyToInsert,
+      if (attachment != null) ...attachment.toMessageColumns(),
+    };
+
     final Map<String, dynamic> response = await _client
         .from('messages')
-        .insert({
-          'conversation_id': conversationId,
-          'sender_id': user.id,
-          'body': body.trim(),
-        })
+        .insert(insertPayload)
         .select()
         .single();
     final ConversationMessage message = ConversationMessage.fromMap(response);
@@ -421,7 +538,11 @@ class MessagingService {
             .map(
               (summary) => summary.id == conversationId
                   ? summary.copyWith(
-                      lastMessagePreview: message.body,
+                      lastMessagePreview:
+                          message.hasAttachment &&
+                              message.body == 'Sent an attachment'
+                          ? message.attachmentDisplayName
+                          : message.body,
                       lastMessageAt: message.createdAt,
                       isUnread: false,
                     )
@@ -458,6 +579,11 @@ class MessagingService {
                     body: body.trim(),
                     createdAt: message.createdAt,
                     readAt: message.readAt,
+                    attachmentUrl: message.attachmentUrl,
+                    attachmentPath: message.attachmentPath,
+                    attachmentName: message.attachmentName,
+                    attachmentMimeType: message.attachmentMimeType,
+                    attachmentSizeBytes: message.attachmentSizeBytes,
                   )
                 : message,
           )
@@ -608,6 +734,57 @@ class MessagingService {
       ...messages,
     ]);
   }
+}
+
+String _safeFileName(String fileName) {
+  final String trimmed = fileName.trim().isEmpty
+      ? 'attachment'
+      : fileName.trim();
+  return trimmed.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+}
+
+String _safePathSegment(String value) {
+  final String trimmed = value.trim().isEmpty ? 'chat' : value.trim();
+  return trimmed.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '-').toLowerCase();
+}
+
+String _mimeTypeForFileName(String fileName) {
+  final String extension = fileName.split('.').last.toLowerCase();
+  switch (extension) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    case 'txt':
+      return 'text/plain';
+    case 'doc':
+      return 'application/msword';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'xls':
+      return 'application/vnd.ms-excel';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'mp4':
+      return 'video/mp4';
+    case 'mp3':
+      return 'audio/mpeg';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+int? _parseInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
 }
 
 DateTime? _parseDateTime(dynamic value) {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/services/messaging_service.dart';
 import '../widgets/chat_loading_placeholder.dart';
@@ -28,6 +29,7 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _messagesScrollController = ScrollController();
   bool _isLoading = true;
   bool _isSending = false;
+  bool _isAttaching = false;
   bool _isLoadingMore = false;
   bool _hasMoreMessages = true;
   String? _errorText;
@@ -260,17 +262,28 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage({ChatAttachment? attachment}) async {
     final String text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
+    if ((text.isEmpty && attachment == null) || _isSending) return;
+
+    final String optimisticBody = text.isNotEmpty
+        ? text
+        : attachment != null
+        ? 'Sent an attachment'
+        : '';
 
     final ConversationMessage optimisticMessage = ConversationMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
       conversationId: widget.conversationId,
       senderId: _currentUserId,
-      body: text,
+      body: optimisticBody,
       createdAt: DateTime.now(),
       readAt: null,
+      attachmentUrl: attachment?.url,
+      attachmentPath: attachment?.path,
+      attachmentName: attachment?.name,
+      attachmentMimeType: attachment?.mimeType,
+      attachmentSizeBytes: attachment?.sizeBytes,
     );
 
     setState(() {
@@ -287,6 +300,7 @@ class _ChatPageState extends State<ChatPage> {
           await MessagingService.sendMessage(
             conversationId: widget.conversationId,
             body: text,
+            attachment: attachment,
           );
       if (!mounted) return;
       final List<ConversationMessage> currentMessages = _messages
@@ -306,6 +320,46 @@ class _ChatPageState extends State<ChatPage> {
             .toList();
         _messageController.text = text;
       });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+    }
+  }
+
+  Future<void> _pickAndSendAttachment() async {
+    if (_isSending || _isAttaching) return;
+
+    setState(() {
+      _isAttaching = true;
+      _errorText = null;
+    });
+
+    try {
+      final ChatAttachment? attachment =
+          await MessagingService.pickAndUploadAttachment(folder: 'buyer-agent');
+      if (!mounted || attachment == null) return;
+      await _sendMessage(attachment: attachment);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAttaching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openAttachment(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open attachment.')),
+      );
     }
   }
 
@@ -432,6 +486,83 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  bool _shouldShowMessageBody(ConversationMessage message) {
+    final String body = message.body.trim();
+    if (body.isEmpty) return false;
+    return !(message.hasAttachment && body == 'Sent an attachment');
+  }
+
+  Widget _buildAttachmentPreview({
+    required ConversationMessage message,
+    required Color textColor,
+  }) {
+    final String attachmentUrl = message.attachmentUrl ?? '';
+    final String attachmentName = message.attachmentDisplayName;
+
+    if (message.attachmentIsImage) {
+      return InkWell(
+        onTap: () => _openAttachment(attachmentUrl),
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            attachmentUrl,
+            width: 220,
+            height: 150,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildFileAttachmentCard(
+                attachmentName: attachmentName,
+                textColor: textColor,
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return _buildFileAttachmentCard(
+      attachmentName: attachmentName,
+      textColor: textColor,
+      onTap: () => _openAttachment(attachmentUrl),
+    );
+  }
+
+  Widget _buildFileAttachmentCard({
+    required String attachmentName,
+    required Color textColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: textColor.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: textColor.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.attach_file_rounded, color: textColor, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                attachmentName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ChatColorPalette palette = _chatPalette(context);
@@ -543,13 +674,22 @@ class _ChatPageState extends State<ChatPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                msg.body,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
+                              if (msg.hasAttachment) ...[
+                                _buildAttachmentPreview(
+                                  message: msg,
+                                  textColor: textColor,
                                 ),
-                              ),
+                                if (_shouldShowMessageBody(msg))
+                                  const SizedBox(height: 8),
+                              ],
+                              if (_shouldShowMessageBody(msg))
+                                Text(
+                                  msg.body,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               if (isMe) ...[
                                 const SizedBox(height: 6),
                                 Text(
@@ -583,6 +723,21 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor: palette.composerFill,
+                    child: IconButton(
+                      tooltip: 'Attach file',
+                      onPressed: _isSending || _isAttaching
+                          ? null
+                          : _pickAndSendAttachment,
+                      icon: Icon(
+                        Icons.attach_file_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _messageController,
@@ -610,7 +765,7 @@ class _ChatPageState extends State<ChatPage> {
                       duration: const Duration(milliseconds: 180),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
-                      child: _isSending
+                      child: _isSending || _isAttaching
                           ? SizedBox(
                               key: const ValueKey('sending'),
                               width: 18,
@@ -628,7 +783,9 @@ class _ChatPageState extends State<ChatPage> {
                                 Icons.send_rounded,
                                 color: palette.sendButtonForeground,
                               ),
-                              onPressed: _sendMessage,
+                              onPressed: _isSending || _isAttaching
+                                  ? null
+                                  : () => _sendMessage(),
                             ),
                     ),
                   ),
