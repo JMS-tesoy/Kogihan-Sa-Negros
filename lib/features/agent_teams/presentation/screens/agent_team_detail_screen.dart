@@ -71,7 +71,9 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
   }
 
   Future<void> _requestToJoin() async {
-    final User? user = Supabase.instance.client.auth.currentUser;
+    final SupabaseClient client = Supabase.instance.client;
+    final User? user = client.auth.currentUser;
+
     if (user == null || _isSubmittingJoinRequest) return;
 
     setState(() {
@@ -79,23 +81,66 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
     });
 
     try {
-      await Supabase.instance.client.from('team_join_requests').upsert({
-        'team_id': widget.team.id,
-        'user_id': user.id,
-        'status': 'pending',
-      }, onConflict: 'team_id,user_id');
+      final Map<String, dynamic>? existingRequest = await client
+          .from('team_join_requests')
+          .select('id, status')
+          .eq('team_id', widget.team.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (existingRequest != null) {
+        final String status = existingRequest['status'] as String? ?? 'pending';
+
+        if (status == 'pending') {
+          if (!mounted) return;
+          setState(() {
+            _joinRequestStatus = 'pending';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You already have a pending request.'),
+            ),
+          );
+          return;
+        }
+
+        if (status == 'approved') {
+          if (!mounted) return;
+          setState(() {
+            _joinRequestStatus = 'approved';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are already approved.')),
+          );
+          return;
+        }
+
+        await client
+            .from('team_join_requests')
+            .update({'status': 'pending'})
+            .eq('id', existingRequest['id']);
+      } else {
+        await client.from('team_join_requests').insert({
+          'team_id': widget.team.id,
+          'user_id': user.id,
+          'status': 'pending',
+        });
+      }
 
       if (!mounted) return;
+
       setState(() {
         _joinRequestStatus = 'pending';
       });
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Join request sent.')));
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to send join request.')),
+        SnackBar(content: Text('Failed to send join request: $error')),
       );
     } finally {
       if (mounted) {

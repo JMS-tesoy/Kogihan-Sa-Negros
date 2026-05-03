@@ -203,9 +203,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
   List<AgentInquiry> _inquiries = const [];
   bool _isInboxLoading = true;
   RealtimeChannel? _inboxChannel;
+  int _selectedDashboardActionTab = 1;
+  int _dashboardActionTransitionDirection = 1;
 
   int get _unreadInquiryCount =>
       _inquiries.where((inquiry) => inquiry.isUnread).length;
+
+  void _selectDashboardActionTab(int tabIndex) {
+    if (_selectedDashboardActionTab == tabIndex) return;
+
+    setState(() {
+      _dashboardActionTransitionDirection =
+          tabIndex > _selectedDashboardActionTab ? 1 : -1;
+      _selectedDashboardActionTab = tabIndex;
+    });
+  }
 
   List<Property> get _properties => appPropertiesNotifier.value;
 
@@ -319,20 +331,32 @@ class _AdminHomePageState extends State<AdminHomePage> {
         ),
       ),
     );
-
-    if (!mounted) return;
   }
 
-  Future<void> _openInboxPage() async {
+  Future<void> _openInboxPage({
+    AgentInboxFilter initialFilter = AgentInboxFilter.all,
+  }) async {
     await Navigator.push(
       context,
       _instantRoute(
-        AgentInboxPage(inquiries: _inquiries, onMarkAsRead: _markInquiryAsRead),
+        AgentInboxPage(
+          inquiries: _inquiries,
+          onMarkAsRead: _markInquiryAsRead,
+          initialFilter: initialFilter,
+        ),
       ),
     );
 
     if (!mounted) return;
     await _loadInquiries(showLoader: false);
+  }
+
+  Future<void> _openUnreadInboxPage() async {
+    await _openInboxPage(initialFilter: AgentInboxFilter.unread);
+  }
+
+  Future<void> _openAllThreadsPage() async {
+    await _openInboxPage();
   }
 
   Future<void> _openManageTeamsPage() async {
@@ -342,7 +366,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
-  Future<void> _openAgentProfilePage() async {
+  Future<void> _openTeamInboxPage() async {
+    await Navigator.push(context, _instantRoute(const TeamInboxPage()));
+  }
+
+  Future<void> _openPersonalProfilePage() async {
     await Navigator.of(context).pushNamed(RouteNames.profile);
   }
 
@@ -404,9 +432,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -414,6 +445,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -430,6 +463,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       ),
                       child: Text(
                         badgeText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: theme.colorScheme.onSurfaceVariant,
@@ -459,50 +494,326 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  Widget _buildPropertyActionSplitTabs(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    final Widget addNewPropertyCard = _buildDashboardActionCard(
+      context: context,
+      icon: Icons.add_home_work_rounded,
+      accentColor: theme.colorScheme.primary,
+      title: 'Add New Property',
+      subtitle: 'Create and publish a new listing.',
+      badgeText: 'Quick action',
+      onTap: _openAddPropertyPage,
+    );
+
+    final Widget managePropertiesCard = _buildDashboardActionCard(
+      context: context,
+      icon: Icons.edit_note_rounded,
+      accentColor: Colors.orange,
+      title: 'Manage Properties',
+      subtitle: 'Review and update your active listings.',
+      badgeText: '${_properties.length} listing(s)',
+      onTap: _openManagePropertiesPage,
+    );
+
+    final Widget manageTeamsCard = _buildDashboardActionCard(
+      context: context,
+      icon: Icons.admin_panel_settings_outlined,
+      accentColor: Colors.teal,
+      title: 'Manage Teams',
+      subtitle: 'View members, handle join requests, and manage agent teams.',
+      badgeText: 'Admin',
+      onTap: _openManageTeamsPage,
+    );
+
+    final Widget buyerMessagesCard = _buildDashboardActionCard(
+      context: context,
+      icon: Icons.forum_rounded,
+      accentColor: Colors.blue,
+      title: 'Buyer Messages',
+      subtitle: 'Open buyer inquiries and reply to property conversations.',
+      badgeText: _isInboxLoading
+          ? 'Loading messages...'
+          : '$_unreadInquiryCount unread message(s)',
+      onTap: _openAllThreadsPage,
+    );
+
+    final Widget teamInboxCard = _buildDashboardActionCard(
+      context: context,
+      icon: Icons.mark_chat_unread_outlined,
+      accentColor: Colors.green,
+      title: 'Team Inbox',
+      subtitle: 'Open realtime internal messages for agent teams.',
+      badgeText: 'Realtime chat',
+      onTap: _openTeamInboxPage,
+    );
+
+    final bool isManageTeamSelected = _selectedDashboardActionTab == 0;
+    final Widget selectedTabContent = isManageTeamSelected
+        ? Column(
+            key: const ValueKey<String>('manage-team-tab-content'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 126),
+                child: manageTeamsCard,
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 126),
+                child: teamInboxCard,
+              ),
+            ],
+          )
+        : Column(
+            key: const ValueKey<String>('manage-property-tab-content'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 126),
+                child: addNewPropertyCard,
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 126),
+                child: managePropertiesCard,
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 126),
+                child: buyerMessagesCard,
+              ),
+            ],
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 64),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: theme.brightness == Brightness.light ? 0.75 : 0.45,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              _buildPropertyActionTabButton(
+                context: context,
+                label: 'Manage Team',
+                icon: Icons.admin_panel_settings_outlined,
+                isSelected: isManageTeamSelected,
+                onTap: () => _selectDashboardActionTab(0),
+              ),
+              const SizedBox(width: 4),
+              _buildPropertyActionTabButton(
+                context: context,
+                label: 'Manage Property',
+                icon: Icons.edit_note_rounded,
+                isSelected: !isManageTeamSelected,
+                onTap: () => _selectDashboardActionTab(1),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        ClipRect(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            reverseDuration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              final bool isIncomingChild = child.key == selectedTabContent.key;
+              final double direction = _dashboardActionTransitionDirection
+                  .toDouble();
+              final Offset beginOffset = isIncomingChild
+                  ? Offset(0.18 * direction, 0)
+                  : Offset(-0.18 * direction, 0);
+              final Animation<Offset> slideAnimation =
+                  Tween<Offset>(begin: beginOffset, end: Offset.zero).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                      reverseCurve: Curves.easeInCubic,
+                    ),
+                  );
+
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: slideAnimation, child: child),
+              );
+            },
+            layoutBuilder:
+                (Widget? currentChild, List<Widget> previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topCenter,
+                    children: <Widget>[...previousChildren, ?currentChild],
+                  );
+                },
+            child: selectedTabContent,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPropertyActionTabButton({
+    required BuildContext context,
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final Color selectedBackground = theme.colorScheme.primary;
+    final Color selectedForeground = theme.colorScheme.onPrimary;
+    final Color unselectedForeground = theme.colorScheme.onSurfaceVariant;
+    final BorderRadius borderRadius = BorderRadius.circular(16);
+
+    return Expanded(
+      child: AnimatedScale(
+        scale: isSelected ? 1.025 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutBack,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: borderRadius,
+          child: InkWell(
+            borderRadius: borderRadius,
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+              decoration: BoxDecoration(
+                color: isSelected ? selectedBackground : Colors.transparent,
+                borderRadius: borderRadius,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: selectedBackground.withValues(
+                            alpha: theme.brightness == Brightness.light
+                                ? 0.22
+                                : 0.12,
+                          ),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                    : const [],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? selectedForeground.withValues(alpha: 0.18)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 17,
+                      color: isSelected
+                          ? selectedForeground
+                          : unselectedForeground,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: isSelected
+                            ? selectedForeground
+                            : unselectedForeground,
+                        fontWeight: isSelected
+                            ? FontWeight.w900
+                            : FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildOverviewTile({
     required BuildContext context,
     required String value,
     required String label,
     required IconData icon,
     required Color accentColor,
+    required VoidCallback onTap,
   }) {
     final ThemeData theme = Theme.of(context);
+    final BorderRadius borderRadius = BorderRadius.circular(18);
 
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: accentColor, size: 20),
+      child: Material(
+        color: theme.cardColor,
+        borderRadius: borderRadius,
+        child: InkWell(
+          borderRadius: borderRadius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 16),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            Text(
-              value,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -514,6 +825,32 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 52,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: Tooltip(
+              message: 'Personal Profile',
+              child: Material(
+                color: theme.colorScheme.primaryContainer,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _openPersonalProfilePage,
+                  child: SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 19,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
         title: const Text('Agent Dashboard'),
         centerTitle: true,
         actions: [
@@ -550,79 +887,700 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 label: 'Listings',
                 icon: Icons.home_work_rounded,
                 accentColor: theme.colorScheme.primary,
+                onTap: _openManagePropertiesPage,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _buildOverviewTile(
                 context: context,
                 value: '$_unreadInquiryCount',
                 label: 'Unread',
                 icon: Icons.mark_email_unread_rounded,
                 accentColor: Colors.blue,
+                onTap: _openUnreadInboxPage,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _buildOverviewTile(
                 context: context,
                 value: '${_inquiries.length}',
                 label: 'Threads',
                 icon: Icons.forum_rounded,
                 accentColor: Colors.orange,
+                onTap: _openAllThreadsPage,
               ),
             ],
           ),
           const SizedBox(height: 22),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.person_outline_rounded,
-            accentColor: Colors.purple,
-            title: 'Agent Profile',
-            subtitle: 'View and update your profile details.',
-            badgeText: 'Profile',
-            onTap: _openAgentProfilePage,
+          _buildPropertyActionSplitTabs(context),
+        ],
+      ),
+    );
+  }
+}
+
+class TeamChatTeam {
+  const TeamChatTeam({
+    required this.id,
+    required this.name,
+    required this.specialization,
+    required this.logoUrl,
+  });
+
+  factory TeamChatTeam.fromMap(Map<String, dynamic> map) {
+    return TeamChatTeam(
+      id: map['id'] as String? ?? '',
+      name: map['name'] as String? ?? 'Unnamed Team',
+      specialization: map['specialization'] as String? ?? '',
+      logoUrl: map['logo_url'] as String?,
+    );
+  }
+
+  final String id;
+  final String name;
+  final String specialization;
+  final String? logoUrl;
+}
+
+class TeamChatMessage {
+  const TeamChatMessage({
+    required this.id,
+    required this.teamId,
+    required this.senderId,
+    required this.senderName,
+    required this.body,
+    required this.createdAt,
+  });
+
+  factory TeamChatMessage.fromMap(Map<String, dynamic> map) {
+    return TeamChatMessage(
+      id: map['id'] as String? ?? '',
+      teamId: map['team_id'] as String? ?? '',
+      senderId: map['sender_id'] as String? ?? '',
+      senderName: map['sender_name'] as String? ?? 'Agent',
+      body: map['body'] as String? ?? '',
+      createdAt:
+          DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
+          DateTime.now(),
+    );
+  }
+
+  final String id;
+  final String teamId;
+  final String senderId;
+  final String senderName;
+  final String body;
+  final DateTime createdAt;
+}
+
+class TeamInboxPage extends StatefulWidget {
+  const TeamInboxPage({super.key});
+
+  @override
+  State<TeamInboxPage> createState() => _TeamInboxPageState();
+}
+
+class _TeamInboxPageState extends State<TeamInboxPage> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<TeamChatTeam> _teams = const <TeamChatTeam>[];
+  bool _isLoading = true;
+  String? _error;
+
+  String get _currentUserId => _client.auth.currentUser?.id ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadTeams());
+  }
+
+  Future<void> _loadTeams() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    try {
+      final List<TeamChatTeam> teams = await _fetchMyTeams();
+      if (!mounted) return;
+      setState(() {
+        _teams = teams;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load team inbox. $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<List<TeamChatTeam>> _fetchMyTeams() async {
+    if (_currentUserId.isEmpty) return const <TeamChatTeam>[];
+
+    try {
+      final List<dynamic> memberRows = await _client
+          .from('team_members')
+          .select('team:team_id(id, name, specialization, logo_url)')
+          .eq('user_id', _currentUserId);
+
+      final List<TeamChatTeam> memberTeams =
+          memberRows
+              .map((row) {
+                final Map<String, dynamic> item = Map<String, dynamic>.from(
+                  row as Map,
+                );
+                final Object? team = item['team'];
+                if (team is! Map) return null;
+                return TeamChatTeam.fromMap(Map<String, dynamic>.from(team));
+              })
+              .whereType<TeamChatTeam>()
+              .where((team) => team.id.isNotEmpty)
+              .toList()
+            ..sort((a, b) => a.name.compareTo(b.name));
+
+      if (memberTeams.isNotEmpty) return memberTeams;
+    } catch (_) {
+      // Fall through to the admin-friendly team list below.
+    }
+
+    final List<dynamic> rows = await _client
+        .from('agent_teams')
+        .select('id, name, specialization, logo_url')
+        .order('name');
+
+    return rows
+        .map(
+          (row) => TeamChatTeam.fromMap(Map<String, dynamic>.from(row as Map)),
+        )
+        .where((team) => team.id.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _openTeamChat(TeamChatTeam team) async {
+    await Navigator.push(
+      context,
+      _instantRoute(TeamConversationPage(team: team)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Team Inbox')),
+      body: RefreshIndicator(onRefresh: _loadTeams, child: _buildBody(context)),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 80),
+          Icon(
+            Icons.error_outline_rounded,
+            size: 42,
+            color: theme.colorScheme.error,
           ),
           const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.add_home_work_rounded,
-            accentColor: theme.colorScheme.primary,
-            title: 'Add New Property',
-            subtitle: 'Create and publish a new listing.',
-            badgeText: 'Quick action',
-            onTap: _openAddPropertyPage,
+          Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.edit_note_rounded,
-            accentColor: Colors.orange,
-            title: 'Manage Properties',
-            subtitle: 'Review and update your active listings.',
-            badgeText: '${_properties.length} listing(s)',
-            onTap: _openManagePropertiesPage,
-          ),
-          const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.mail_rounded,
-            accentColor: Colors.blue,
-            title: 'Agent Inbox',
-            subtitle: 'Open buyer messages and respond quickly.',
-            badgeText: _isInboxLoading
-                ? 'Loading inquiries...'
-                : '$_unreadInquiryCount unread inquiry(s)',
-            onTap: _openInboxPage,
-          ),
-          const SizedBox(height: 12),
-          _buildDashboardActionCard(
-            context: context,
-            icon: Icons.admin_panel_settings_outlined,
-            accentColor: Colors.teal,
-            title: 'Manage Teams',
-            subtitle:
-                'View members, handle join requests, and manage agent teams.',
-            badgeText: 'Admin',
-            onTap: _openManageTeamsPage,
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _loadTeams,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
           ),
         ],
+      );
+    }
+
+    if (_teams.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 100),
+          Icon(
+            Icons.groups_2_outlined,
+            size: 46,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No team inbox available yet.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Create a team or add your account as a team member first.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _teams.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final TeamChatTeam team = _teams[index];
+        final String initial = team.name.trim().isNotEmpty
+            ? team.name.trim()[0].toUpperCase()
+            : 'T';
+
+        return Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: theme.colorScheme.primaryContainer,
+              foregroundColor: theme.colorScheme.onPrimaryContainer,
+              backgroundImage: team.logoUrl != null && team.logoUrl!.isNotEmpty
+                  ? CachedNetworkImageProvider(team.logoUrl!)
+                  : null,
+              child: team.logoUrl == null || team.logoUrl!.isEmpty
+                  ? Text(initial)
+                  : null,
+            ),
+            title: Text(team.name),
+            subtitle: Text(
+              team.specialization.isEmpty
+                  ? 'Open team realtime chat'
+                  : team.specialization,
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _openTeamChat(team),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class TeamConversationPage extends StatefulWidget {
+  const TeamConversationPage({super.key, required this.team});
+
+  final TeamChatTeam team;
+
+  @override
+  State<TeamConversationPage> createState() => _TeamConversationPageState();
+}
+
+class _TeamConversationPageState extends State<TeamConversationPage> {
+  static const int _messageLimit = 80;
+
+  final SupabaseClient _client = Supabase.instance.client;
+  late final TextEditingController _messageController;
+  late final ScrollController _scrollController;
+  RealtimeChannel? _teamMessagesChannel;
+  List<TeamChatMessage> _messages = const <TeamChatMessage>[];
+  bool _isLoading = true;
+  bool _isSending = false;
+  String? _error;
+
+  String get _currentUserId => _client.auth.currentUser?.id ?? '';
+
+  String get _currentUserDisplayName {
+    final User? user = _client.auth.currentUser;
+    final Map<String, dynamic> data = user?.userMetadata ?? const {};
+    final String? fullName = data['full_name'] as String?;
+    final String? name = data['name'] as String?;
+    final String? email = user?.email;
+
+    return (fullName?.trim().isNotEmpty ?? false)
+        ? fullName!.trim()
+        : (name?.trim().isNotEmpty ?? false)
+        ? name!.trim()
+        : (email?.trim().isNotEmpty ?? false)
+        ? email!.trim()
+        : 'Agent';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController = TextEditingController();
+    _scrollController = ScrollController();
+    _subscribeToTeamMessages();
+    unawaited(_loadMessages(scrollToBottom: true));
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    if (_teamMessagesChannel != null) {
+      unawaited(_client.removeChannel(_teamMessagesChannel!));
+    }
+    super.dispose();
+  }
+
+  void _subscribeToTeamMessages() {
+    _teamMessagesChannel = _client
+        .channel('team-inbox-${widget.team.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'team_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'team_id',
+            value: widget.team.id,
+          ),
+          callback: (_) {
+            if (!mounted) return;
+            unawaited(_loadMessages(scrollToBottom: true, showLoader: false));
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadMessages({
+    bool scrollToBottom = false,
+    bool showLoader = true,
+  }) async {
+    if (showLoader && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    try {
+      final List<dynamic> rows = await _client
+          .from('team_messages')
+          .select('id, team_id, sender_id, sender_name, body, created_at')
+          .eq('team_id', widget.team.id)
+          .order('created_at', ascending: false)
+          .limit(_messageLimit);
+
+      final List<TeamChatMessage> messages = rows
+          .map(
+            (row) =>
+                TeamChatMessage.fromMap(Map<String, dynamic>.from(row as Map)),
+          )
+          .toList()
+          .reversed
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _messages = messages;
+        _isLoading = false;
+        _error = null;
+      });
+
+      if (scrollToBottom) _scrollToBottom(jump: messages.length <= 1);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Failed to load team messages. $e';
+      });
+    }
+  }
+
+  void _scrollToBottom({bool jump = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final double target = _scrollController.position.maxScrollExtent;
+      if (jump) {
+        _scrollController.jumpTo(target);
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final String body = _messageController.text.trim();
+    if (body.isEmpty || _isSending || _currentUserId.isEmpty) return;
+
+    final TeamChatMessage optimisticMessage = TeamChatMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      teamId: widget.team.id,
+      senderId: _currentUserId,
+      senderName: _currentUserDisplayName,
+      body: body,
+      createdAt: DateTime.now(),
+    );
+
+    setState(() {
+      _isSending = true;
+      _messages = [..._messages, optimisticMessage];
+    });
+    _messageController.clear();
+    _scrollToBottom();
+
+    try {
+      final Map<String, dynamic> row = await _client
+          .from('team_messages')
+          .insert({
+            'team_id': widget.team.id,
+            'sender_id': _currentUserId,
+            'sender_name': _currentUserDisplayName,
+            'body': body,
+          })
+          .select('id, team_id, sender_id, sender_name, body, created_at')
+          .single();
+
+      final TeamChatMessage sentMessage = TeamChatMessage.fromMap(row);
+      if (!mounted) return;
+      setState(() {
+        _messages = _messages
+            .where((message) => message.id != optimisticMessage.id)
+            .toList();
+        _messages = [..._messages, sentMessage]
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      _messageController.text = body;
+      setState(() {
+        _messages = _messages
+            .where((message) => message.id != optimisticMessage.id)
+            .toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send team message: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.team.name)),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: theme.brightness == Brightness.light ? 0.55 : 0.32,
+            ),
+            child: Text(
+              'Team Inbox · realtime internal chat',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(child: _buildMessagesArea(context)),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: 'Message ${widget.team.name}',
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _isSending ? null : _sendMessage,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: _isSending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessagesArea(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return RefreshIndicator(
+        onRefresh: () => _loadMessages(scrollToBottom: true),
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 80),
+            Icon(
+              Icons.error_outline_rounded,
+              size: 42,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: 12),
+            Text(_error!, textAlign: TextAlign.center),
+          ],
+        ),
+      );
+    }
+
+    if (_messages.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () => _loadMessages(scrollToBottom: true),
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 100),
+            Icon(
+              Icons.forum_outlined,
+              size: 44,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No team messages yet.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Send the first internal team update here.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _loadMessages(scrollToBottom: true),
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+        itemCount: _messages.length,
+        itemBuilder: (context, index) {
+          final TeamChatMessage message = _messages[index];
+          return _buildMessageBubble(context, message);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(BuildContext context, TeamChatMessage message) {
+    final ThemeData theme = Theme.of(context);
+    final bool isMine = message.senderId == _currentUserId;
+    final Alignment alignment = isMine
+        ? Alignment.centerRight
+        : Alignment.centerLeft;
+    final Color bubbleColor = isMine
+        ? theme.colorScheme.primary
+        : theme.colorScheme.surfaceContainerHighest;
+    final Color foregroundColor = isMine
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final String timeLabel = _formatInboxTime(message.createdAt);
+
+    return Align(
+      alignment: alignment,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 320),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMine ? 18 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 18),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: isMine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isMine) ...[
+              Text(
+                message.senderName,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: foregroundColor.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+            ],
+            Text(
+              message.body,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: foregroundColor,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              timeLabel,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: foregroundColor.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -924,7 +1882,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: left),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(child: right),
           ],
         );
@@ -2471,14 +3429,18 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
   }
 }
 
+enum AgentInboxFilter { all, unread }
+
 class AgentInboxPage extends StatefulWidget {
   final List<AgentInquiry> inquiries;
   final ValueChanged<String> onMarkAsRead;
+  final AgentInboxFilter initialFilter;
 
   const AgentInboxPage({
     super.key,
     required this.inquiries,
     required this.onMarkAsRead,
+    this.initialFilter = AgentInboxFilter.all,
   });
 
   @override
@@ -2487,11 +3449,35 @@ class AgentInboxPage extends StatefulWidget {
 
 class _AgentInboxPageState extends State<AgentInboxPage> {
   late List<AgentInquiry> _inquiries;
+  late AgentInboxFilter _activeFilter;
   RealtimeChannel? _inboxChannel;
+
+  List<AgentInquiry> get _visibleInquiries {
+    if (_activeFilter == AgentInboxFilter.unread) {
+      return _inquiries
+          .where((inquiry) => inquiry.isUnread)
+          .toList(growable: false);
+    }
+
+    return _inquiries;
+  }
+
+  String get _pageTitle {
+    return _activeFilter == AgentInboxFilter.unread
+        ? 'Unread Inquiries'
+        : 'Agent Inbox';
+  }
+
+  String get _emptyMessage {
+    return _activeFilter == AgentInboxFilter.unread
+        ? 'No unread buyer inquiries.'
+        : 'No buyer inquiries yet.';
+  }
 
   @override
   void initState() {
     super.initState();
+    _activeFilter = widget.initialFilter;
     _inquiries = widget.inquiries.isNotEmpty
         ? List<AgentInquiry>.from(widget.inquiries)
         : _cachedAgentInquiries();
@@ -2568,24 +3554,26 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    final List<AgentInquiry> visibleInquiries = _visibleInquiries;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Agent Inbox')),
+      appBar: AppBar(title: Text(_pageTitle)),
       body: RefreshIndicator(
         onRefresh: _refreshInquiries,
-        child: _inquiries.isEmpty
+        child: visibleInquiries.isEmpty
             ? ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Text('No buyer inquiries yet.')),
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: Text(_emptyMessage)),
                 ],
               )
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
-                itemCount: _inquiries.length,
+                itemCount: visibleInquiries.length,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final AgentInquiry inquiry = _inquiries[index];
+                  final AgentInquiry inquiry = visibleInquiries[index];
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(child: Text(inquiry.buyerName[0])),

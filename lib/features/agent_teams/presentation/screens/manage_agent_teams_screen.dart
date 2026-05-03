@@ -62,11 +62,28 @@ class ManageAgentTeamsScreen extends StatefulWidget {
 class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  final GlobalKey<_AgentTeamsTabState> _agentTeamsTabKey =
+      GlobalKey<_AgentTeamsTabState>();
+  final GlobalKey<_TeamRequestsTabState> _teamRequestsTabKey =
+      GlobalKey<_TeamRequestsTabState>();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+  }
+
+  Future<void> _refreshAgentTeamsTab() async {
+    await _agentTeamsTabKey.currentState?.refreshTeams();
+  }
+
+  Future<void> _refreshCurrentTab() async {
+    if (_tabController.index == 0) {
+      await _agentTeamsTabKey.currentState?.refreshTeams();
+      return;
+    }
+
+    await _teamRequestsTabKey.currentState?.refreshRequests();
   }
 
   @override
@@ -84,11 +101,26 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen>
       appBar: AppBar(
         title: const Text('Manage Teams'),
         centerTitle: true,
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _refreshCurrentTab,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: cs.primary,
           unselectedLabelColor: cs.onSurfaceVariant,
           indicatorColor: cs.primary,
+          onTap: (int index) {
+            if (index == 0) {
+              _agentTeamsTabKey.currentState?.refreshTeams();
+              return;
+            }
+
+            _teamRequestsTabKey.currentState?.refreshRequests();
+          },
           tabs: const <Widget>[
             Tab(icon: Icon(Icons.groups_rounded), text: 'Agent Teams'),
             Tab(icon: Icon(Icons.person_search_rounded), text: 'Team Requests'),
@@ -97,7 +129,13 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const <Widget>[_AgentTeamsTab(), _TeamRequestsTab()],
+        children: <Widget>[
+          _AgentTeamsTab(key: _agentTeamsTabKey),
+          _TeamRequestsTab(
+            key: _teamRequestsTabKey,
+            onRequestResolved: _refreshAgentTeamsTab,
+          ),
+        ],
       ),
     );
   }
@@ -106,7 +144,7 @@ class _ManageAgentTeamsScreenState extends State<ManageAgentTeamsScreen>
 // ─── Agent Teams Tab ──────────────────────────────────────────────────────────
 
 class _AgentTeamsTab extends StatefulWidget {
-  const _AgentTeamsTab();
+  const _AgentTeamsTab({super.key});
 
   @override
   State<_AgentTeamsTab> createState() => _AgentTeamsTabState();
@@ -125,49 +163,47 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
     _loadTeams();
   }
 
+  Future<void> refreshTeams() async {
+    await _loadTeams();
+  }
+
   Future<void> _loadTeams() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      final List<dynamic> rows = await _client
+      final List<dynamic> teamRows = await _client
           .from('agent_teams')
-          .select(
-            'id, name, description, logo_url, specialization, '
-            'team_members(count)',
-          )
+          .select('id, name, description, logo_url, specialization')
           .order('name');
-      if (!mounted) return;
+
+      final List<dynamic> memberRows = await _client
+          .from('team_members')
+          .select('team_id');
 
       final Map<String, int> memberCounts = <String, int>{};
-      for (final row in rows) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final String id = map['id'] as String? ?? '';
-        final Object? members = map['team_members'];
-        int count = 0;
-
-        if (members is List && members.isNotEmpty) {
-          final Object? first = members.first;
-          if (first is Map && first['count'] != null) {
-            count = (first['count'] as num).toInt();
-          }
-        }
-
-        memberCounts[id] = count;
+      for (final dynamic row in memberRows) {
+        final Map<String, dynamic> map = Map<String, dynamic>.from(row as Map);
+        final String teamId = map['team_id'] as String? ?? '';
+        if (teamId.isEmpty) continue;
+        memberCounts[teamId] = (memberCounts[teamId] ?? 0) + 1;
       }
 
+      if (!mounted) return;
       setState(() {
-        _teams = rows
+        _teams = teamRows
             .map((row) => _teamFromJson(Map<String, dynamic>.from(row as Map)))
             .toList();
         _memberCounts = memberCounts;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load agent teams.';
+        _error = 'Failed to load agent teams: $error';
         _isLoading = false;
       });
     }
@@ -401,7 +437,12 @@ class _MemberCountBadge extends StatelessWidget {
 // ─── Team Requests Tab ────────────────────────────────────────────────────────
 
 class _TeamRequestsTab extends StatefulWidget {
-  const _TeamRequestsTab();
+  const _TeamRequestsTab({
+    super.key,
+    required this.onRequestResolved,
+  });
+
+  final Future<void> Function() onRequestResolved;
 
   @override
   State<_TeamRequestsTab> createState() => _TeamRequestsTabState();
@@ -419,31 +460,70 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
     _loadRequests();
   }
 
+  Future<void> refreshRequests() async {
+    await _loadRequests();
+  }
+
   Future<void> _loadRequests() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      final List<dynamic> rows = await _client
-          .from('team_requests')
-          .select('*, agent_teams(id, name), profiles(full_name, email)')
+      final List<dynamic> requestRows = await _client
+          .from('team_join_requests')
+          .select(
+            'id, team_id, user_id, status, created_at, agent_teams(id, name)',
+          )
           .eq('status', 'pending')
           .order('created_at', ascending: false);
+
+      final List<String> userIds = requestRows
+          .map((row) => Map<String, dynamic>.from(row as Map)['user_id'])
+          .whereType<String>()
+          .where((id) => id.trim().isNotEmpty)
+          .toSet()
+          .toList();
+
+      final Map<String, Map<String, dynamic>> profilesByUserId =
+          <String, Map<String, dynamic>>{};
+      if (userIds.isNotEmpty) {
+        final List<dynamic> profileRows = await _client
+            .from('profiles')
+            .select('id, full_name, email, phone, avatar_url')
+            .inFilter('id', userIds);
+
+        for (final dynamic row in profileRows) {
+          final Map<String, dynamic> profile = Map<String, dynamic>.from(
+            row as Map,
+          );
+          final String profileId = profile['id'] as String? ?? '';
+          if (profileId.isNotEmpty) {
+            profilesByUserId[profileId] = profile;
+          }
+        }
+      }
+
+      final List<_TeamRequest> requests = requestRows.map((row) {
+        final Map<String, dynamic> request = Map<String, dynamic>.from(
+          row as Map,
+        );
+        final String userId = request['user_id'] as String? ?? '';
+        request['profiles'] = profilesByUserId[userId];
+        return _TeamRequest.fromJson(request);
+      }).toList();
+
       if (!mounted) return;
       setState(() {
-        _requests = rows
-            .map(
-              (row) =>
-                  _TeamRequest.fromJson(Map<String, dynamic>.from(row as Map)),
-            )
-            .toList();
+        _requests = requests;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load team requests.';
+        _error = 'Failed to load team requests: $error';
         _isLoading = false;
       });
     }
@@ -454,10 +534,50 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
     required bool approve,
   }) async {
     try {
+      if (approve) {
+        final Map<String, dynamic>? profile = await _client
+            .from('profiles')
+            .select('full_name, email, phone, avatar_url')
+            .eq('id', request.userId)
+            .maybeSingle();
+
+        final List<dynamic> existingMembers = await _client
+            .from('team_members')
+            .select('id')
+            .eq('team_id', request.teamId)
+            .eq('user_id', request.userId)
+            .limit(1);
+
+        if (existingMembers.isEmpty) {
+          final String profileName =
+              (profile?['full_name'] as String? ?? '').trim();
+          final String fallbackName = request.requesterName.trim();
+          final String memberName = profileName.isNotEmpty
+              ? profileName
+              : fallbackName.isNotEmpty && fallbackName != 'Unknown'
+                  ? fallbackName
+                  : 'Agent';
+
+          await _client.from('team_members').insert({
+            'team_id': request.teamId,
+            'user_id': request.userId,
+            'name': memberName,
+            'role': 'Agent',
+            'avatar_url': profile?['avatar_url'],
+            'phone': profile?['phone'],
+            'email': profile?['email'],
+          });
+        }
+      }
+
       await _client
-          .from('team_requests')
+          .from('team_join_requests')
           .update({'status': approve ? 'approved' : 'rejected'})
           .eq('id', request.id);
+
+      await _loadRequests();
+      await widget.onRequestResolved();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -468,12 +588,18 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
           ),
         ),
       );
-      await _loadRequests();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Action failed.')));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approve
+                ? 'Failed to approve request: $error'
+                : 'Failed to reject request: $error',
+          ),
+        ),
+      );
     }
   }
 
