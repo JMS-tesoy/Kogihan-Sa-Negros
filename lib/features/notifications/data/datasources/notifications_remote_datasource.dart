@@ -4,7 +4,7 @@ import '../notification_model.dart';
 
 class NotificationsRemoteDatasource {
   NotificationsRemoteDatasource({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 

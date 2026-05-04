@@ -40,19 +40,13 @@ class _PropertyFormScreenState extends State<PropertyFormScreen> {
         _isUploading = false;
       });
 
-      AppSnackBar.success(
-        context,
-        'Property image uploaded successfully.',
-      );
+      AppSnackBar.success(context, 'Property image uploaded successfully.');
     } catch (e) {
       if (!mounted) return;
 
       setState(() => _isUploading = false);
 
-      AppSnackBar.error(
-        context,
-        'Upload failed: $e',
-      );
+      AppSnackBar.error(context, 'Upload failed: $e');
     }
   }
 

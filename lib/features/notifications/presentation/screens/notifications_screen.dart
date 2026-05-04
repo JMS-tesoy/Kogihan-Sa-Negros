@@ -62,10 +62,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .toList();
 
     if (readNotifications.isEmpty) {
-      AppSnackBar.info(
-        context,
-        'No read notifications to clear.',
-      );
+      AppSnackBar.info(context, 'No read notifications to clear.');
       return;
     }
 
@@ -109,7 +106,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   ) {
     return notifications
         .where(
-          (notification) => !_optimisticallyDeletedIds.contains(notification.id),
+          (notification) =>
+              !_optimisticallyDeletedIds.contains(notification.id),
         )
         .toList();
   }
@@ -172,16 +170,14 @@ class _NotificationsBody extends StatelessWidget {
   final int unreadCount;
   final Future<void> Function(AppNotification notification) onNotificationTap;
   final Future<void> Function(AppNotification notification)
-      onNotificationDelete;
+  onNotificationDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (snapshot.hasError) {
@@ -259,9 +255,7 @@ class _NotificationsBody extends StatelessWidget {
 }
 
 class _NotificationsErrorState extends StatelessWidget {
-  const _NotificationsErrorState({
-    required this.message,
-  });
+  const _NotificationsErrorState({required this.message});
 
   final String message;
 

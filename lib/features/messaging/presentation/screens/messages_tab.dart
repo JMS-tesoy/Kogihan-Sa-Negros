@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/router/instant_route.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/services/messaging_service.dart';
 import '../widgets/inbox_conversation_helpers.dart';
 import '../widgets/message_palettes.dart';
 import 'chat_page.dart';
-import '../../../../app/router/instant_route.dart';
 
 class MessagesTab extends StatefulWidget {
   const MessagesTab({super.key});
@@ -111,7 +112,7 @@ class _MessagesTabState extends State<MessagesTab> {
         _isLoading = false;
         _errorText = null;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -160,7 +161,7 @@ class _MessagesTabState extends State<MessagesTab> {
           content: Text(
             'Delete your conversation for "$displayTitle"? This will also remove its messages.',
           ),
-          actions: [
+          actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel'),
@@ -188,13 +189,16 @@ class _MessagesTabState extends State<MessagesTab> {
             .toList();
       });
 
-      ScaffoldMessenger.of(
+      AppSnackBar.success(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Conversation deleted.')));
+        'Conversation deleted.',
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete conversation: $error')),
+
+      AppSnackBar.error(
+        context,
+        'Failed to delete conversation: $error',
       );
     }
   }
@@ -206,7 +210,7 @@ class _MessagesTabState extends State<MessagesTab> {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Text(
               'Inbox',
               style: Theme.of(
@@ -225,7 +229,7 @@ class _MessagesTabState extends State<MessagesTab> {
 
                     if (_errorText != null) {
                       return ListView(
-                        children: [
+                        children: <Widget>[
                           const SizedBox(height: 120),
                           Center(
                             child: Text(
@@ -241,7 +245,7 @@ class _MessagesTabState extends State<MessagesTab> {
 
                     if (_conversations.isEmpty) {
                       return ListView(
-                        children: const [
+                        children: const <Widget>[
                           SizedBox(height: 120),
                           Center(child: Text('No messages yet.')),
                         ],
@@ -307,7 +311,7 @@ class _MessagesTabState extends State<MessagesTab> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+        children: <Widget>[
           Card(
             color: palette.background,
             elevation: 0,
@@ -328,7 +332,7 @@ class _MessagesTabState extends State<MessagesTab> {
                     height: 88,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                      children: <Widget>[
                         SizedBox(
                           width: thumbnailWidth,
                           child: DecoratedBox(
@@ -358,10 +362,10 @@ class _MessagesTabState extends State<MessagesTab> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
+                              children: <Widget>[
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+                                  children: <Widget>[
                                     Expanded(
                                       child: Text(
                                         displayTitle,
@@ -381,8 +385,8 @@ class _MessagesTabState extends State<MessagesTab> {
                                       padding: const EdgeInsets.only(top: 1),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (conversation.isUnread) ...[
+                                        children: <Widget>[
+                                          if (conversation.isUnread) ...<Widget>[
                                             Container(
                                               width: 8,
                                               height: 8,
@@ -461,7 +465,7 @@ class _MessagesTabState extends State<MessagesTab> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
+            colors: <Color>[
               warmOrange.withValues(alpha: 0.7),
               lightOrange.withValues(alpha: 0.36),
               lightOrange.withValues(alpha: 0),
@@ -483,13 +487,13 @@ class _MessagesTabState extends State<MessagesTab> {
                 child: Container(
                   width: 46,
                   height: 46,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.transparent,
                     shape: BoxShape.circle,
                   ),
                   child: Transform.rotate(
                     angle: iconRotation,
-                    child: Icon(
+                    child: const Icon(
                       Icons.delete_outline_rounded,
                       color: iconForeground,
                       size: 32,

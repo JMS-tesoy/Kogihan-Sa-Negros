@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../data/datasources/shared_properties.dart';
 
@@ -61,6 +62,7 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
       final String preferredContact = (profile?.phone ?? '').trim().isNotEmpty
           ? profile!.phone!.trim()
           : ((profile?.email ?? user.email ?? user.phone ?? '')).trim();
+
       _contactController.text = preferredContact;
     } catch (_) {}
   }
@@ -71,10 +73,9 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
     final String message = _messageController.text.trim();
 
     if (fullName.isEmpty || contactValue.isEmpty || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete your name, contact, and message.'),
-        ),
+      AppSnackBar.warning(
+        context,
+        'Please complete your name, contact, and message.',
       );
       return;
     }
@@ -92,16 +93,15 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
       );
 
       if (!mounted) return;
-      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+
       Navigator.pop(context);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Message sent to agent successfully!')),
-      );
+
+      AppSnackBar.success(context, 'Message sent to agent successfully!');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+
+      AppSnackBar.error(context, 'Failed to send message: $e');
+
       setState(() {
         _isSending = false;
       });
@@ -129,9 +129,9 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Row(
-              children: [
+              children: <Widget>[
                 CircleAvatar(
                   radius: 32,
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -147,22 +147,28 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                       : null,
                 ),
                 const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      agentName,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        agentName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    Text(
-                      agentSubtitle,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      Text(
+                        agentSubtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -221,10 +227,22 @@ class _ContactAgentPageState extends State<ContactAgentPage> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text(
-                  'Send Message',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
+                child: _isSending
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                    : const Text(
+                        'Send Message',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
           ],

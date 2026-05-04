@@ -69,7 +69,9 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
     AppSnackBar.success(
       context,
-      _controller.isPremium ? '${plan.title} activated.' : 'Subscription updated.',
+      _controller.isPremium
+          ? '${plan.title} activated.'
+          : 'Subscription updated.',
     );
   }
 
@@ -121,10 +123,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       return;
     }
 
-    AppSnackBar.success(
-      context,
-      'Subscription cancelled. Now on Free plan.',
-    );
+    AppSnackBar.success(context, 'Subscription cancelled. Now on Free plan.');
   }
 
   @override
@@ -244,8 +243,8 @@ class _StatusCard extends StatelessWidget {
                   child: Text(
                     subscription.planName,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -380,8 +379,8 @@ class _PlanCard extends StatelessWidget {
                   child: Text(
                     plan.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 if (isActive)
@@ -407,9 +406,9 @@ class _PlanCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               plan.priceLabel,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(

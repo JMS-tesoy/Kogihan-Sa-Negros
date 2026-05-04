@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AppSnackBarType {
-  success,
-  error,
-  warning,
-  info,
-}
+enum AppSnackBarType { success, error, warning, info }
 
 class AppSnackBar {
   const AppSnackBar._();
@@ -28,11 +23,7 @@ class AppSnackBar {
       SnackBar(
         content: Row(
           children: <Widget>[
-            Icon(
-              style.icon,
-              color: style.foregroundColor,
-              size: 20,
-            ),
+            Icon(style.icon, color: style.foregroundColor, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -51,9 +42,7 @@ class AppSnackBar {
         duration: duration,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 88),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         dismissDirection: DismissDirection.horizontal,
       ),
     );

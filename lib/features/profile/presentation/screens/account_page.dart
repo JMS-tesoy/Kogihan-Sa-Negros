@@ -112,10 +112,7 @@ class _AccountPageState extends State<AccountPage> {
         _isSaving = false;
       });
 
-      AppSnackBar.success(
-        context,
-        'Account details updated.',
-      );
+      AppSnackBar.success(context, 'Account details updated.');
     } catch (error) {
       if (!mounted) return;
       setState(() {

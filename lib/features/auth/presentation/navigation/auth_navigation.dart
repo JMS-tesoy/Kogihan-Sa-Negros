@@ -30,10 +30,7 @@ Future<void> signOutAndReturnToLogin(
       return;
     }
 
-    AppSnackBar.error(
-      context,
-      'Failed to log out. Please try again.',
-    );
+    AppSnackBar.error(context, 'Failed to log out. Please try again.');
   }
 }
 

@@ -129,10 +129,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
 
-      AppSnackBar.success(
-        context,
-        'Confirmation email sent.',
-      );
+      AppSnackBar.success(context, 'Confirmation email sent.');
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {

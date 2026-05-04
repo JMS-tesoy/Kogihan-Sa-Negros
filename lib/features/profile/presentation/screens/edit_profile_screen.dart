@@ -82,19 +82,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _isUploadingAvatar = false;
       });
 
-      AppSnackBar.success(
-        context,
-        'Profile photo updated.',
-      );
+      AppSnackBar.success(context, 'Profile photo updated.');
     } catch (error) {
       if (!mounted) return;
 
       setState(() => _isUploadingAvatar = false);
 
-      AppSnackBar.error(
-        context,
-        'Failed to update photo: $error',
-      );
+      AppSnackBar.error(context, 'Failed to update photo: $error');
     }
   }
 
@@ -102,10 +96,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final String name = _nameController.text.trim();
 
     if (name.isEmpty) {
-      AppSnackBar.warning(
-        context,
-        'Name cannot be empty.',
-      );
+      AppSnackBar.warning(context, 'Name cannot be empty.');
       return;
     }
 
@@ -125,10 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
 
     if (success) {
-      AppSnackBar.success(
-        context,
-        'Profile updated.',
-      );
+      AppSnackBar.success(context, 'Profile updated.');
 
       Navigator.of(context).pop();
     } else {

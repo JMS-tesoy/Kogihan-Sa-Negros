@@ -95,10 +95,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       if (!mounted) return;
 
-      AppSnackBar.success(
-        context,
-        'Password updated successfully.',
-      );
+      AppSnackBar.success(context, 'Password updated successfully.');
 
       if (widget.isPasswordRecovery) {
         await Supabase.instance.client.auth.signOut();
@@ -155,7 +152,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final Color pageBackgroundColor = isDarkMode
         ? theme.scaffoldBackgroundColor
         : const Color(0xFFF7F8FA);
-    final Color cardBackgroundColor = isDarkMode ? theme.cardColor : Colors.white;
+    final Color cardBackgroundColor = isDarkMode
+        ? theme.cardColor
+        : Colors.white;
     final Color fieldFillColor = isDarkMode
         ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
         : const Color(0xFFF9FAFB);
