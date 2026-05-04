@@ -453,6 +453,42 @@ Future<void> deleteProperty(String propertyId) async {
       .toList();
 }
 
+Future<Property?> fetchPropertyById(String propertyId) async {
+  try {
+    final Map<String, dynamic> response = await Supabase.instance.client
+        .from('properties')
+        .select(
+          '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
+          'agent_teams(name)',
+        )
+        .eq('id', propertyId)
+        .single();
+
+    final Property property = Property.fromMap(
+      Map<String, dynamic>.from(response),
+    );
+
+    final List<Property> currentProperties = List<Property>.from(
+      appPropertiesNotifier.value,
+    );
+
+    final int existingIndex = currentProperties.indexWhere(
+      (item) => item.id == property.id,
+    );
+
+    if (existingIndex == -1) {
+      appPropertiesNotifier.value = <Property>[property, ...currentProperties];
+    } else {
+      currentProperties[existingIndex] = property;
+      appPropertiesNotifier.value = currentProperties;
+    }
+
+    return property;
+  } catch (_) {
+    return null;
+  }
+}
+
 Future<bool> recordPropertyView(Property property) async {
   try {
     await Supabase.instance.client.rpc(

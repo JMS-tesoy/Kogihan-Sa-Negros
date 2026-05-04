@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_scaffold_shell.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../../properties/data/datasources/shared_properties.dart';
+import '../../../properties/presentation/screens/property_details_screen.dart';
 import '../../data/datasources/notifications_remote_datasource.dart';
 import '../../data/notification_model.dart';
 import '../widgets/notification_tile.dart';
@@ -25,6 +27,79 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     await _datasource.markNotificationRead(notification.id);
+  }
+
+  Future<void> _handleNotificationTap(AppNotification notification) async {
+    await _markAsRead(notification);
+
+    if (!mounted) {
+      return;
+    }
+
+    switch (notification.type) {
+      case AppNotificationType.propertyUpdate:
+      case AppNotificationType.savedProperty:
+        await _openRelatedProperty(notification);
+        return;
+
+      case AppNotificationType.inquiryReply:
+        AppSnackBar.info(
+          context,
+          'Chat notification link will be available after conversation linking is added.',
+        );
+        return;
+
+      case AppNotificationType.systemNotice:
+        return;
+    }
+  }
+
+  Future<void> _openRelatedProperty(AppNotification notification) async {
+    final String? relatedPropertyId = notification.relatedPropertyId;
+
+    if (relatedPropertyId == null || relatedPropertyId.trim().isEmpty) {
+      AppSnackBar.info(
+        context,
+        'This notification is not linked to a property.',
+      );
+      return;
+    }
+
+    final List<Property> properties = appPropertiesNotifier.value;
+
+    final int propertyIndex = properties.indexWhere(
+      (property) => property.id == relatedPropertyId,
+    );
+
+    Property? property;
+
+    if (propertyIndex != -1) {
+      property = properties[propertyIndex];
+    } else {
+      property = await fetchPropertyById(relatedPropertyId);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (property == null) {
+      AppSnackBar.warning(
+        context,
+        'The linked property is no longer available.',
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PropertyDetailsScreen(
+          property: property!,
+          isSaved: false,
+          onToggleSave: () {},
+        ),
+      ),
+    );
   }
 
   Future<void> _markAllAsRead() async {
@@ -147,7 +222,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             snapshot: snapshot,
             notifications: notifications,
             unreadCount: unreadCount,
-            onNotificationTap: _markAsRead,
+            onNotificationTap: _handleNotificationTap,
             onNotificationDelete: _deleteNotification,
           ),
         );
