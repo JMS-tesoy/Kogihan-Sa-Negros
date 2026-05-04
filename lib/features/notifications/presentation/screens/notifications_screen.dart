@@ -16,19 +16,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final NotificationsRemoteDatasource _datasource =
       NotificationsRemoteDatasource();
 
-  late Future<List<AppNotification>> _notificationsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _notificationsFuture = _datasource.getNotifications();
-  }
-
-  void _refreshNotifications() {
-    setState(() {
-      _notificationsFuture = _datasource.getNotifications();
-    });
-  }
+  final Set<String> _optimisticallyDeletedIds = <String>{};
 
   Future<void> _markAsRead(AppNotification notification) async {
     if (notification.isRead) {
@@ -36,25 +24,119 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     await _datasource.markNotificationRead(notification.id);
-    _refreshNotifications();
   }
 
   Future<void> _markAllAsRead() async {
     await _datasource.markAllNotificationsRead();
-    _refreshNotifications();
+  }
+
+  Future<void> _deleteNotification(AppNotification notification) async {
+    setState(() {
+      _optimisticallyDeletedIds.add(notification.id);
+    });
+
+    try {
+      await _datasource.deleteNotification(notification.id);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _optimisticallyDeletedIds.remove(notification.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to delete notification. Please try again.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteReadNotifications(List<AppNotification> notifications) async {
+    final List<AppNotification> readNotifications = notifications
+        .where((notification) => notification.isRead)
+        .toList();
+
+    if (readNotifications.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No read notifications to clear.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final Set<String> idsToDelete = readNotifications
+        .map((notification) => notification.id)
+        .toSet();
+
+    setState(() {
+      _optimisticallyDeletedIds.addAll(idsToDelete);
+    });
+
+    try {
+      await _datasource.deleteReadNotifications();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Cleared ${idsToDelete.length} read notification${idsToDelete.length == 1 ? '' : 's'}.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _optimisticallyDeletedIds.removeAll(idsToDelete);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to clear read notifications. Please try again.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  List<AppNotification> _filterVisibleNotifications(
+    List<AppNotification> notifications,
+  ) {
+    return notifications
+        .where(
+          (notification) => !_optimisticallyDeletedIds.contains(notification.id),
+        )
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<AppNotification>>(
-      future: _notificationsFuture,
+    return StreamBuilder<List<AppNotification>>(
+      stream: _datasource.watchNotifications(),
       builder: (context, snapshot) {
-        final List<AppNotification> notifications =
-            snapshot.data ?? <AppNotification>[];
+        final List<AppNotification> notifications = _filterVisibleNotifications(
+          snapshot.data ?? <AppNotification>[],
+        );
 
         final int unreadCount = notifications
             .where((notification) => !notification.isRead)
             .length;
+
+        final bool hasReadNotifications = notifications.any(
+          (notification) => notification.isRead,
+        );
 
         return AppScaffoldShell(
           title: 'Notifications',
@@ -64,13 +146,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 onPressed: _markAllAsRead,
                 child: const Text('Mark all as read'),
               ),
+            if (hasReadNotifications)
+              TextButton(
+                onPressed: () => _deleteReadNotifications(notifications),
+                child: const Text('Clear read'),
+              ),
           ],
           body: _NotificationsBody(
             snapshot: snapshot,
             notifications: notifications,
             unreadCount: unreadCount,
-            onRefresh: () async => _refreshNotifications(),
             onNotificationTap: _markAsRead,
+            onNotificationDelete: _deleteNotification,
           ),
         );
       },
@@ -83,69 +170,101 @@ class _NotificationsBody extends StatelessWidget {
     required this.snapshot,
     required this.notifications,
     required this.unreadCount,
-    required this.onRefresh,
     required this.onNotificationTap,
+    required this.onNotificationDelete,
   });
 
   final AsyncSnapshot<List<AppNotification>> snapshot;
   final List<AppNotification> notifications;
   final int unreadCount;
-  final Future<void> Function() onRefresh;
   final Future<void> Function(AppNotification notification) onNotificationTap;
+  final Future<void> Function(AppNotification notification)
+      onNotificationDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
     }
 
     if (snapshot.hasError) {
-      return _NotificationsErrorState(
+      return const _NotificationsErrorState(
         message: 'Unable to load notifications.',
-        onRetry: onRefresh,
       );
     }
 
     if (notifications.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: onRefresh,
-        child: const CustomScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
-          slivers: <Widget>[
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: _EmptyNotificationsState(),
-            ),
-          ],
-        ),
+      return const CustomScrollView(
+        physics: AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyNotificationsState(),
+          ),
+        ],
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: <Widget>[
-          if (unreadCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Text(
-                'You have $unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        if (unreadCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              'You have $unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
               ),
             ),
-          ...notifications.map(
-            (notification) => NotificationTile(
+          ),
+        ...notifications.map(
+          (notification) => Dismissible(
+            key: ValueKey<String>(notification.id),
+            direction: notification.isRead
+                ? DismissDirection.endToStart
+                : DismissDirection.none,
+            background: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              alignment: Alignment.centerRight,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: theme.colorScheme.onError,
+              ),
+            ),
+            confirmDismiss: (_) async {
+              if (notification.isRead) {
+                return true;
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Read the notification before deleting it.'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+
+              return false;
+            },
+            onDismissed: (_) {
+              onNotificationDelete(notification);
+            },
+            child: NotificationTile(
               notification: notification,
               onTap: () => onNotificationTap(notification),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -153,11 +272,9 @@ class _NotificationsBody extends StatelessWidget {
 class _NotificationsErrorState extends StatelessWidget {
   const _NotificationsErrorState({
     required this.message,
-    required this.onRetry,
   });
 
   final String message;
-  final Future<void> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -182,8 +299,6 @@ class _NotificationsErrorState extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 14),
-            FilledButton(onPressed: onRetry, child: const Text('Try again')),
           ],
         ),
       ),

@@ -2,44 +2,36 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router/route_names.dart';
 import '../../data/datasources/notifications_remote_datasource.dart';
+import '../../data/notification_model.dart';
 
-class NotificationBellButton extends StatefulWidget {
+class NotificationBellButton extends StatelessWidget {
   const NotificationBellButton({super.key});
 
   @override
-  State<NotificationBellButton> createState() => _NotificationBellButtonState();
+  Widget build(BuildContext context) {
+    final NotificationsRemoteDatasource datasource =
+        NotificationsRemoteDatasource();
+
+    return StreamBuilder<List<AppNotification>>(
+      stream: datasource.watchNotifications(),
+      builder: (context, snapshot) {
+        final List<AppNotification> notifications =
+            snapshot.data ?? <AppNotification>[];
+
+        final int unreadCount = notifications
+            .where((notification) => !notification.isRead)
+            .length;
+
+        return _NotificationBellIcon(unreadCount: unreadCount);
+      },
+    );
+  }
 }
 
-class _NotificationBellButtonState extends State<NotificationBellButton> {
-  final NotificationsRemoteDatasource _datasource =
-      NotificationsRemoteDatasource();
+class _NotificationBellIcon extends StatelessWidget {
+  const _NotificationBellIcon({required this.unreadCount});
 
-  int _unreadCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUnreadCount();
-  }
-
-  Future<void> _loadUnreadCount() async {
-    final notifications = await _datasource.getNotifications();
-
-    if (!mounted) return;
-
-    setState(() {
-      _unreadCount =
-          notifications.where((notification) => !notification.isRead).length;
-    });
-  }
-
-  Future<void> _openNotifications() async {
-    await Navigator.of(context).pushNamed(RouteNames.notifications);
-
-    if (!mounted) return;
-
-    await _loadUnreadCount();
-  }
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -50,19 +42,18 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
       children: <Widget>[
         IconButton(
           tooltip: 'Notifications',
-          onPressed: _openNotifications,
+          onPressed: () {
+            Navigator.of(context).pushNamed(RouteNames.notifications);
+          },
           icon: const Icon(Icons.notifications_none_rounded),
         ),
-        if (_unreadCount > 0)
+        if (unreadCount > 0)
           Positioned(
             top: 5,
             right: 5,
             child: IgnorePointer(
               child: Container(
-                constraints: const BoxConstraints(
-                  minWidth: 17,
-                  minHeight: 17,
-                ),
+                constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.error,
@@ -74,7 +65,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
                 ),
                 child: Center(
                   child: Text(
-                    _unreadCount > 9 ? '9+' : _unreadCount.toString(),
+                    unreadCount > 9 ? '9+' : unreadCount.toString(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onError,
                       fontSize: 10,

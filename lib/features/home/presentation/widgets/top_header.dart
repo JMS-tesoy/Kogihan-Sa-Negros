@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-
 import '../../../notifications/presentation/widgets/notification_bell_button.dart';
-
 
 class KsnHeaderLogo extends StatelessWidget {
   const KsnHeaderLogo({super.key, this.size = 48});
@@ -127,11 +125,11 @@ class TopHeader extends StatelessWidget {
   const TopHeader({super.key});
 
   @override
-Widget build(BuildContext context) {
-  final ThemeData theme = Theme.of(context);
-  final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
-  final double logoSize = isCompactPhone ? 42 : 48;
-  final double horizontalGap = isCompactPhone ? 10 : 12;
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
+    final double logoSize = isCompactPhone ? 42 : 48;
+    final double horizontalGap = isCompactPhone ? 10 : 12;
 
     return Row(
       children: <Widget>[
