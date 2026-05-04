@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../subscription/data/services/subscription_service.dart';
 import '../../../subscription/presentation/screens/subscription_screen.dart';
 import '../../data/models/profile_model.dart';
@@ -111,9 +112,10 @@ class _AccountPageState extends State<AccountPage> {
         _isSaving = false;
       });
 
-      ScaffoldMessenger.of(
+      AppSnackBar.success(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Account details updated.')));
+        'Account details updated.',
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/services/property_upload_service.dart';
 
 class PropertyFormScreen extends StatefulWidget {
@@ -39,17 +40,19 @@ class _PropertyFormScreenState extends State<PropertyFormScreen> {
         _isUploading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Property image uploaded successfully')),
+      AppSnackBar.success(
+        context,
+        'Property image uploaded successfully.',
       );
     } catch (e) {
       if (!mounted) return;
 
       setState(() => _isUploading = false);
 
-      ScaffoldMessenger.of(
+      AppSnackBar.error(
         context,
-      ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+        'Upload failed: $e',
+      );
     }
   }
 

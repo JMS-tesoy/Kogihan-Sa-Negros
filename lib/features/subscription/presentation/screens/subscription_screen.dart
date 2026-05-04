@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../controllers/subscription_controller.dart';
 import '../../data/services/subscription_service.dart';
 import '../../domain/entities/plan_entity.dart';
 
 String _formatDate(DateTime value) {
   final DateTime local = value.toLocal();
-  const List<String> months = [
+  const List<String> months = <String>[
     'Jan',
     'Feb',
     'Mar',
@@ -60,27 +61,32 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   Future<void> _subscribe(PlanEntity plan) async {
     await _controller.subscribe(plan.id);
     if (!mounted) return;
-    final String message =
-        _controller.error ??
-        (_controller.isPremium
-            ? '${plan.title} activated.'
-            : 'Subscription updated.');
-    ScaffoldMessenger.of(
+
+    if (_controller.error != null) {
+      AppSnackBar.error(context, _controller.error!);
+      return;
+    }
+
+    AppSnackBar.success(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      _controller.isPremium ? '${plan.title} activated.' : 'Subscription updated.',
+    );
   }
 
   Future<void> _restore() async {
     await _controller.restoreSubscription();
     if (!mounted) return;
-    final String message =
-        _controller.error ??
-        (_controller.isPremium
-            ? 'Purchase restored.'
-            : 'No active purchase found.');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+
+    if (_controller.error != null) {
+      AppSnackBar.error(context, _controller.error!);
+      return;
+    }
+
+    if (_controller.isPremium) {
+      AppSnackBar.success(context, 'Purchase restored.');
+    } else {
+      AppSnackBar.info(context, 'No active purchase found.');
+    }
   }
 
   Future<void> _cancel() async {
@@ -103,13 +109,21 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         ],
       ),
     );
+
     if (confirm != true || !mounted) return;
+
     await _controller.cancelSubscription();
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Subscription cancelled. Now on Free plan.'),
-      ),
+
+    if (_controller.error != null) {
+      AppSnackBar.error(context, _controller.error!);
+      return;
+    }
+
+    AppSnackBar.success(
+      context,
+      'Subscription cancelled. Now on Free plan.',
     );
   }
 
@@ -146,7 +160,6 @@ class _SubscriptionBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use appSubscriptionNotifier so UI reacts to changes from anywhere
     return ValueListenableBuilder<UserSubscription>(
       valueListenable: appSubscriptionNotifier,
       builder: (context, subscription, _) {
@@ -231,8 +244,8 @@ class _StatusCard extends StatelessWidget {
                   child: Text(
                     subscription.planName,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ),
               ],
@@ -367,8 +380,8 @@ class _PlanCard extends StatelessWidget {
                   child: Text(
                     plan.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ),
                 if (isActive)
@@ -394,9 +407,9 @@ class _PlanCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               plan.priceLabel,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
             const SizedBox(height: 4),
             Text(

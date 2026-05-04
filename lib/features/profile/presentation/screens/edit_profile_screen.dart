@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/datasources/profile_remote_datasource.dart';
 import '../../data/repositories/profile_repository_impl.dart';
 import '../../data/services/avatar_picker_service.dart';
@@ -73,29 +74,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final String avatarUrl =
           await ProfileAvatarService.saveAvatarForCurrentUser(imageBytes);
+
       if (!mounted) return;
+
       setState(() {
         _avatarUrl = avatarUrl;
         _isUploadingAvatar = false;
       });
-      ScaffoldMessenger.of(
+
+      AppSnackBar.success(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
+        'Profile photo updated.',
+      );
     } catch (error) {
       if (!mounted) return;
+
       setState(() => _isUploadingAvatar = false);
-      ScaffoldMessenger.of(
+
+      AppSnackBar.error(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to update photo: $error')));
+        'Failed to update photo: $error',
+      );
     }
   }
 
   Future<void> _save() async {
     final String name = _nameController.text.trim();
+
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
+      AppSnackBar.warning(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Name cannot be empty.')));
+        'Name cannot be empty.',
+      );
       return;
     }
 
@@ -111,18 +121,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     final bool success = await _controller.update(updated);
+
     if (!mounted) return;
 
     if (success) {
-      ScaffoldMessenger.of(
+      AppSnackBar.success(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile updated.')));
+        'Profile updated.',
+      );
+
       Navigator.of(context).pop();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_controller.error ?? 'Failed to update profile.'),
-        ),
+      AppSnackBar.error(
+        context,
+        _controller.error ?? 'Failed to update profile.',
       );
     }
   }
