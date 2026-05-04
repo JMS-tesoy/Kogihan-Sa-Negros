@@ -291,5 +291,3 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     );
   }
 }
-
-enum AgentInboxFilter { all, unread }
