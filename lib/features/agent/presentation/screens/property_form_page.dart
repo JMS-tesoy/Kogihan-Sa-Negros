@@ -4,12 +4,13 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../location/data/datasources/negros_places_datasource.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
+import '../../data/services/agent_property_service.dart';
 
 class PropertyFormPage extends StatefulWidget {
   final Property? initialProperty;
@@ -133,7 +134,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isUploadingImage = false;
   bool _isLoadingTeamOptions = true;
-  List<_ListingTeamOption> _teamOptions = const <_ListingTeamOption>[];
+  List<ListingTeamOption> _teamOptions = const <ListingTeamOption>[];
   String? _selectedAgentTeamId;
   late String _selectedTitleStatus;
 
@@ -181,7 +182,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   }
 
   String? get _selectedTeamName {
-    for (final _ListingTeamOption team in _teamOptions) {
+    for (final ListingTeamOption team in _teamOptions) {
       if (team.id == _selectedAgentTeamId) return team.name;
     }
     return widget.initialProperty?.agentTeamName;
@@ -475,26 +476,18 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
   Future<void> _loadTeamOptions() async {
     try {
-      final List<dynamic> rows = await Supabase.instance.client
-          .from('agent_teams')
-          .select('id, name')
-          .order('name');
+      final List<ListingTeamOption> teamOptions =
+          await AgentPropertyService.fetchListingTeamOptions();
 
       if (!mounted) return;
       setState(() {
-        _teamOptions = rows
-            .map(
-              (row) => _ListingTeamOption.fromJson(
-                Map<String, dynamic>.from(row as Map),
-              ),
-            )
-            .toList();
+        _teamOptions = teamOptions;
         _isLoadingTeamOptions = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _teamOptions = const <_ListingTeamOption>[];
+        _teamOptions = const <ListingTeamOption>[];
         _isLoadingTeamOptions = false;
       });
     }
@@ -778,45 +771,12 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
-  Future<_OptimizedPropertyImages> _optimizePropertyImages(
-    Uint8List bytes,
-  ) async {
-    final Uint8List detailBytes = await FlutterImageCompress.compressWithList(
-      bytes,
-      minWidth: 1600,
-      minHeight: 1200,
-      quality: 72,
-      format: CompressFormat.jpeg,
-      autoCorrectionAngle: true,
-    );
-    final Uint8List thumbnailBytes =
-        await FlutterImageCompress.compressWithList(
-          bytes,
-          minWidth: 560,
-          minHeight: 420,
-          quality: 64,
-          format: CompressFormat.jpeg,
-          autoCorrectionAngle: true,
-        );
-
-    if (detailBytes.isEmpty || thumbnailBytes.isEmpty) {
-      throw const FormatException('Unsupported image format.');
-    }
-
-    return _OptimizedPropertyImages(
-      detailBytes: detailBytes,
-      thumbnailBytes: thumbnailBytes,
-    );
-  }
-
   Future<void> _pickAndUploadPropertyImage() async {
     if (_isUploadingImage) return;
 
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again before uploading.')),
-      );
+      AppSnackBar.warning(context, 'Please sign in again before uploading.');
       return;
     }
 
@@ -835,68 +795,32 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     try {
       final Uint8List bytes = await pickedFile.readAsBytes();
-      final _OptimizedPropertyImages optimizedImages =
-          await _optimizePropertyImages(bytes);
-      final int uploadTimestamp = DateTime.now().millisecondsSinceEpoch;
-      final String detailFilePath = '${user.id}/$uploadTimestamp-detail.jpg';
-      final String thumbnailFilePath = '${user.id}/$uploadTimestamp-thumb.jpg';
-
-      await Supabase.instance.client.storage
-          .from('property-images')
-          .uploadBinary(
-            detailFilePath,
-            optimizedImages.detailBytes,
-            fileOptions: FileOptions(
-              cacheControl: '604800',
-              upsert: true,
-              contentType: 'image/jpeg',
-            ),
+      final UploadedPropertyImage uploadedImage =
+          await AgentPropertyService.uploadPropertyImage(
+            bytes: bytes,
+            userId: user.id,
           );
-
-      await Supabase.instance.client.storage
-          .from('property-images')
-          .uploadBinary(
-            thumbnailFilePath,
-            optimizedImages.thumbnailBytes,
-            fileOptions: FileOptions(
-              cacheControl: '604800',
-              upsert: true,
-              contentType: 'image/jpeg',
-            ),
-          );
-
-      final String publicUrl = Supabase.instance.client.storage
-          .from('property-images')
-          .getPublicUrl(detailFilePath);
-      final String thumbnailPublicUrl = Supabase.instance.client.storage
-          .from('property-images')
-          .getPublicUrl(thumbnailFilePath);
 
       setState(() {
         if (_imageUrlController.text.trim().isEmpty) {
-          _imageUrlController.text = publicUrl;
-          _thumbnailUrlController.text = thumbnailPublicUrl;
+          _imageUrlController.text = uploadedImage.publicUrl;
+          _thumbnailUrlController.text = uploadedImage.thumbnailPublicUrl;
         } else {
-          _addGalleryImageUrl(publicUrl);
+          _addGalleryImageUrl(uploadedImage.publicUrl);
         }
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Property image uploaded and optimized successfully.'),
-        ),
+      AppSnackBar.success(
+        context,
+        'Property image uploaded and optimized successfully.',
       );
     } on StorageException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: ${error.message}')),
-      );
+      AppSnackBar.error(context, 'Upload failed: ${error.message}');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unexpected upload error: $error')),
-      );
+      AppSnackBar.error(context, 'Unexpected upload error: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -1566,28 +1490,4 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       ),
     );
   }
-}
-
-class _OptimizedPropertyImages {
-  const _OptimizedPropertyImages({
-    required this.detailBytes,
-    required this.thumbnailBytes,
-  });
-
-  final Uint8List detailBytes;
-  final Uint8List thumbnailBytes;
-}
-
-class _ListingTeamOption {
-  const _ListingTeamOption({required this.id, required this.name});
-
-  factory _ListingTeamOption.fromJson(Map<String, dynamic> json) {
-    return _ListingTeamOption(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? 'Agent Team',
-    );
-  }
-
-  final String id;
-  final String name;
 }

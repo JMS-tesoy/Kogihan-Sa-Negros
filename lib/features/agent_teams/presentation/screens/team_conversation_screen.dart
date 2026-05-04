@@ -112,11 +112,8 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     }
 
     try {
-      final List<TeamChatMessage> messages =
-          await _teamMessagesService.fetchMessages(
-        teamId: widget.team.id,
-        limit: _messageLimit,
-      );
+      final List<TeamChatMessage> messages = await _teamMessagesService
+          .fetchMessages(teamId: widget.team.id, limit: _messageLimit);
 
       if (!mounted) return;
       setState(() {
@@ -199,11 +196,12 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     _scrollToBottom();
 
     try {
-      final TeamChatMessage sentMessage = await _teamMessagesService.sendMessage(
-        teamId: widget.team.id,
-        body: bodyToSend,
-        attachment: attachment,
-      );
+      final TeamChatMessage sentMessage = await _teamMessagesService
+          .sendMessage(
+            teamId: widget.team.id,
+            body: bodyToSend,
+            attachment: attachment,
+          );
       if (!mounted) return;
       setState(() {
         _messages = _messages
@@ -574,4 +572,3 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     );
   }
 }
-

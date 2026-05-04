@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import 'property_form_page.dart';
 
@@ -251,8 +252,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onUpdateProperty(updatedProperty);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${updatedProperty.title} updated successfully.')),
+    AppSnackBar.success(
+      context,
+      '${updatedProperty.title} updated successfully.',
     );
   }
 
@@ -263,9 +265,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onDeleteProperty(property.id);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('${property.title} deleted.')));
+    AppSnackBar.success(context, '${property.title} deleted.');
   }
 
   @override

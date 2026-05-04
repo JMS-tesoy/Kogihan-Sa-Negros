@@ -177,4 +177,3 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
     );
   }
 }
-

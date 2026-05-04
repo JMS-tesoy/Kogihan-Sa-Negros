@@ -165,3 +165,21 @@ This project is open-source and available under the MIT License.
 ---
 
 **Note**: This `README.md` provides a basic overview. For more detailed documentation or specific implementation details, refer directly to the source code.
+
+
+
+## Finding large file size code ##
+
+PS D:\Documents\Website Project\Flutter Projet\Andoid project\Land Finder app> Get-ChildItem -Path lib -Recurse -Include *.dart |                                                
+>> ForEach-Object {                         
+>>     $lineCount = (Get-Content $_.FullName | Measure-Object -Line).Lines
+>>     [PSCustomObject]@{
+>>         Lines = $lineCount
+>>         SizeKB = [math]::Round($_.Length / 1KB, 2)
+>>         File = $_.FullName.Replace((Get-Location).Path + "\", "")
+>>     }
+>> } |
+>> Sort-Object Lines -Descending |
+>> Format-Table -AutoSize
+
+## --------------------------------------------------------------------------------------------------##
