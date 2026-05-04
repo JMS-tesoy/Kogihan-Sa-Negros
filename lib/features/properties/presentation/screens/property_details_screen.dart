@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../subscription/data/services/subscription_service.dart';
 import '../../../subscription/presentation/navigation/subscription_navigation.dart';
 import '../../data/datasources/shared_properties.dart';
@@ -149,10 +150,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 }
 
 void _openPremiumRequiredPrompt(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Premium membership is required to contact agents.'),
-    ),
+  AppSnackBar.warning(
+    context,
+    'Premium membership is required to contact agents.',
   );
   openSubscriptionPage(context);
 }
@@ -1278,10 +1278,9 @@ class _ContactBar extends StatelessWidget {
 
     // No phone number stored for this listing
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No agent phone number is available for this listing.'),
-        ),
+      AppSnackBar.warning(
+        context,
+        'No agent phone number is available for this listing.',
       );
       return;
     }
@@ -1297,9 +1296,7 @@ class _ContactBar extends StatelessWidget {
     if (!context.mounted) return;
 
     if (!canDial) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cannot open dialer. Agent number: $phone')),
-      );
+      AppSnackBar.error(context, 'Cannot open dialer. Agent number: $phone');
       return;
     }
 

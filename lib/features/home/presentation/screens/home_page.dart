@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../../../app/config/app_config.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/presentation/screens/messages_tab.dart'
     as messaging_screens;
@@ -177,14 +178,12 @@ class _HomePageViewState extends State<HomePageView> {
       setState(() {
         _applyProfileAvatarState(ProfileAvatarState.visible(imageBytes));
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Avatar saved to your profile.')),
-      );
+
+      AppSnackBar.success(context, 'Avatar saved to your profile.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save avatar: $error')));
+
+      AppSnackBar.error(context, 'Failed to save avatar: $error');
     }
   }
 
@@ -198,14 +197,12 @@ class _HomePageViewState extends State<HomePageView> {
       setState(() {
         _applyProfileAvatarState(ProfileAvatarState.visible(imageBytes));
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Avatar saved to your profile.')),
-      );
+
+      AppSnackBar.success(context, 'Avatar saved to your profile.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save avatar: $error')));
+
+      AppSnackBar.error(context, 'Failed to save avatar: $error');
     }
   }
 

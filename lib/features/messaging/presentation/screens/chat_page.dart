@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/services/messaging_service.dart';
 import '../widgets/chat_loading_placeholder.dart';
 import '../widgets/message_palettes.dart';
@@ -320,9 +321,7 @@ class _ChatPageState extends State<ChatPage> {
             .toList();
         _messageController.text = text;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+      AppSnackBar.error(context, 'Failed to send message: $e');
     }
   }
 
@@ -341,9 +340,7 @@ class _ChatPageState extends State<ChatPage> {
       await _sendMessage(attachment: attachment);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+      AppSnackBar.error(context, 'Failed to attach file: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -357,9 +354,7 @@ class _ChatPageState extends State<ChatPage> {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open attachment.')),
-      );
+      AppSnackBar.warning(context, 'Unable to open attachment.');
     }
   }
 
@@ -442,9 +437,7 @@ class _ChatPageState extends State<ChatPage> {
       await _loadMessages(showLoader: false, scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
+      AppSnackBar.error(context, 'Failed to edit message: $e');
     }
   }
 
@@ -480,9 +473,7 @@ class _ChatPageState extends State<ChatPage> {
       await _loadMessages(showLoader: false, scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
+      AppSnackBar.error(context, 'Failed to delete message: $e');
     }
   }
 

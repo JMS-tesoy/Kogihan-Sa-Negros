@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
+
 class TeamJoinRequestsScreen extends StatefulWidget {
   const TeamJoinRequestsScreen({super.key});
 
@@ -109,15 +111,14 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
           .eq('id', request.id);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$memberName added to ${request.teamName}.')),
-      );
+
+      AppSnackBar.success(context, '$memberName added to ${request.teamName}.');
+
       await _loadRequests();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to approve request.')),
-      );
+
+      AppSnackBar.error(context, 'Failed to approve request.');
     }
   }
 
@@ -129,15 +130,14 @@ class _TeamJoinRequestsScreenState extends State<TeamJoinRequestsScreen> {
           .eq('id', request.id);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Join request rejected.')));
+
+      AppSnackBar.success(context, 'Join request rejected.');
+
       await _loadRequests();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to reject request.')),
-      );
+
+      AppSnackBar.error(context, 'Failed to reject request.');
     }
   }
 

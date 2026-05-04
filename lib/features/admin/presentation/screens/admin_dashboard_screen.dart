@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/widgets/app_scaffold_shell.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
@@ -345,15 +346,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       phone: phoneCtrl.text,
                     );
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Agent profile created.')),
-                      );
+                      AppSnackBar.success(context, 'Agent profile created.');
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      AppSnackBar.error(context, 'Error: $e');
                     }
                   }
                 }
@@ -553,16 +550,12 @@ class _AgentsTabState extends State<_AgentsTab> {
                   try {
                     await _deleteProfile(profile.id);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Agent deleted.')),
-                      );
+                      AppSnackBar.success(context, 'Agent deleted.');
                       _load();
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      AppSnackBar.error(context, 'Error: $e');
                     }
                   }
                 }
@@ -584,16 +577,12 @@ class _AgentsTabState extends State<_AgentsTab> {
                           : avatarCtrl.text.trim(),
                     );
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Agent updated.')),
-                      );
+                      AppSnackBar.success(context, 'Agent updated.');
                       _load();
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      AppSnackBar.error(context, 'Error: $e');
                     }
                   }
                 }
@@ -800,19 +789,14 @@ class _RequestsTabState extends State<_RequestsTab> {
     try {
       await _respondToTeamRequest(requestId: req.id, status: status);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == 'approved' ? 'Request approved.' : 'Request rejected.',
-          ),
-        ),
+      AppSnackBar.success(
+        context,
+        status == 'approved' ? 'Request approved.' : 'Request rejected.',
       );
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      AppSnackBar.error(context, 'Error: $e');
     }
   }
 

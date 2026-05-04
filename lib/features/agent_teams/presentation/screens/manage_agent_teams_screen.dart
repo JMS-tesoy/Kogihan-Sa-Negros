@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../domain/entities/agent_team_entity.dart';
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -239,20 +240,16 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
         await _client.from('agent_teams').update(values).eq('id', team.id);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(team == null ? 'Team created.' : 'Team updated.'),
-        ),
+      AppSnackBar.success(
+        context,
+        team == null ? 'Team created.' : 'Team updated.',
       );
       await _loadTeams();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            team == null ? 'Failed to create team.' : 'Failed to update team.',
-          ),
-        ),
+      AppSnackBar.error(
+        context,
+        team == null ? 'Failed to create team.' : 'Failed to update team.',
       );
     }
   }
@@ -280,15 +277,11 @@ class _AgentTeamsTabState extends State<_AgentTeamsTab> {
     try {
       await _client.from('agent_teams').delete().eq('id', team.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Team deleted.')));
+      AppSnackBar.success(context, 'Team deleted.');
       await _loadTeams();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to delete team.')));
+      AppSnackBar.error(context, 'Failed to delete team.');
     }
   }
 
@@ -578,26 +571,20 @@ class _TeamRequestsTabState extends State<_TeamRequestsTab> {
       await widget.onRequestResolved();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            approve
-                ? '${request.requesterName} approved to join ${request.teamName}.'
-                : 'Request from ${request.requesterName} rejected.',
-          ),
-        ),
+      AppSnackBar.success(
+        context,
+        approve
+            ? '${request.requesterName} approved to join ${request.teamName}.'
+            : 'Request from ${request.requesterName} rejected.',
       );
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            approve
-                ? 'Failed to approve request: $error'
-                : 'Failed to reject request: $error',
-          ),
-        ),
+      AppSnackBar.error(
+        context,
+        approve
+            ? 'Failed to approve request: $error'
+            : 'Failed to reject request: $error',
       );
     }
   }
@@ -1034,33 +1021,26 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
         await _client.from('team_members').update(values).eq('id', member.id);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(member == null ? 'Member added.' : 'Member updated.'),
-        ),
+      AppSnackBar.success(
+        context,
+        member == null ? 'Member added.' : 'Member updated.',
       );
       await _loadMembers();
     } on PostgrestException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            member == null
-                ? 'Failed to add member: ${error.message}'
-                : 'Failed to update member: ${error.message}',
-          ),
-        ),
+      AppSnackBar.error(
+        context,
+        member == null
+            ? 'Failed to add member: ${error.message}'
+            : 'Failed to update member: ${error.message}',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            member == null
-                ? 'Failed to add member: $error'
-                : 'Failed to update member: $error',
-          ),
-        ),
+      AppSnackBar.error(
+        context,
+        member == null
+            ? 'Failed to add member: $error'
+            : 'Failed to update member: $error',
       );
     }
   }
@@ -1088,15 +1068,11 @@ class _TeamMembersDialogState extends State<_TeamMembersDialog> {
     try {
       await _client.from('team_members').delete().eq('id', member.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Member removed.')));
+      AppSnackBar.success(context, 'Member removed.');
       await _loadMembers();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to remove member.')));
+      AppSnackBar.error(context, 'Failed to remove member.');
     }
   }
 

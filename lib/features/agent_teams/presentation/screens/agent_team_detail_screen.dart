@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../domain/entities/agent_team_entity.dart';
 import '../../domain/entities/agent_team_member_entity.dart';
 
@@ -101,9 +102,7 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
         _isCheckingJoinRequest = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to check join status: $error')),
-      );
+      AppSnackBar.error(context, 'Failed to check join status: $error');
     }
   }
 
@@ -131,9 +130,7 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
           _isCurrentUserMemberFromDatabase = true;
           _joinRequestStatus = 'approved';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are already in this team.')),
-        );
+        AppSnackBar.info(context, 'You are already in this team.');
         return;
       }
 
@@ -156,12 +153,9 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
             _joinRequestStatus = 'pending';
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'You already have a pending request for this team.',
-              ),
-            ),
+          AppSnackBar.info(
+            context,
+            'You already have a pending request for this team.',
           );
           return;
         }
@@ -172,11 +166,7 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
             _joinRequestStatus = 'approved';
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You are already approved for this team.'),
-            ),
-          );
+          AppSnackBar.info(context, 'You are already approved for this team.');
           return;
         }
 
@@ -200,15 +190,11 @@ class _AgentTeamDetailScreenState extends State<AgentTeamDetailScreen> {
         _joinRequestStatus = 'pending';
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Join request sent.')));
+      AppSnackBar.success(context, 'Join request sent.');
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send join request: $error')),
-      );
+      AppSnackBar.error(context, 'Failed to send join request: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -446,9 +432,7 @@ class _MemberTile extends StatelessWidget {
     final bool launched = await launchUrl(uri);
     if (launched || !context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No app found to handle this action.')),
-    );
+    AppSnackBar.warning(context, 'No app found to handle this action.');
   }
 
   @override

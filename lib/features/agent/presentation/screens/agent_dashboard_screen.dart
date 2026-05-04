@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
@@ -310,14 +311,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
       final Property createdProperty = await createProperty(newProperty);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${createdProperty.title} added successfully.')),
+      AppSnackBar.success(
+        context,
+        '${createdProperty.title} added successfully.',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to add property: $e')));
+      AppSnackBar.error(context, 'Failed to add property: $e');
     }
   }
 
@@ -1386,9 +1386,7 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
             .where((message) => message.id != optimisticMessage.id)
             .toList();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send team message: $e')),
-      );
+      AppSnackBar.error(context, 'Failed to send team message: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -1412,9 +1410,7 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
       await _sendMessage(attachment: attachment);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+      AppSnackBar.error(context, 'Failed to attach file: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -1428,9 +1424,7 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open attachment.')),
-      );
+      AppSnackBar.warning(context, 'Unable to open attachment.');
     }
   }
 
@@ -2549,9 +2543,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again before uploading.')),
-      );
+      AppSnackBar.warning(context, 'Please sign in again before uploading.');
       return;
     }
 
@@ -2617,21 +2609,16 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Property image uploaded and optimized successfully.'),
-        ),
+      AppSnackBar.success(
+        context,
+        'Property image uploaded and optimized successfully.',
       );
     } on StorageException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: ${error.message}')),
-      );
+      AppSnackBar.error(context, 'Upload failed: ${error.message}');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unexpected upload error: $error')),
-      );
+      AppSnackBar.error(context, 'Unexpected upload error: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -3548,8 +3535,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onUpdateProperty(updatedProperty);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${updatedProperty.title} updated successfully.')),
+    AppSnackBar.success(
+      context,
+      '${updatedProperty.title} updated successfully.',
     );
   }
 
@@ -3560,9 +3548,7 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onDeleteProperty(property.id);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('${property.title} deleted.')));
+    AppSnackBar.success(context, '${property.title} deleted.');
   }
 
   @override
@@ -4057,9 +4043,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
             .where((message) => message.id != optimisticMessage.id)
             .toList();
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send reply: $e')));
+      AppSnackBar.error(context, 'Failed to send reply: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -4083,9 +4067,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _sendReply(attachment: attachment);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
+      AppSnackBar.error(context, 'Failed to attach file: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -4099,9 +4081,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open attachment.')),
-      );
+      AppSnackBar.warning(context, 'Unable to open attachment.');
     }
   }
 
@@ -4184,9 +4164,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
+      AppSnackBar.error(context, 'Failed to edit message: $e');
     }
   }
 
@@ -4222,9 +4200,7 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
+      AppSnackBar.error(context, 'Failed to delete message: $e');
     }
   }
 

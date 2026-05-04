@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/services/subscription_service.dart';
 import '../../domain/entities/plan_entity.dart';
 import '../controllers/subscription_controller.dart';
@@ -70,19 +71,15 @@ class _PaywallBottomSheetState extends State<_PaywallBottomSheet> {
     if (!mounted) return;
 
     if (_controller.error != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_controller.error!)));
+      AppSnackBar.error(context, _controller.error!);
       return;
     }
 
     if (_controller.isPremium) {
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${plan.title} activated! Enjoy ${widget.feature}.'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
+      AppSnackBar.success(
+        context,
+        '${plan.title} activated! Enjoy ${widget.feature}.',
       );
     }
   }
