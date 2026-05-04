@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../data/notification_model.dart';
 import '../../domain/usecases/get_notifications_usecase.dart';
 
 class NotificationsController extends ChangeNotifier {
@@ -7,12 +8,17 @@ class NotificationsController extends ChangeNotifier {
 
   final GetNotificationsUsecase? getNotificationsUsecase;
 
-  List<String> _notifications = const <String>[];
+  List<AppNotification> _notifications = <AppNotification>[];
 
-  List<String> get notifications => _notifications;
+  List<AppNotification> get notifications => _notifications;
 
-  Future<void> load() async {
-    _notifications = await getNotificationsUsecase?.call() ?? const <String>[];
+  int get unreadCount {
+    return _notifications.where((notification) => !notification.isRead).length;
+  }
+
+  Future<void> loadNotifications() async {
+    _notifications =
+        await getNotificationsUsecase?.call() ?? <AppNotification>[];
     notifyListeners();
   }
 }

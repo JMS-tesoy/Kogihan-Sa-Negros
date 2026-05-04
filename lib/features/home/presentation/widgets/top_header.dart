@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+
+import '../../../notifications/presentation/widgets/notification_bell_button.dart';
+
+
 class KsnHeaderLogo extends StatelessWidget {
   const KsnHeaderLogo({super.key, this.size = 48});
 
@@ -9,6 +13,7 @@ class KsnHeaderLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isLightTheme = theme.brightness == Brightness.light;
+
     return Container(
       width: size,
       height: size,
@@ -107,6 +112,7 @@ class _KsnLogoPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: width);
+
     textPainter.paint(
       canvas,
       Offset((width - textPainter.width) / 2, height * 0.66),
@@ -121,13 +127,11 @@ class TopHeader extends StatelessWidget {
   const TopHeader({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isLightTheme = theme.brightness == Brightness.light;
-    final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
-    final double logoSize = isCompactPhone ? 42 : 48;
-    final double actionSize = isCompactPhone ? 42 : 48;
-    final double horizontalGap = isCompactPhone ? 10 : 12;
+Widget build(BuildContext context) {
+  final ThemeData theme = Theme.of(context);
+  final bool isCompactPhone = MediaQuery.sizeOf(context).width < 360;
+  final double logoSize = isCompactPhone ? 42 : 48;
+  final double horizontalGap = isCompactPhone ? 10 : 12;
 
     return Row(
       children: <Widget>[
@@ -162,29 +166,7 @@ class TopHeader extends StatelessWidget {
           ),
         ),
         SizedBox(width: horizontalGap),
-        Container(
-          width: actionSize,
-          height: actionSize,
-          decoration: BoxDecoration(
-            color: isLightTheme
-                ? Color.alphaBlend(
-                    theme.colorScheme.primary.withValues(alpha: 0.04),
-                    theme.cardColor,
-                  )
-                : theme.cardColor,
-            borderRadius: BorderRadius.circular(isCompactPhone ? 14 : 16),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: isLightTheme
-                    ? theme.colorScheme.shadow.withValues(alpha: 0.06)
-                    : const Color(0x14000000),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.notifications_none_rounded),
-        ),
+        const NotificationBellButton(),
       ],
     );
   }

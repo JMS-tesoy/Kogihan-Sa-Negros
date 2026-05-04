@@ -1,3 +1,4 @@
+import '../../data/notification_model.dart';
 import '../repositories/notifications_repository.dart';
 
 class GetNotificationsUsecase {
@@ -5,7 +6,7 @@ class GetNotificationsUsecase {
 
   final NotificationsRepository repository;
 
-  Future<List<String>> call() {
+  Future<List<AppNotification>> call() {
     return repository.getNotifications();
   }
 }
