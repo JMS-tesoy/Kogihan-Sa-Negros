@@ -15,6 +15,7 @@ class AppNotification {
     required this.createdAt,
     required this.isRead,
     this.relatedPropertyId,
+    this.relatedConversationId,
   });
 
   final String id;
@@ -25,6 +26,7 @@ class AppNotification {
   final DateTime createdAt;
   final bool isRead;
   final String? relatedPropertyId;
+  final String? relatedConversationId;
 
   AppNotification copyWith({
     String? id,
@@ -35,6 +37,7 @@ class AppNotification {
     DateTime? createdAt,
     bool? isRead,
     String? relatedPropertyId,
+    String? relatedConversationId,
   }) {
     return AppNotification(
       id: id ?? this.id,
@@ -45,19 +48,22 @@ class AppNotification {
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
       relatedPropertyId: relatedPropertyId ?? this.relatedPropertyId,
+      relatedConversationId:
+          relatedConversationId ?? this.relatedConversationId,
     );
   }
 
   factory AppNotification.fromMap(Map<String, dynamic> map) {
     return AppNotification(
       id: map['id'] as String,
-      userId: map['user_id'] as String,
+      userId: map['user_id'] as String? ?? '',
       title: map['title'] as String? ?? '',
       message: map['message'] as String? ?? '',
       type: _typeFromDatabase(map['type'] as String?),
       createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
       isRead: map['is_read'] as bool? ?? false,
       relatedPropertyId: map['related_property_id'] as String?,
+      relatedConversationId: map['related_conversation_id'] as String?,
     );
   }
 

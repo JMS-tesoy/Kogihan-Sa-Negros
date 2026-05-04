@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_scaffold_shell.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../../messaging/data/services/messaging_service.dart';
+import '../../../messaging/presentation/screens/chat_page.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/presentation/screens/property_details_screen.dart';
 import '../../data/datasources/notifications_remote_datasource.dart';
@@ -43,10 +45,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
 
       case AppNotificationType.inquiryReply:
-        AppSnackBar.info(
-          context,
-          'Chat notification link will be available after conversation linking is added.',
-        );
+        await _openRelatedConversation(notification);
         return;
 
       case AppNotificationType.systemNotice:
@@ -100,6 +99,62 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openRelatedConversation(AppNotification notification) async {
+    final String? relatedConversationId = notification.relatedConversationId;
+
+    if (relatedConversationId == null || relatedConversationId.trim().isEmpty) {
+      AppSnackBar.info(
+        context,
+        'This notification is not linked to a conversation.',
+      );
+      return;
+    }
+
+    try {
+      final ConversationSummary? conversation =
+          await MessagingService.fetchConversationSummaryById(
+        relatedConversationId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (conversation == null) {
+        AppSnackBar.warning(
+          context,
+          'The linked conversation is no longer available.',
+        );
+        return;
+      }
+
+      final List<ConversationMessage> initialMessages =
+          MessagingService.getCachedConversationMessages(
+        conversation.id,
+        limit: MessagingService.initialMessagePageSize,
+      );
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatPage(
+            conversationId: conversation.id,
+            senderName: conversation.otherParticipantName,
+            initialMessages: initialMessages,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      AppSnackBar.error(
+        context,
+        'Unable to open this conversation. Please try again.',
+      );
+    }
   }
 
   Future<void> _markAllAsRead() async {
@@ -245,7 +300,7 @@ class _NotificationsBody extends StatelessWidget {
   final int unreadCount;
   final Future<void> Function(AppNotification notification) onNotificationTap;
   final Future<void> Function(AppNotification notification)
-  onNotificationDelete;
+      onNotificationDelete;
 
   @override
   Widget build(BuildContext context) {

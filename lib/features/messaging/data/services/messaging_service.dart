@@ -400,6 +400,55 @@ class MessagingService {
     return summaries;
   }
 
+
+
+  static Future<ConversationSummary?> fetchConversationSummaryById(
+    String conversationId,
+  ) async {
+    final User user = _currentUser;
+    final Map<String, dynamic>? response = await _client
+        .from('conversations')
+        .select(
+          'id, buyer_id, agent_id, property_id, subject, last_message_preview, '
+          'last_message_at, buyer:buyer_id(id, full_name, email, phone, role), '
+          'agent:agent_id(id, full_name, email, phone, role), '
+          'property:property_id(id, title, image_url, thumbnail_url), '
+          'messages(id, sender_id, body, read_at, created_at)',
+        )
+        .eq('id', conversationId)
+        .or('buyer_id.eq.${user.id},agent_id.eq.${user.id}')
+        .order('created_at', ascending: false, referencedTable: 'messages')
+        .limit(1, referencedTable: 'messages')
+        .maybeSingle();
+
+    if (response == null) {
+      return null;
+    }
+
+    final ConversationSummary summary = ConversationSummary.fromMap(
+      Map<String, dynamic>.from(response),
+      user.id,
+    );
+
+    final List<ConversationSummary> cachedSummaries =
+        List<ConversationSummary>.from(_conversationSummariesCache);
+    final int existingIndex = cachedSummaries.indexWhere(
+      (item) => item.id == summary.id,
+    );
+
+    if (existingIndex == -1) {
+      _conversationSummariesCache = <ConversationSummary>[
+        summary,
+        ...cachedSummaries,
+      ];
+    } else {
+      cachedSummaries[existingIndex] = summary;
+      _conversationSummariesCache = cachedSummaries;
+    }
+
+    return summary;
+  }
+
   static Future<int> fetchMyUnreadConversationCount() async {
     final List<ConversationSummary> summaries =
         await fetchMyConversationSummaries();
