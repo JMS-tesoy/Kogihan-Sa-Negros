@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../agent/presentation/screens/agent_dashboard_screen.dart';
+import '../../data/models/team_chat_team.dart';
+import 'team_conversation_screen.dart';
 import '../../domain/entities/agent_team_entity.dart';
 
 class AgentTeamDetailScreen extends StatefulWidget {

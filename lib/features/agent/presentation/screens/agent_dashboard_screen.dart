@@ -11,8 +11,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/route_names.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
+import '../../../agent_teams/presentation/screens/team_inbox_screen.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -311,13 +311,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
       final Property createdProperty = await createProperty(newProperty);
 
       if (!mounted) return;
-      AppSnackBar.success(
-        context,
-        '${createdProperty.title} added successfully.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${createdProperty.title} added successfully.')),
       );
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Failed to add property: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add property: $e')));
     }
   }
 
@@ -913,828 +914,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
           const SizedBox(height: 22),
           _buildPropertyActionSplitTabs(context),
         ],
-      ),
-    );
-  }
-}
-
-class TeamChatTeam {
-  const TeamChatTeam({
-    required this.id,
-    required this.name,
-    required this.specialization,
-    required this.logoUrl,
-  });
-
-  factory TeamChatTeam.fromMap(Map<String, dynamic> map) {
-    return TeamChatTeam(
-      id: map['id'] as String? ?? '',
-      name: map['name'] as String? ?? 'Unnamed Team',
-      specialization: map['specialization'] as String? ?? '',
-      logoUrl: map['logo_url'] as String?,
-    );
-  }
-
-  final String id;
-  final String name;
-  final String specialization;
-  final String? logoUrl;
-}
-
-class TeamChatMessage {
-  const TeamChatMessage({
-    required this.id,
-    required this.teamId,
-    required this.senderId,
-    required this.senderName,
-    required this.body,
-    required this.createdAt,
-    this.attachmentUrl,
-    this.attachmentPath,
-    this.attachmentName,
-    this.attachmentMimeType,
-    this.attachmentSizeBytes,
-  });
-
-  factory TeamChatMessage.fromMap(Map<String, dynamic> map) {
-    return TeamChatMessage(
-      id: map['id'] as String? ?? '',
-      teamId: map['team_id'] as String? ?? '',
-      senderId: map['sender_id'] as String? ?? '',
-      senderName: map['sender_name'] as String? ?? 'Agent',
-      body: map['body'] as String? ?? '',
-      createdAt:
-          DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
-          DateTime.now(),
-      attachmentUrl: map['attachment_url'] as String?,
-      attachmentPath: map['attachment_path'] as String?,
-      attachmentName: map['attachment_name'] as String?,
-      attachmentMimeType: map['attachment_mime_type'] as String?,
-      attachmentSizeBytes: _parseAttachmentSize(map['attachment_size_bytes']),
-    );
-  }
-
-  final String id;
-  final String teamId;
-  final String senderId;
-  final String senderName;
-  final String body;
-  final DateTime createdAt;
-  final String? attachmentUrl;
-  final String? attachmentPath;
-  final String? attachmentName;
-  final String? attachmentMimeType;
-  final int? attachmentSizeBytes;
-
-  bool get hasAttachment => (attachmentUrl ?? '').trim().isNotEmpty;
-  bool get attachmentIsImage =>
-      (attachmentMimeType ?? '').toLowerCase().startsWith('image/');
-  String get attachmentDisplayName {
-    final String name = (attachmentName ?? '').trim();
-    return name.isNotEmpty ? name : 'Attachment';
-  }
-}
-
-int? _parseAttachmentSize(dynamic value) {
-  if (value == null) return null;
-  if (value is int) return value;
-  return int.tryParse(value.toString());
-}
-
-class TeamInboxPage extends StatefulWidget {
-  const TeamInboxPage({super.key});
-
-  @override
-  State<TeamInboxPage> createState() => _TeamInboxPageState();
-}
-
-class _TeamInboxPageState extends State<TeamInboxPage> {
-  final SupabaseClient _client = Supabase.instance.client;
-  List<TeamChatTeam> _teams = const <TeamChatTeam>[];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_loadTeams());
-  }
-
-  Future<void> _loadTeams() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final List<TeamChatTeam> teams = await _fetchMyTeams();
-      if (!mounted) return;
-      setState(() {
-        _teams = teams;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Failed to load team inbox. $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<List<TeamChatTeam>> _fetchMyTeams() async {
-    final List<dynamic> rows = await _client
-        .from('agent_teams')
-        .select('id, name, specialization, logo_url')
-        .order('name');
-
-    return rows
-        .map(
-          (row) => TeamChatTeam.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .where((team) => team.id.isNotEmpty)
-        .toList();
-  }
-
-  Future<void> _openTeamChat(TeamChatTeam team) async {
-    await Navigator.push(
-      context,
-      _instantRoute(TeamConversationPage(team: team)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Team Inbox')),
-      body: RefreshIndicator(onRefresh: _loadTeams, child: _buildBody(context)),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 80),
-          Icon(
-            Icons.error_outline_rounded,
-            size: 42,
-            color: theme.colorScheme.error,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _loadTeams,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try Again'),
-          ),
-        ],
-      );
-    }
-
-    if (_teams.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 100),
-          Icon(
-            Icons.groups_2_outlined,
-            size: 46,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No team inbox available yet.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Create at least one team before using the admin Team Inbox.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _teams.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final TeamChatTeam team = _teams[index];
-        final String initial = team.name.trim().isNotEmpty
-            ? team.name.trim()[0].toUpperCase()
-            : 'T';
-
-        return Card(
-          margin: EdgeInsets.zero,
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primaryContainer,
-              foregroundColor: theme.colorScheme.onPrimaryContainer,
-              backgroundImage: team.logoUrl != null && team.logoUrl!.isNotEmpty
-                  ? CachedNetworkImageProvider(team.logoUrl!)
-                  : null,
-              child: team.logoUrl == null || team.logoUrl!.isEmpty
-                  ? Text(initial)
-                  : null,
-            ),
-            title: Text(team.name),
-            subtitle: Text(
-              team.specialization.isEmpty
-                  ? 'Open team realtime chat'
-                  : team.specialization,
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _openTeamChat(team),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class TeamConversationPage extends StatefulWidget {
-  const TeamConversationPage({super.key, required this.team});
-
-  final TeamChatTeam team;
-
-  @override
-  State<TeamConversationPage> createState() => _TeamConversationPageState();
-}
-
-class _TeamConversationPageState extends State<TeamConversationPage> {
-  static const int _messageLimit = 80;
-
-  final SupabaseClient _client = Supabase.instance.client;
-  late final TextEditingController _messageController;
-  late final ScrollController _scrollController;
-  RealtimeChannel? _teamMessagesChannel;
-  List<TeamChatMessage> _messages = const <TeamChatMessage>[];
-  bool _isLoading = true;
-  bool _isSending = false;
-  bool _isAttaching = false;
-  String? _error;
-
-  String get _currentUserId => _client.auth.currentUser?.id ?? '';
-
-  String get _currentUserDisplayName {
-    final User? user = _client.auth.currentUser;
-    final Map<String, dynamic> data = user?.userMetadata ?? const {};
-    final String? fullName = data['full_name'] as String?;
-    final String? name = data['name'] as String?;
-    final String? email = user?.email;
-
-    return (fullName?.trim().isNotEmpty ?? false)
-        ? fullName!.trim()
-        : (name?.trim().isNotEmpty ?? false)
-        ? name!.trim()
-        : (email?.trim().isNotEmpty ?? false)
-        ? email!.trim()
-        : 'Agent';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messageController = TextEditingController();
-    _scrollController = ScrollController();
-    _subscribeToTeamMessages();
-    unawaited(_loadMessages(scrollToBottom: true));
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    if (_teamMessagesChannel != null) {
-      unawaited(_client.removeChannel(_teamMessagesChannel!));
-    }
-    super.dispose();
-  }
-
-  void _subscribeToTeamMessages() {
-    _teamMessagesChannel = _client
-        .channel('team-inbox-${widget.team.id}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'team_messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'team_id',
-            value: widget.team.id,
-          ),
-          callback: (_) {
-            if (!mounted) return;
-            unawaited(_loadMessages(scrollToBottom: true, showLoader: false));
-          },
-        )
-        .subscribe();
-  }
-
-  Future<void> _loadMessages({
-    bool scrollToBottom = false,
-    bool showLoader = true,
-  }) async {
-    if (showLoader && mounted) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final List<dynamic> rows = await _client
-          .from('team_messages')
-          .select(
-            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
-          )
-          .eq('team_id', widget.team.id)
-          .order('created_at', ascending: false)
-          .limit(_messageLimit);
-
-      final List<TeamChatMessage> messages = rows
-          .map(
-            (row) =>
-                TeamChatMessage.fromMap(Map<String, dynamic>.from(row as Map)),
-          )
-          .toList()
-          .reversed
-          .toList();
-
-      if (!mounted) return;
-      setState(() {
-        _messages = messages;
-        _isLoading = false;
-        _error = null;
-      });
-
-      if (scrollToBottom) _scrollToBottom(jump: messages.length <= 1);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to load team messages. $e';
-      });
-    }
-  }
-
-  void _scrollToBottom({bool jump = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final double target = _scrollController.position.maxScrollExtent;
-      if (jump) {
-        _scrollController.jumpTo(target);
-        return;
-      }
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  Future<void> _sendMessage({ChatAttachment? attachment}) async {
-    final String body = _messageController.text.trim();
-    if ((body.isEmpty && attachment == null) ||
-        _isSending ||
-        _currentUserId.isEmpty) {
-      return;
-    }
-
-    final String bodyToSend = body.isNotEmpty
-        ? body
-        : attachment != null
-        ? 'Sent an attachment'
-        : '';
-
-    final TeamChatMessage optimisticMessage = TeamChatMessage(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-      teamId: widget.team.id,
-      senderId: _currentUserId,
-      senderName: _currentUserDisplayName,
-      body: bodyToSend,
-      createdAt: DateTime.now(),
-      attachmentUrl: attachment?.url,
-      attachmentPath: attachment?.path,
-      attachmentName: attachment?.name,
-      attachmentMimeType: attachment?.mimeType,
-      attachmentSizeBytes: attachment?.sizeBytes,
-    );
-
-    setState(() {
-      _isSending = true;
-      _messages = [..._messages, optimisticMessage];
-    });
-    _messageController.clear();
-    _scrollToBottom();
-
-    try {
-      final Map<String, dynamic> insertPayload = <String, dynamic>{
-        'team_id': widget.team.id,
-        'sender_id': _currentUserId,
-        'sender_name': _currentUserDisplayName,
-        'body': bodyToSend,
-        if (attachment != null) ...attachment.toMessageColumns(),
-      };
-
-      final Map<String, dynamic> row = await _client
-          .from('team_messages')
-          .insert(insertPayload)
-          .select(
-            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
-          )
-          .single();
-
-      final TeamChatMessage sentMessage = TeamChatMessage.fromMap(row);
-      if (!mounted) return;
-      setState(() {
-        _messages = _messages
-            .where((message) => message.id != optimisticMessage.id)
-            .toList();
-        _messages = [..._messages, sentMessage]
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      });
-      _scrollToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      _messageController.text = body;
-      setState(() {
-        _messages = _messages
-            .where((message) => message.id != optimisticMessage.id)
-            .toList();
-      });
-      AppSnackBar.error(context, 'Failed to send team message: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _pickAndSendAttachment() async {
-    if (_isSending || _isAttaching) return;
-
-    setState(() {
-      _isAttaching = true;
-    });
-
-    try {
-      final ChatAttachment? attachment =
-          await MessagingService.pickAndUploadAttachment(folder: 'team-inbox');
-      if (!mounted || attachment == null) return;
-      await _sendMessage(attachment: attachment);
-    } catch (e) {
-      if (!mounted) return;
-      AppSnackBar.error(context, 'Failed to attach file: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isAttaching = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _openAttachment(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      AppSnackBar.warning(context, 'Unable to open attachment.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.team.name)),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            color: theme.colorScheme.surfaceContainerHighest.withValues(
-              alpha: theme.brightness == Brightness.light ? 0.55 : 0.32,
-            ),
-            child: Text(
-              'Team Inbox · realtime internal chat',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Expanded(child: _buildMessagesArea(context)),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
-                children: [
-                  IconButton.filledTonal(
-                    tooltip: 'Attach file',
-                    onPressed: _isSending || _isAttaching
-                        ? null
-                        : _pickAndSendAttachment,
-                    icon: const Icon(Icons.attach_file_rounded),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.newline,
-                      decoration: InputDecoration(
-                        hintText: 'Message ${widget.team.name}',
-                        filled: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _isSending || _isAttaching
-                        ? null
-                        : () => _sendMessage(),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: _isSending || _isAttaching
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send_rounded),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessagesArea(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return RefreshIndicator(
-        onRefresh: () => _loadMessages(scrollToBottom: true),
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            const SizedBox(height: 80),
-            Icon(
-              Icons.error_outline_rounded,
-              size: 42,
-              color: theme.colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center),
-          ],
-        ),
-      );
-    }
-
-    if (_messages.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: () => _loadMessages(scrollToBottom: true),
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            const SizedBox(height: 100),
-            Icon(
-              Icons.forum_outlined,
-              size: 44,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No team messages yet.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Send the first internal team update here.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: () => _loadMessages(scrollToBottom: true),
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-        itemCount: _messages.length,
-        itemBuilder: (context, index) {
-          final TeamChatMessage message = _messages[index];
-          return _buildMessageBubble(context, message);
-        },
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(BuildContext context, TeamChatMessage message) {
-    final ThemeData theme = Theme.of(context);
-    final bool isMine = message.senderId == _currentUserId;
-    final Alignment alignment = isMine
-        ? Alignment.centerRight
-        : Alignment.centerLeft;
-    final Color bubbleColor = isMine
-        ? theme.colorScheme.primary
-        : theme.colorScheme.surfaceContainerHighest;
-    final Color foregroundColor = isMine
-        ? theme.colorScheme.onPrimary
-        : theme.colorScheme.onSurface;
-    final String timeLabel = _formatInboxTime(message.createdAt);
-
-    return Align(
-      alignment: alignment,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMine ? 18 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 18),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: isMine
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!isMine) ...[
-              Text(
-                message.senderName,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: foregroundColor.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 3),
-            ],
-            if (message.hasAttachment) ...[
-              _buildTeamAttachmentPreview(
-                context: context,
-                message: message,
-                foregroundColor: foregroundColor,
-              ),
-              if (_shouldShowTeamMessageBody(message))
-                const SizedBox(height: 8),
-            ],
-            if (_shouldShowTeamMessageBody(message))
-              Text(
-                message.body,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: foregroundColor,
-                  height: 1.35,
-                ),
-              ),
-            const SizedBox(height: 4),
-            Text(
-              timeLabel,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: foregroundColor.withValues(alpha: 0.72),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  bool _shouldShowTeamMessageBody(TeamChatMessage message) {
-    final String body = message.body.trim();
-    if (body.isEmpty) return false;
-    return !(message.hasAttachment && body == 'Sent an attachment');
-  }
-
-  Widget _buildTeamAttachmentPreview({
-    required BuildContext context,
-    required TeamChatMessage message,
-    required Color foregroundColor,
-  }) {
-    final String attachmentUrl = message.attachmentUrl ?? '';
-    final String attachmentName = message.attachmentDisplayName;
-
-    if (message.attachmentIsImage) {
-      return InkWell(
-        onTap: () => _openAttachment(attachmentUrl),
-        borderRadius: BorderRadius.circular(12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            attachmentUrl,
-            width: 220,
-            height: 150,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildTeamFileAttachmentCard(
-                attachmentName: attachmentName,
-                foregroundColor: foregroundColor,
-              );
-            },
-          ),
-        ),
-      );
-    }
-
-    return _buildTeamFileAttachmentCard(
-      attachmentName: attachmentName,
-      foregroundColor: foregroundColor,
-      onTap: () => _openAttachment(attachmentUrl),
-    );
-  }
-
-  Widget _buildTeamFileAttachmentCard({
-    required String attachmentName,
-    required Color foregroundColor,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: foregroundColor.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: foregroundColor.withValues(alpha: 0.18)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.attach_file_rounded, color: foregroundColor, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                attachmentName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2543,7 +1722,9 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
 
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      AppSnackBar.warning(context, 'Please sign in again before uploading.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again before uploading.')),
+      );
       return;
     }
 
@@ -2609,16 +1790,21 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       });
 
       if (!mounted) return;
-      AppSnackBar.success(
-        context,
-        'Property image uploaded and optimized successfully.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Property image uploaded and optimized successfully.'),
+        ),
       );
     } on StorageException catch (error) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Upload failed: ${error.message}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: ${error.message}')),
+      );
     } catch (error) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Unexpected upload error: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unexpected upload error: $error')),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -3535,9 +2721,8 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onUpdateProperty(updatedProperty);
     if (!mounted) return;
 
-    AppSnackBar.success(
-      context,
-      '${updatedProperty.title} updated successfully.',
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${updatedProperty.title} updated successfully.')),
     );
   }
 
@@ -3548,7 +2733,9 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
     await widget.onDeleteProperty(property.id);
     if (!mounted) return;
 
-    AppSnackBar.success(context, '${property.title} deleted.');
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${property.title} deleted.')));
   }
 
   @override
@@ -4043,7 +3230,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
             .where((message) => message.id != optimisticMessage.id)
             .toList();
       });
-      AppSnackBar.error(context, 'Failed to send reply: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send reply: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -4067,7 +3256,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _sendReply(attachment: attachment);
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Failed to attach file: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to attach file: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -4081,7 +3272,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      AppSnackBar.warning(context, 'Unable to open attachment.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open attachment.')),
+      );
     }
   }
 
@@ -4164,7 +3357,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Failed to edit message: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to edit message: $e')));
     }
   }
 
@@ -4200,7 +3395,9 @@ class _InquiryDetailsPageState extends State<InquiryDetailsPage> {
       await _loadMessages(scrollToBottom: true);
     } catch (e) {
       if (!mounted) return;
-      AppSnackBar.error(context, 'Failed to delete message: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
     }
   }
 
