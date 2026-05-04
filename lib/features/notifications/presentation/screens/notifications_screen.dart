@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_scaffold_shell.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/datasources/notifications_remote_datasource.dart';
 import '../../data/notification_model.dart';
 import '../widgets/notification_tile.dart';
@@ -46,26 +47,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _optimisticallyDeletedIds.remove(notification.id);
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to delete notification. Please try again.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppSnackBar.error(
+        context,
+        'Unable to delete notification. Please try again.',
       );
     }
   }
 
-  Future<void> _deleteReadNotifications(List<AppNotification> notifications) async {
+  Future<void> _deleteReadNotifications(
+    List<AppNotification> notifications,
+  ) async {
     final List<AppNotification> readNotifications = notifications
         .where((notification) => notification.isRead)
         .toList();
 
     if (readNotifications.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No read notifications to clear.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppSnackBar.info(
+        context,
+        'No read notifications to clear.',
       );
       return;
     }
@@ -85,13 +84,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Cleared ${idsToDelete.length} read notification${idsToDelete.length == 1 ? '' : 's'}.',
-          ),
-          duration: const Duration(seconds: 2),
-        ),
+      AppSnackBar.success(
+        context,
+        'Cleared ${idsToDelete.length} read notification${idsToDelete.length == 1 ? '' : 's'}.',
       );
     } catch (_) {
       if (!mounted) {
@@ -102,11 +97,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _optimisticallyDeletedIds.removeAll(idsToDelete);
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to clear read notifications. Please try again.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppSnackBar.error(
+        context,
+        'Unable to clear read notifications. Please try again.',
       );
     }
   }
@@ -225,9 +218,7 @@ class _NotificationsBody extends StatelessWidget {
         ...notifications.map(
           (notification) => Dismissible(
             key: ValueKey<String>(notification.id),
-            direction: notification.isRead
-                ? DismissDirection.endToStart
-                : DismissDirection.none,
+            direction: DismissDirection.endToStart,
             background: Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -246,11 +237,9 @@ class _NotificationsBody extends StatelessWidget {
                 return true;
               }
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Read the notification before deleting it.'),
-                  duration: Duration(seconds: 2),
-                ),
+              AppSnackBar.warning(
+                context,
+                'Read the notification before deleting it.',
               );
 
               return false;
