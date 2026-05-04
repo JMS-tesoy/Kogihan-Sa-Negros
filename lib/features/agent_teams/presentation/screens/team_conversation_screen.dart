@@ -620,4 +620,3 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     );
   }
 }
-
