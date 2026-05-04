@@ -400,8 +400,6 @@ class MessagingService {
     return summaries;
   }
 
-
-
   static Future<ConversationSummary?> fetchConversationSummaryById(
     String conversationId,
   ) async {
@@ -606,7 +604,34 @@ class MessagingService {
             if (second == null) return -1;
             return second.compareTo(first);
           });
+    await _createInquiryReplyNotification(
+      conversationId: conversationId,
+      message: message,
+    );
+
     return message;
+  }
+
+  static Future<void> _createInquiryReplyNotification({
+    required String conversationId,
+    required ConversationMessage message,
+  }) async {
+    try {
+      final String preview =
+          message.hasAttachment && message.body == 'Sent an attachment'
+          ? message.attachmentDisplayName
+          : message.body;
+
+      await _client.rpc(
+        'create_message_notification',
+        params: <String, dynamic>{
+          'p_conversation_id': conversationId,
+          'p_message_preview': preview,
+        },
+      );
+    } catch (_) {
+      // Message delivery must not fail just because notification creation failed.
+    }
   }
 
   static Future<void> updateMessage({

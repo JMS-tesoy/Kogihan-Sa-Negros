@@ -115,8 +115,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final ConversationSummary? conversation =
           await MessagingService.fetchConversationSummaryById(
-        relatedConversationId,
-      );
+            relatedConversationId,
+          );
 
       if (!mounted) {
         return;
@@ -132,9 +132,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       final List<ConversationMessage> initialMessages =
           MessagingService.getCachedConversationMessages(
-        conversation.id,
-        limit: MessagingService.initialMessagePageSize,
-      );
+            conversation.id,
+            limit: MessagingService.initialMessagePageSize,
+          );
 
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -300,7 +300,7 @@ class _NotificationsBody extends StatelessWidget {
   final int unreadCount;
   final Future<void> Function(AppNotification notification) onNotificationTap;
   final Future<void> Function(AppNotification notification)
-      onNotificationDelete;
+  onNotificationDelete;
 
   @override
   Widget build(BuildContext context) {

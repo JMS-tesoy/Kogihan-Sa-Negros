@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../../app/bootstrap/land_finder_app_bootstrap.dart';
 import '../../../home/presentation/widgets/top_header.dart';
 import '../../data/services/auth_session_service.dart';
@@ -31,6 +32,7 @@ class LoginPageView extends StatefulWidget {
 class _LoginPageViewState extends State<LoginPageView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
@@ -89,13 +91,19 @@ class _LoginPageViewState extends State<LoginPageView> {
     }
   }
 
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
   Future<void> _signIn() async {
     final enteredEmail = _emailController.text.trim();
     final enteredPassword = _passwordController.text;
+
     final DevAuthShortcutResult devShortcut = devAuthShortcutForCredentials(
       email: enteredEmail,
       password: enteredPassword,
     );
+
     final String? disabledDevShortcutMessage = devShortcut.disabledMessage;
 
     if (disabledDevShortcutMessage != null) {
@@ -137,9 +145,23 @@ class _LoginPageViewState extends State<LoginPageView> {
     final email = devShortcut.emailFor(enteredEmail);
     final password = devShortcut.passwordFor(enteredPassword);
 
-    if (email.isEmpty || password.isEmpty) {
+    if (email.isEmpty) {
       setState(() {
-        _errorText = 'Please enter email and password.';
+        _errorText = 'Please enter your email address.';
+      });
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() {
+        _errorText = 'Please enter a valid email address.';
+      });
+      return;
+    }
+
+    if (password.isEmpty) {
+      setState(() {
+        _errorText = 'Please enter your password.';
       });
       return;
     }
@@ -201,75 +223,189 @@ class _LoginPageViewState extends State<LoginPageView> {
     }
   }
 
+  InputDecoration _authInputDecoration({
+    required BuildContext context,
+    required String labelText,
+    required String hintText,
+    required IconData prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+
+    final Color fillColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.34)
+        : const Color(0xFFF8FAFC);
+
+    final Color enabledBorderColor = isDarkMode
+        ? colorScheme.outlineVariant.withValues(alpha: 0.34)
+        : const Color(0xFFE2E8F0);
+
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      prefixIcon: Icon(prefixIcon),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: fillColor,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      labelStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
+      hintStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.58),
+      ),
+      prefixIconColor: WidgetStateColor.resolveWith((states) {
+        if (states.contains(WidgetState.focused)) {
+          return colorScheme.primary;
+        }
+        return colorScheme.onSurfaceVariant;
+      }),
+      suffixIconColor: WidgetStateColor.resolveWith((states) {
+        if (states.contains(WidgetState.focused)) {
+          return colorScheme.primary;
+        }
+        return colorScheme.onSurfaceVariant;
+      }),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: enabledBorderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.error, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+
+    final Color cardColor = isDarkMode
+        ? theme.cardColor.withValues(alpha: 0.78)
+        : Colors.white;
+
+    final Color errorBackgroundColor = isDarkMode
+        ? colorScheme.errorContainer.withValues(alpha: 0.32)
+        : const Color(0xFFFFF1F3);
+
+    final Color errorBorderColor = isDarkMode
+        ? colorScheme.error.withValues(alpha: 0.50)
+        : const Color(0xFFFDA29B);
+
     return Scaffold(
       body: Center(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+                children: <Widget>[
                   const KsnHeaderLogo(size: 88),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Text(
-                    'Kogihan Sa Negros',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    'KSN Property Finder',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    'finding you an asset that fits your budget',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    'Finding you an asset that fits your Budget',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
                   Card(
-                    elevation: 6,
-                    shadowColor: Colors.black12,
+                    elevation: 0,
+                    color: cardColor,
+                    shadowColor: Colors.black.withValues(alpha: 0.16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(28),
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: isDarkMode ? 0.12 : 0.28,
+                        ),
+                      ),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
                       child: AutofillGroup(
                         child: Column(
-                          children: [
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
                             TextField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
-                              autofillHints: const [
+                              autofillHints: const <String>[
                                 AutofillHints.email,
                                 AutofillHints.username,
                               ],
-                              decoration: InputDecoration(
-                                hintText: 'Email',
-                                prefixIcon: const Icon(Icons.email_outlined),
-                                filled: true,
-                                fillColor: Theme.of(context).cardColor,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
+                              onChanged: (_) {
+                                if (_errorText != null) {
+                                  setState(() => _errorText = null);
+                                }
+                              },
+                              decoration: _authInputDecoration(
+                                context: context,
+                                labelText: 'Email address',
+                                hintText: 'name@example.com',
+                                prefixIcon: Icons.email_outlined,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             TextField(
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.password],
-                              decoration: InputDecoration(
-                                hintText: 'Password',
-                                prefixIcon: const Icon(Icons.lock_outline),
+                              autofillHints: const <String>[
+                                AutofillHints.password,
+                              ],
+                              onChanged: (_) {
+                                if (_errorText != null) {
+                                  setState(() => _errorText = null);
+                                }
+                              },
+                              onSubmitted: (_) {
+                                if (!_isLoading) {
+                                  _signIn();
+                                }
+                              },
+                              decoration: _authInputDecoration(
+                                context: context,
+                                labelText: 'Password',
+                                hintText: 'Enter your password',
+                                prefixIcon: Icons.lock_outline,
                                 suffixIcon: IconButton(
+                                  tooltip: _obscurePassword
+                                      ? 'Show password'
+                                      : 'Hide password',
                                   icon: Icon(
                                     _obscurePassword
                                         ? Icons.visibility_off_outlined
@@ -281,29 +417,54 @@ class _LoginPageViewState extends State<LoginPageView> {
                                     });
                                   },
                                 ),
-                                filled: true,
-                                fillColor: Theme.of(context).cardColor,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
                               ),
                             ),
-                            if (_errorText != null) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                _errorText!,
-                                style: const TextStyle(color: Colors.red),
+                            if (_errorText != null) ...<Widget>[
+                              const SizedBox(height: 14),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: errorBackgroundColor,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: errorBorderColor),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Icon(
+                                      Icons.error_outline_rounded,
+                                      size: 20,
+                                      color: colorScheme.error,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _errorText!,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: isDarkMode
+                                                  ? colorScheme.onErrorContainer
+                                                  : const Color(0xFFB42318),
+                                              height: 1.35,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 20),
                             SizedBox(
                               width: double.infinity,
+                              height: 54,
                               child: ElevatedButton(
                                 onPressed: _isLoading ? null : _signIn,
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
                                 ),
                                 child: _isLoading
@@ -317,9 +478,10 @@ class _LoginPageViewState extends State<LoginPageView> {
                                     : const Text('Login'),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             SizedBox(
                               width: double.infinity,
+                              height: 54,
                               child: OutlinedButton.icon(
                                 onPressed: _isGoogleLoading
                                     ? null
@@ -335,24 +497,26 @@ class _LoginPageViewState extends State<LoginPageView> {
                                     : const GoogleLogoIcon(),
                                 label: const Text('Continue with Google'),
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  side: BorderSide(
+                                    color: colorScheme.outline.withValues(
+                                      alpha: 0.34,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
+                              children: <Widget>[
                                 TextButton(
                                   onPressed: () {
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(
+                                      MaterialPageRoute<void>(
                                         builder: (context) =>
                                             const SignUpPage(),
                                       ),
@@ -364,7 +528,7 @@ class _LoginPageViewState extends State<LoginPageView> {
                                   onPressed: () {
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(
+                                      MaterialPageRoute<void>(
                                         builder: (context) =>
                                             const ForgotPasswordPage(),
                                       ),

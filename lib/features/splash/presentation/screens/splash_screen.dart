@@ -201,7 +201,7 @@ class _BrandHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(
-          'Kogihan Sa Negros',
+          'KSN Property Finder',
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w900,

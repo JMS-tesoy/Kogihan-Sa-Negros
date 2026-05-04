@@ -140,7 +140,7 @@ class TopHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Kogihan Sa Negros',
+                'KSN Property Finder',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style:
