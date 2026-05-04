@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/state/app_pin_code.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 
 class PinCodePage extends StatefulWidget {
   const PinCodePage({super.key});
@@ -54,17 +55,13 @@ class _PinCodePageState extends State<PinCodePage> {
       _errorText = null;
     });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('PIN code saved.')));
+    AppSnackBar.success(context, 'PIN code saved.');
     Navigator.pop(context);
   }
 
   void _clearPinCode() {
     appPinCodeNotifier.value = null;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('PIN code removed.')));
+    AppSnackBar.success(context, 'PIN code removed.');
     Navigator.pop(context);
   }
 
@@ -104,13 +101,13 @@ class _PinCodePageState extends State<PinCodePage> {
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              children: <Widget>[
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     color: cardBackgroundColor,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
+                    boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: isDarkMode
                             ? Colors.black.withValues(alpha: 0.24)
@@ -123,7 +120,7 @@ class _PinCodePageState extends State<PinCodePage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    children: <Widget>[
                       Center(
                         child: Container(
                           height: 78,
@@ -221,7 +218,7 @@ class _PinCodePageState extends State<PinCodePage> {
                           ),
                         ),
                       ),
-                      if (_errorText != null) ...[
+                      if (_errorText != null) ...<Widget>[
                         const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
@@ -252,7 +249,7 @@ class _PinCodePageState extends State<PinCodePage> {
                           child: const Text('Save PIN'),
                         ),
                       ),
-                      if (appPinCodeNotifier.value != null) ...[
+                      if (appPinCodeNotifier.value != null) ...<Widget>[
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,

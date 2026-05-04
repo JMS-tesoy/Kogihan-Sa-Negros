@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/config/auth_config.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -75,12 +76,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         email,
         redirectTo: AuthConfig.redirectUrl,
       );
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset email sent. Check your inbox.'),
-        ),
+
+      AppSnackBar.success(
+        context,
+        'Password reset email sent. Check your inbox.',
       );
+
       _startResetCountdown();
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -166,7 +169,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             ? Colors.black.withValues(alpha: 0.24)
                             : const Color(0x12000000),
                         blurRadius: 24,
-                        offset: Offset(0, 12),
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),

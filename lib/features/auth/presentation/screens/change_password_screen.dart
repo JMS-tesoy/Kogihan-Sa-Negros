@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
+
 class ChangePasswordPage extends StatefulWidget {
   final bool isPasswordRecovery;
   final WidgetBuilder? recoveryLoginBuilder;
@@ -92,8 +94,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated successfully.')),
+
+      AppSnackBar.success(
+        context,
+        'Password updated successfully.',
       );
 
       if (widget.isPasswordRecovery) {
@@ -151,9 +155,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final Color pageBackgroundColor = isDarkMode
         ? theme.scaffoldBackgroundColor
         : const Color(0xFFF7F8FA);
-    final Color cardBackgroundColor = isDarkMode
-        ? theme.cardColor
-        : Colors.white;
+    final Color cardBackgroundColor = isDarkMode ? theme.cardColor : Colors.white;
     final Color fieldFillColor = isDarkMode
         ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
         : const Color(0xFFF9FAFB);
@@ -202,7 +204,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             ? Colors.black.withValues(alpha: 0.24)
                             : const Color(0x12000000),
                         blurRadius: 24,
-                        offset: Offset(0, 12),
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),

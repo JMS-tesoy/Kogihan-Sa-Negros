@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
+
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -78,13 +80,12 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Account created. Please verify your email before logging in.',
-          ),
-        ),
+
+      AppSnackBar.success(
+        context,
+        'Account created. Please verify your email before logging in.',
       );
+
       Navigator.pop(context);
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -127,9 +128,11 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
+
+      AppSnackBar.success(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Confirmation email sent.')));
+        'Confirmation email sent.',
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -167,25 +170,25 @@ class _SignUpPageState extends State<SignUpPage> {
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              children: <Widget>[
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
+                    boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: theme.brightness == Brightness.dark
                             ? Colors.transparent
                             : const Color(0x12000000),
                         blurRadius: 24,
-                        offset: Offset(0, 12),
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    children: <Widget>[
                       Center(
                         child: Container(
                           height: 86,
@@ -232,7 +235,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.email],
+                        autofillHints: const <String>[AutofillHints.email],
                         decoration: InputDecoration(
                           labelText: 'Email address',
                           hintText: 'name@example.com',
@@ -261,7 +264,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.newPassword],
+                        autofillHints: const <String>[
+                          AutofillHints.newPassword,
+                        ],
                         onSubmitted: (_) {
                           if (!_isLoading) _signUp();
                         },
@@ -307,7 +312,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           height: 1.35,
                         ),
                       ),
-                      if (_errorText != null) ...[
+                      if (_errorText != null) ...<Widget>[
                         const SizedBox(height: 14),
                         Container(
                           width: double.infinity,
