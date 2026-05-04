@@ -15,6 +15,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart'
 import '../../../../app/config/app_config.dart';
 import '../../../../app/config/mapbox_config.dart';
 import '../../../../app/router/instant_route.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/presentation/screens/property_details_screen.dart';
@@ -529,9 +530,8 @@ class _MapTabState extends State<MapTab> {
 
   void _showMapMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+
+    AppSnackBar.info(context, message);
   }
 
   Future<void> _promptEnableGpsLocation() async {

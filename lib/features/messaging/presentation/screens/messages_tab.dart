@@ -189,17 +189,11 @@ class _MessagesTabState extends State<MessagesTab> {
             .toList();
       });
 
-      AppSnackBar.success(
-        context,
-        'Conversation deleted.',
-      );
+      AppSnackBar.success(context, 'Conversation deleted.');
     } catch (error) {
       if (!mounted) return;
 
-      AppSnackBar.error(
-        context,
-        'Failed to delete conversation: $error',
-      );
+      AppSnackBar.error(context, 'Failed to delete conversation: $error');
     }
   }
 
@@ -386,7 +380,8 @@ class _MessagesTabState extends State<MessagesTab> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: <Widget>[
-                                          if (conversation.isUnread) ...<Widget>[
+                                          if (conversation
+                                              .isUnread) ...<Widget>[
                                             Container(
                                               width: 8,
                                               height: 8,
