@@ -56,3 +56,8 @@ supabase/.temp/
 
 /home.png
 lib_updated_full.txt
+firebase-service-account.json
+
+*service-account*.json
+
+*.firebase-adminsdk*.json
