@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/team_chat_team.dart';
+import '../../data/services/team_messages_service.dart';
 import 'team_conversation_screen.dart';
 
 Route<T> _instantRoute<T>(Widget child) {
@@ -23,7 +23,7 @@ class TeamInboxPage extends StatefulWidget {
 }
 
 class _TeamInboxPageState extends State<TeamInboxPage> {
-  final SupabaseClient _client = Supabase.instance.client;
+  final TeamMessagesService _teamMessagesService = TeamMessagesService();
   List<TeamChatTeam> _teams = const <TeamChatTeam>[];
   bool _isLoading = true;
   String? _error;
@@ -58,18 +58,8 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
     }
   }
 
-  Future<List<TeamChatTeam>> _fetchMyTeams() async {
-    final List<dynamic> rows = await _client
-        .from('agent_teams')
-        .select('id, name, specialization, logo_url')
-        .order('name');
-
-    return rows
-        .map(
-          (row) => TeamChatTeam.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .where((team) => team.id.isNotEmpty)
-        .toList();
+  Future<List<TeamChatTeam>> _fetchMyTeams() {
+    return _teamMessagesService.fetchTeams();
   }
 
   Future<void> _openTeamChat(TeamChatTeam team) async {
@@ -187,3 +177,4 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
     );
   }
 }
+

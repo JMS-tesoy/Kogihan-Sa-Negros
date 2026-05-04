@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../messaging/data/services/messaging_service.dart';
+import '../../data/services/team_messages_service.dart';
 import '../../data/models/team_chat_message.dart';
 import '../../data/models/team_chat_team.dart';
 
@@ -55,7 +56,7 @@ class TeamConversationPage extends StatefulWidget {
 class _TeamConversationPageState extends State<TeamConversationPage> {
   static const int _messageLimit = 80;
 
-  final SupabaseClient _client = Supabase.instance.client;
+  final TeamMessagesService _teamMessagesService = TeamMessagesService();
   late final TextEditingController _messageController;
   late final ScrollController _scrollController;
   RealtimeChannel? _teamMessagesChannel;
@@ -65,23 +66,10 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
   bool _isAttaching = false;
   String? _error;
 
-  String get _currentUserId => _client.auth.currentUser?.id ?? '';
+  String get _currentUserId => _teamMessagesService.currentUserId;
 
-  String get _currentUserDisplayName {
-    final User? user = _client.auth.currentUser;
-    final Map<String, dynamic> data = user?.userMetadata ?? const {};
-    final String? fullName = data['full_name'] as String?;
-    final String? name = data['name'] as String?;
-    final String? email = user?.email;
-
-    return (fullName?.trim().isNotEmpty ?? false)
-        ? fullName!.trim()
-        : (name?.trim().isNotEmpty ?? false)
-        ? name!.trim()
-        : (email?.trim().isNotEmpty ?? false)
-        ? email!.trim()
-        : 'Agent';
-  }
+  String get _currentUserDisplayName =>
+      _teamMessagesService.currentUserDisplayName;
 
   @override
   void initState() {
@@ -97,29 +85,19 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     _messageController.dispose();
     _scrollController.dispose();
     if (_teamMessagesChannel != null) {
-      unawaited(_client.removeChannel(_teamMessagesChannel!));
+      unawaited(_teamMessagesService.removeChannel(_teamMessagesChannel!));
     }
     super.dispose();
   }
 
   void _subscribeToTeamMessages() {
-    _teamMessagesChannel = _client
-        .channel('team-inbox-${widget.team.id}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'team_messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'team_id',
-            value: widget.team.id,
-          ),
-          callback: (_) {
-            if (!mounted) return;
-            unawaited(_loadMessages(scrollToBottom: true, showLoader: false));
-          },
-        )
-        .subscribe();
+    _teamMessagesChannel = _teamMessagesService.subscribeToTeamMessages(
+      teamId: widget.team.id,
+      onChanged: () {
+        if (!mounted) return;
+        unawaited(_loadMessages(scrollToBottom: true, showLoader: false));
+      },
+    );
   }
 
   Future<void> _loadMessages({
@@ -134,23 +112,11 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     }
 
     try {
-      final List<dynamic> rows = await _client
-          .from('team_messages')
-          .select(
-            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
-          )
-          .eq('team_id', widget.team.id)
-          .order('created_at', ascending: false)
-          .limit(_messageLimit);
-
-      final List<TeamChatMessage> messages = rows
-          .map(
-            (row) =>
-                TeamChatMessage.fromMap(Map<String, dynamic>.from(row as Map)),
-          )
-          .toList()
-          .reversed
-          .toList();
+      final List<TeamChatMessage> messages =
+          await _teamMessagesService.fetchMessages(
+        teamId: widget.team.id,
+        limit: _messageLimit,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -233,23 +199,11 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     _scrollToBottom();
 
     try {
-      final Map<String, dynamic> insertPayload = <String, dynamic>{
-        'team_id': widget.team.id,
-        'sender_id': _currentUserId,
-        'sender_name': _currentUserDisplayName,
-        'body': bodyToSend,
-        if (attachment != null) ...attachment.toMessageColumns(),
-      };
-
-      final Map<String, dynamic> row = await _client
-          .from('team_messages')
-          .insert(insertPayload)
-          .select(
-            'id, team_id, sender_id, sender_name, body, created_at, attachment_url, attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes',
-          )
-          .single();
-
-      final TeamChatMessage sentMessage = TeamChatMessage.fromMap(row);
+      final TeamChatMessage sentMessage = await _teamMessagesService.sendMessage(
+        teamId: widget.team.id,
+        body: bodyToSend,
+        attachment: attachment,
+      );
       if (!mounted) return;
       setState(() {
         _messages = _messages
@@ -620,3 +574,4 @@ class _TeamConversationPageState extends State<TeamConversationPage> {
     );
   }
 }
+
