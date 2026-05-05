@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart';
@@ -18,6 +17,9 @@ import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
+import '../helpers/map_marker_helper.dart';
+import '../widgets/map_control_buttons.dart';
+import '../widgets/map_info_panel.dart';
 import '../widgets/map_search_filter_bar.dart';
 import '../widgets/map_selected_property_sheet.dart';
 import '../widgets/map_status_overlay.dart';
@@ -34,8 +36,6 @@ const double _negrosIslandInitialZoom = 7.35;
 const String _mapTerrainSourceId = 'property-terrain-dem';
 
 enum _MapLightPreset { day, night }
-
-enum _MapStyleMode { monochrome, satellite }
 
 class _MappableProperty {
   final Property property;
@@ -201,8 +201,6 @@ class _MapTabState extends State<MapTab> {
   double? _selectedElevationMeters;
   String? _selectedPropertyId;
   ViewportState? _mapViewport;
-  _MapStyleMode _selectedMapStyleMode = _MapStyleMode.satellite;
-  String _currentStyleUri = MapboxStyles.STANDARD_SATELLITE;
   _MapLightPreset _selectedLightPreset = _MapLightPreset.day;
 
   // NEW: price label annotation manager and location puck toggle
@@ -232,24 +230,17 @@ class _MapTabState extends State<MapTab> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final Brightness brightness = Theme.of(context).brightness;
-    final String nextStyleUri = _styleUriForMode(_selectedMapStyleMode);
-    final _MapLightPreset nextLightPreset = _lightPresetForBrightness(
-      brightness,
-    );
+    final _MapLightPreset nextLightPreset = _lightPresetForMapStyle();
 
     final bool lightPresetChanged = _selectedLightPreset != nextLightPreset;
     _selectedLightPreset = nextLightPreset;
 
-    if (_currentStyleUri == nextStyleUri) {
-      final MapboxMap? mapboxMap = _mapboxMap;
-      if (lightPresetChanged && mapboxMap != null) {
-        unawaited(_applyStandardStyleConfiguration(mapboxMap));
-      }
-      return;
+    final MapboxMap? mapboxMap = _mapboxMap;
+    if (lightPresetChanged && mapboxMap != null) {
+      unawaited(_applyStandardStyleConfiguration(mapboxMap));
+      unawaited(_syncAnnotations(resetCamera: false));
+      unawaited(_syncSelectedBoundary());
     }
-
-    _reloadMapStyle(nextStyleUri);
   }
 
   @override
@@ -291,6 +282,18 @@ class _MapTabState extends State<MapTab> {
     }
 
     super.dispose();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _selectedLightPreset = _MapLightPreset.day;
+    final MapboxMap? mapboxMap = _mapboxMap;
+    if (mapboxMap != null) {
+      unawaited(_applyStandardStyleConfiguration(mapboxMap));
+    }
+    unawaited(_syncAnnotations(resetCamera: false));
+    unawaited(_syncSelectedBoundary());
   }
 
   void _handlePropertiesChanged() {
@@ -347,46 +350,6 @@ class _MapTabState extends State<MapTab> {
     });
   }
 
-  String _styleUriForMode(_MapStyleMode mode) {
-    switch (mode) {
-      case _MapStyleMode.monochrome:
-        return MapboxStyles.STANDARD;
-      case _MapStyleMode.satellite:
-        return MapboxStyles.STANDARD_SATELLITE;
-    }
-  }
-
-  void _reloadMapStyle(String nextStyleUri) {
-    _annotationTapCancelable?.cancel();
-    _annotationTapCancelable = null;
-    _mapboxMap = null;
-    _circleAnnotationManager = null;
-    _boundaryAnnotationManager = null;
-    _routeAnnotationManager = null;
-    _labelAnnotationManager = null; // NEW: reset label manager on style change
-    _hasFittedCamera = false;
-    _currentStyleUri = nextStyleUri;
-  }
-
-  void _setMapStyleMode(_MapStyleMode mode) {
-    if (_selectedMapStyleMode == mode) return;
-
-    setState(() {
-      _selectedMapStyleMode = mode;
-      _reloadMapStyle(_styleUriForMode(mode));
-    });
-  }
-
-  Future<void> _toggleMapStyleMode() {
-    final _MapStyleMode nextMode =
-        _selectedMapStyleMode == _MapStyleMode.monochrome
-        ? _MapStyleMode.satellite
-        : _MapStyleMode.monochrome;
-
-    _setMapStyleMode(nextMode);
-    return Future<void>.value();
-  }
-
   double _cardScaleForZoom(double zoom) {
     final double progress =
         ((zoom - _mapAutoCardMinZoom) /
@@ -396,10 +359,8 @@ class _MapTabState extends State<MapTab> {
     return _mapAutoCardMinScale + ((1.0 - _mapAutoCardMinScale) * progress);
   }
 
-  _MapLightPreset _lightPresetForBrightness(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? _MapLightPreset.night
-        : _MapLightPreset.day;
+  _MapLightPreset _lightPresetForMapStyle() {
+    return _MapLightPreset.day;
   }
 
   Future<void> _setStandardStyleConfig(
@@ -424,17 +385,6 @@ class _MapTabState extends State<MapTab> {
       'lightPreset',
       _selectedLightPreset.name,
     );
-
-    if (_selectedMapStyleMode == _MapStyleMode.monochrome) {
-      await _setStandardStyleConfig(mapboxMap, 'theme', 'monochrome');
-      await _setStandardStyleConfig(mapboxMap, 'show3dObjects', false);
-      await _setStandardStyleConfig(
-        mapboxMap,
-        'showPointOfInterestLabels',
-        true,
-      );
-      await _setStandardStyleConfig(mapboxMap, 'showTransitLabels', false);
-    }
   }
 
   Future<void> _enableTerrainForElevation(MapboxMap mapboxMap) async {
@@ -471,12 +421,11 @@ class _MapTabState extends State<MapTab> {
         ? const Color(0xFF38BDF8)
         : Theme.of(context).colorScheme.primary;
 
-    return PolygonAnnotationOptions(
-      geometry: Polygon(coordinates: [boundaryPositions]),
-      fillColor: fillColor.toARGB32(),
-      fillOpacity: isDarkMode ? 0.24 : 0.18,
-      fillOutlineColor: const Color(0xFFFFD166).toARGB32(),
-      customData: <String, Object>{'propertyId': property.id},
+    return MapMarkerHelper.buildBoundaryAnnotation(
+      boundaryPositions: boundaryPositions,
+      propertyId: property.id,
+      isDarkMode: isDarkMode,
+      primaryColor: fillColor,
     );
   }
 
@@ -510,14 +459,9 @@ class _MapTabState extends State<MapTab> {
     if (selected == null) return;
 
     await labelManager.create(
-      PointAnnotationOptions(
+      MapMarkerHelper.buildSelectedPropertyLabelAnnotation(
         geometry: selected.point,
-        textField: selected.property.price,
-        textSize: 13.0,
-        textColor: Colors.white.toARGB32(),
-        textHaloColor: const Color(0xFF2563EB).toARGB32(),
-        textHaloWidth: 2.5,
-        textOffset: [0.0, -2.4],
+        price: selected.property.price,
       ),
     );
   }
@@ -1072,18 +1016,10 @@ class _MapTabState extends State<MapTab> {
 
   CircleAnnotationOptions _buildAnnotation(_MappableProperty item) {
     final bool isSelected = item.property.id == _selectedPropertyId;
-    final int markerColor = isSelected
-        ? const Color(0xFFFFD166).toARGB32()
-        : const Color(0xFF2563EB).toARGB32();
-
-    return CircleAnnotationOptions(
+    return MapMarkerHelper.buildPropertyMarkerAnnotation(
       geometry: item.point,
-      circleColor: markerColor,
-      circleRadius: isSelected ? 8.5 : 5.8,
-      circleStrokeColor: Colors.white.toARGB32(),
-      circleStrokeWidth: isSelected ? 2.8 : 1.8,
-      circleOpacity: 1.0,
-      customData: <String, Object>{'propertyId': item.property.id},
+      propertyId: item.property.id,
+      isSelected: isSelected,
     );
   }
 
@@ -1204,8 +1140,7 @@ class _MapTabState extends State<MapTab> {
       boundaryPoints,
       CameraOptions(),
       MbxEdgeInsets(top: 96, left: 36, bottom: 132, right: 36),
-      // FIX: cap zoom at 17.5 in satellite mode to prevent blurry imagery
-      _selectedMapStyleMode == _MapStyleMode.satellite ? 17.5 : 20.0,
+      17.5,
       null,
     );
     await mapboxMap.easeTo(camera, MapAnimationOptions(duration: 650));
@@ -1372,8 +1307,8 @@ class _MapTabState extends State<MapTab> {
         children: [
           Positioned.fill(
             child: MapWidget(
-              key: ValueKey(_currentStyleUri),
-              styleUri: _currentStyleUri,
+              key: const ValueKey(MapboxStyles.STANDARD_SATELLITE),
+              styleUri: MapboxStyles.STANDARD_SATELLITE,
               gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
                 Factory<OneSequenceGestureRecognizer>(
                   () => EagerGestureRecognizer(),
@@ -1427,16 +1362,13 @@ class _MapTabState extends State<MapTab> {
           Positioned(
             top: 16,
             right: 16,
-            child: _MapZoomControl(
+            child: MapControlButtons(
               onZoomIn: _zoomIn,
               onZoomOut: _zoomOut,
-              onToggleMapStyle: _toggleMapStyleMode,
               onResetNorth: _resetNorth,
-              // NEW: fit-all and my-location buttons
               onFitAll: _fitCameraToAllProperties,
               onMyLocation: _toggleMyLocation,
               isLocationEnabled: _isLocationEnabled,
-              selectedMapStyleMode: _selectedMapStyleMode,
             ),
           ),
           // NEW: "X lots available" badge at bottom-left
@@ -1444,7 +1376,7 @@ class _MapTabState extends State<MapTab> {
             Positioned(
               bottom: 48,
               left: 16,
-              child: _MapPropertyCountBadge(
+              child: MapPropertyCountBadge(
                 count: _mappableProperties.length,
                 onTap: _togglePropertyPickerFromBadge,
               ),
@@ -1453,7 +1385,7 @@ class _MapTabState extends State<MapTab> {
             Positioned(
               bottom: 48,
               right: 16,
-              child: _MapDirectionFloatingButton(
+              child: MapDirectionFloatingButton(
                 onTap: _showRouteToSelectedProperty,
               ),
             ),
@@ -1641,251 +1573,6 @@ class _NegrosPlacesSheetState extends State<_NegrosPlacesSheet> {
                   );
                 }),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// UPDATED: added map style, onFitAll, onMyLocation, isLocationEnabled
-class _MapZoomControl extends StatelessWidget {
-  final Future<void> Function() onZoomIn;
-  final Future<void> Function() onZoomOut;
-  final Future<void> Function() onToggleMapStyle;
-  final Future<void> Function() onResetNorth;
-  final Future<void> Function() onFitAll;
-  final Future<void> Function() onMyLocation;
-  final bool isLocationEnabled;
-  final _MapStyleMode selectedMapStyleMode;
-
-  const _MapZoomControl({
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onToggleMapStyle,
-    required this.onResetNorth,
-    required this.onFitAll,
-    required this.onMyLocation,
-    required this.isLocationEnabled,
-    required this.selectedMapStyleMode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 38,
-            offset: Offset(0, 22),
-            color: Color(0x42000000),
-          ),
-          BoxShadow(
-            blurRadius: 10,
-            offset: Offset(0, 6),
-            color: Color(0x24000000),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.58),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.32),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _MapIconButton(icon: Icons.add, onTap: onZoomIn),
-                _MapDivider(color: theme.dividerColor),
-                _MapIconButton(icon: Icons.remove, onTap: onZoomOut),
-                _MapDivider(color: theme.dividerColor),
-                _MapIconButton(
-                  icon: selectedMapStyleMode == _MapStyleMode.satellite
-                      ? Icons.public_rounded
-                      : Icons.layers_outlined,
-                  iconSize: 20,
-                  onTap: onToggleMapStyle,
-                ),
-                _MapDivider(color: theme.dividerColor),
-                _MapIconButton(
-                  icon: Icons.navigation,
-                  iconSize: 18,
-                  onTap: onResetNorth,
-                ),
-                _MapDivider(color: theme.dividerColor),
-                // NEW: fit all listed properties into view
-                _MapIconButton(
-                  icon: Icons.fit_screen_rounded,
-                  iconSize: 20,
-                  onTap: onFitAll,
-                ),
-                _MapDivider(color: theme.dividerColor),
-                // NEW: toggle GPS location puck; icon changes when active
-                _MapIconButton(
-                  icon: isLocationEnabled
-                      ? Icons.my_location_rounded
-                      : Icons.location_searching_rounded,
-                  iconSize: 20,
-                  onTap: onMyLocation,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MapIconButton extends StatelessWidget {
-  final IconData icon;
-  final double iconSize;
-  final Future<void> Function() onTap;
-
-  const _MapIconButton({
-    required this.icon,
-    required this.onTap,
-    this.iconSize = 22,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const List<Shadow> iconShadows = [
-      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
-      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
-    ];
-
-    return InkWell(
-      onTap: () {
-        unawaited(onTap());
-      },
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: Icon(icon, size: iconSize, shadows: iconShadows),
-      ),
-    );
-  }
-}
-
-class _MapDivider extends StatelessWidget {
-  final Color color;
-
-  const _MapDivider({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 1,
-      color: color.withValues(alpha: 0.55),
-    );
-  }
-}
-
-// NEW: badge widget showing total listed lots available on the map
-class _MapPropertyCountBadge extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-
-  const _MapPropertyCountBadge({required this.count, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    const List<Shadow> floatingShadows = [
-      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
-      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
-    ];
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.landscape_rounded,
-              size: 16,
-              color: theme.colorScheme.primary,
-              shadows: floatingShadows,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '$count lot${count == 1 ? '' : 's'} available',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                shadows: floatingShadows,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapDirectionFloatingButton extends StatelessWidget {
-  final Future<void> Function() onTap;
-
-  const _MapDirectionFloatingButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    const List<Shadow> iconShadows = [
-      Shadow(blurRadius: 10, offset: Offset(0, 4), color: Color(0x99000000)),
-      Shadow(blurRadius: 3, offset: Offset(0, 1), color: Color(0x66000000)),
-    ];
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 30,
-            spreadRadius: -5,
-            offset: Offset(0, 16),
-            color: Color(0x44000000),
-          ),
-          BoxShadow(
-            blurRadius: 8,
-            offset: Offset(0, 4),
-            color: Color(0x26000000),
-          ),
-        ],
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => unawaited(onTap()),
-            borderRadius: BorderRadius.circular(18),
-            child: const SizedBox(
-              width: 56,
-              height: 56,
-              child: Icon(
-                Icons.directions_rounded,
-                size: 32,
-                color: Colors.white,
-                shadows: iconShadows,
-              ),
-            ),
           ),
         ),
       ),

@@ -117,16 +117,12 @@ class SearchSection extends StatelessWidget {
             theme.colorScheme.primary.withValues(alpha: 0.075),
             theme.colorScheme.surface,
           )
-        : const Color.fromARGB(255, 199, 212, 228);
+        : theme.colorScheme.surfaceContainerHighest;
     final Color searchShadow = isLightTheme
         ? theme.colorScheme.shadow.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.04);
-    final Color textColor = isLightTheme
-        ? theme.colorScheme.onSurface
-        : const Color(0xFF1F2933);
-    final Color mutedColor = isLightTheme
-        ? theme.colorScheme.onSurfaceVariant
-        : Colors.grey.shade700;
+        : Colors.black.withValues(alpha: 0.28);
+    final Color textColor = theme.colorScheme.onSurface;
+    final Color mutedColor = theme.colorScheme.onSurfaceVariant;
 
     return Container(
       decoration: BoxDecoration(
