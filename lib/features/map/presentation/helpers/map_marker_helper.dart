@@ -42,13 +42,11 @@ class MapMarkerHelper {
   static PolygonAnnotationOptions buildBoundaryAnnotation({
     required List<Position> boundaryPositions,
     required String propertyId,
-    required bool isDarkMode,
-    required Color primaryColor,
   }) {
     return PolygonAnnotationOptions(
       geometry: Polygon(coordinates: [boundaryPositions]),
-      fillColor: primaryColor.toARGB32(),
-      fillOpacity: isDarkMode ? 0.24 : 0.18,
+      fillColor: const Color(0xFFFFD166).toARGB32(),
+      fillOpacity: 0.04,
       fillOutlineColor: const Color(0xFFFFD166).toARGB32(),
       customData: <String, Object>{'propertyId': propertyId},
     );

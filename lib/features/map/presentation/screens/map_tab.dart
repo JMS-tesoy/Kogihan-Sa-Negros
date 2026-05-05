@@ -27,15 +27,11 @@ import '../widgets/map_status_overlay.dart';
 const int _initialMapAnnotationBatchSize = 8;
 const int _mapAnnotationBatchSize = 12;
 const int _maxMapPrecachedThumbnails = 4;
-const double _mapAutoCardMinZoom = 13.25;
-const double _mapAutoCardFullZoom = 18.0;
-const double _mapAutoCardMinScale = 0.52;
-const double _mapAutoCardPixelRadius = 112.0;
 final Point _negrosIslandCenter = Point(coordinates: Position(123.02, 10.1));
 const double _negrosIslandInitialZoom = 7.35;
 const String _mapTerrainSourceId = 'property-terrain-dem';
 
-enum _MapLightPreset { day, night }
+enum _MapLightPreset { day }
 
 class _MappableProperty {
   final Property property;
@@ -196,7 +192,6 @@ class _MapTabState extends State<MapTab> {
   bool _isLoadingElevation = false;
   bool _isPropertyPickerVisible = false;
   bool _isSelectedCardVisible = true;
-  bool _shouldShowCardAfterUserZoom = false;
   double _selectedCardScale = 1.0;
   double? _selectedElevationMeters;
   String? _selectedPropertyId;
@@ -284,18 +279,6 @@ class _MapTabState extends State<MapTab> {
     super.dispose();
   }
 
-  @override
-  void reassemble() {
-    super.reassemble();
-    _selectedLightPreset = _MapLightPreset.day;
-    final MapboxMap? mapboxMap = _mapboxMap;
-    if (mapboxMap != null) {
-      unawaited(_applyStandardStyleConfiguration(mapboxMap));
-    }
-    unawaited(_syncAnnotations(resetCamera: false));
-    unawaited(_syncSelectedBoundary());
-  }
-
   void _handlePropertiesChanged() {
     final List<_MappableProperty> nextProperties = _extractMappableProperties(
       appPropertiesNotifier.value,
@@ -348,15 +331,6 @@ class _MapTabState extends State<MapTab> {
         }
       }
     });
-  }
-
-  double _cardScaleForZoom(double zoom) {
-    final double progress =
-        ((zoom - _mapAutoCardMinZoom) /
-                (_mapAutoCardFullZoom - _mapAutoCardMinZoom))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    return _mapAutoCardMinScale + ((1.0 - _mapAutoCardMinScale) * progress);
   }
 
   _MapLightPreset _lightPresetForMapStyle() {
@@ -416,16 +390,9 @@ class _MapTabState extends State<MapTab> {
     );
     if (boundaryPositions == null) return null;
 
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final Color fillColor = isDarkMode
-        ? const Color(0xFF38BDF8)
-        : Theme.of(context).colorScheme.primary;
-
     return MapMarkerHelper.buildBoundaryAnnotation(
       boundaryPositions: boundaryPositions,
       propertyId: property.id,
-      isDarkMode: isDarkMode,
-      primaryColor: fillColor,
     );
   }
 
@@ -1146,74 +1113,6 @@ class _MapTabState extends State<MapTab> {
     await mapboxMap.easeTo(camera, MapAnimationOptions(duration: 650));
   }
 
-  Future<void> _showNearestPropertyCardForCurrentCamera() async {
-    final MapboxMap? mapboxMap = _mapboxMap;
-    if (mapboxMap == null || _mappableProperties.isEmpty) return;
-
-    final CameraState cameraState = await mapboxMap.getCameraState();
-    if (!mounted || cameraState.zoom < _mapAutoCardMinZoom) return;
-
-    final List<_MappableProperty> properties = List<_MappableProperty>.from(
-      _mappableProperties,
-    );
-    final List<ScreenCoordinate?> screenCoordinates = await mapboxMap
-        .pixelsForCoordinates(
-          properties.map((property) => property.point).toList(growable: false),
-        );
-    if (!mounted) return;
-
-    final Size mapSize = MediaQuery.sizeOf(context);
-    final double centerX = mapSize.width / 2;
-    final double centerY = mapSize.height / 2;
-
-    _MappableProperty? nearestProperty;
-    double nearestDistanceSquared = double.infinity;
-    for (int index = 0; index < screenCoordinates.length; index++) {
-      final ScreenCoordinate? screenCoordinate = screenCoordinates[index];
-      if (screenCoordinate == null) continue;
-
-      final double distanceX = screenCoordinate.x - centerX;
-      final double distanceY = screenCoordinate.y - centerY;
-      final double distanceSquared =
-          distanceX * distanceX + distanceY * distanceY;
-      if (distanceSquared < nearestDistanceSquared) {
-        nearestDistanceSquared = distanceSquared;
-        nearestProperty = properties[index];
-      }
-    }
-
-    if (nearestProperty == null ||
-        nearestDistanceSquared >
-            _mapAutoCardPixelRadius * _mapAutoCardPixelRadius) {
-      return;
-    }
-    final _MappableProperty selectedProperty = nearestProperty;
-    final double nextCardScale = _cardScaleForZoom(cameraState.zoom);
-    final bool selectedPropertyChanged =
-        _selectedPropertyId != selectedProperty.property.id;
-    final bool cardScaleChanged =
-        (_selectedCardScale - nextCardScale).abs() >= 0.01;
-    if (!selectedPropertyChanged &&
-        _isSelectedCardVisible &&
-        !cardScaleChanged) {
-      return;
-    }
-
-    setState(() {
-      _selectedPropertyId = selectedProperty.property.id;
-      _isSelectedCardVisible = true;
-      _selectedCardScale = nextCardScale;
-    });
-    if (selectedPropertyChanged) {
-      _warmMapPropertyImages([selectedProperty]);
-      unawaited(_clearRoutePolyline());
-      unawaited(_syncSelectedBoundary());
-      unawaited(_syncSelectedLabel()); // NEW
-      unawaited(_syncAnnotations(resetCamera: false));
-      unawaited(_updateSelectedElevation(selectedProperty));
-    }
-  }
-
   Future<void> _syncAnnotations({required bool resetCamera}) async {
     final CircleAnnotationManager? annotationManager = _circleAnnotationManager;
     if (annotationManager == null) return;
@@ -1321,14 +1220,6 @@ class _MapTabState extends State<MapTab> {
               viewport: _mapViewport,
               onMapCreated: _onMapCreated,
               onStyleLoadedListener: _onStyleLoaded,
-              onMapIdleListener: (_) {
-                if (!_shouldShowCardAfterUserZoom) return;
-                _shouldShowCardAfterUserZoom = false;
-                unawaited(_showNearestPropertyCardForCurrentCamera());
-              },
-              onZoomListener: (_) {
-                _shouldShowCardAfterUserZoom = true;
-              },
               onTapListener: (_) {
                 if (_selectedPropertyId == null) return;
                 bool shouldClearRoute = false;
