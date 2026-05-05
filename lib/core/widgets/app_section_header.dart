@@ -23,12 +23,12 @@ class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
     required this.title,
-    required this.actionText,
+    this.actionText,
     this.onPressed,
   });
 
   final String title;
-  final String actionText;
+  final String? actionText;
   final VoidCallback? onPressed;
 
   @override
@@ -43,7 +43,11 @@ class SectionHeader extends StatelessWidget {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
-        TextButton(onPressed: onPressed, child: Text(actionText)),
+        if (actionText != null)
+          TextButton(
+            onPressed: onPressed,
+            child: Text(actionText!),
+          ),
       ],
     );
   }

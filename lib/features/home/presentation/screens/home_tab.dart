@@ -104,7 +104,7 @@ class HomeTab extends StatelessWidget {
         slivers: <Widget>[
           SliverAppBar(
             automaticallyImplyLeading: false,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 10,
             floating: true,
             snap: true,
@@ -175,8 +175,8 @@ class HomeTab extends StatelessWidget {
             sliver: SliverToBoxAdapter(
               child: SectionHeader(
                 title: 'Recommended Properties',
-                actionText: 'Reset',
-                onPressed: onResetFilters,
+                actionText: hasActiveFilters ? 'Reset' : null,
+                onPressed: hasActiveFilters ? onResetFilters : null,
               ),
             ),
           ),
@@ -252,6 +252,31 @@ class _LotsFilterSection extends StatefulWidget {
 
 class _LotsFilterSectionState extends State<_LotsFilterSection> {
   _LotFilter _selectedFilter = _LotFilter.all;
+
+  @override
+  void didUpdateWidget(covariant _LotsFilterSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final bool shouldResetFilter =
+        widget.title != oldWidget.title ||
+        !_hasSamePropertyIds(widget.properties, oldWidget.properties);
+    if (shouldResetFilter) {
+      _selectedFilter = _LotFilter.all;
+    }
+  }
+
+  bool _hasSamePropertyIds(
+    List<Property> properties,
+    List<Property> previousProperties,
+  ) {
+    if (properties.length != previousProperties.length) return false;
+
+    for (int index = 0; index < properties.length; index += 1) {
+      if (properties[index].id != previousProperties[index].id) return false;
+    }
+
+    return true;
+  }
 
   List<Property> get _filteredProperties {
     final Iterable<Property> filteredProperties = widget.properties.where((

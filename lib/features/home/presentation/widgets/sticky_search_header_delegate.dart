@@ -22,7 +22,7 @@ class StickySearchHeaderDelegate extends SliverPersistentHeaderDelegate {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: theme.colorScheme.surface,
         boxShadow: overlapsContent
             ? <BoxShadow>[
                 BoxShadow(

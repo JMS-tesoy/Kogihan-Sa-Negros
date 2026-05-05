@@ -146,10 +146,7 @@ class _LoginPageViewState extends State<LoginPageView> {
       } on AuthException catch (e) {
         if (!mounted) return;
         setState(() {
-          _errorText = _friendlyAuthError(
-            e,
-            fallback: e.message,
-          );
+          _errorText = _friendlyAuthError(e, fallback: e.message);
         });
       } catch (error) {
         if (!mounted) return;
@@ -240,10 +237,7 @@ class _LoginPageViewState extends State<LoginPageView> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorText = _friendlyAuthError(
-          e,
-          fallback: e.message,
-        );
+        _errorText = _friendlyAuthError(e, fallback: e.message);
       });
     } catch (error) {
       if (!mounted) return;
