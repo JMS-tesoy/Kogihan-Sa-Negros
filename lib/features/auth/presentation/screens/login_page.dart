@@ -95,6 +95,27 @@ class _LoginPageViewState extends State<LoginPageView> {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
   }
 
+  String _friendlyAuthError(Object error, {required String fallback}) {
+    final String message = error.toString().toLowerCase();
+
+    if (message.contains('socketexception') ||
+        message.contains('failed host lookup') ||
+        message.contains('no address associated with hostname') ||
+        message.contains('network is unreachable') ||
+        message.contains('connection failed') ||
+        message.contains('connection refused') ||
+        message.contains('clientexception') ||
+        message.contains('xmlhttprequest error')) {
+      return 'No internet connection. Please check your Wi-Fi or mobile data, then try again.';
+    }
+
+    if (message.contains('timeout') || message.contains('timed out')) {
+      return 'The connection timed out. Please check your internet connection, then try again.';
+    }
+
+    return fallback;
+  }
+
   Future<void> _signIn() async {
     final enteredEmail = _emailController.text.trim();
     final enteredPassword = _passwordController.text;
@@ -125,12 +146,18 @@ class _LoginPageViewState extends State<LoginPageView> {
       } on AuthException catch (e) {
         if (!mounted) return;
         setState(() {
-          _errorText = e.message;
+          _errorText = _friendlyAuthError(
+            e,
+            fallback: e.message,
+          );
         });
-      } catch (_) {
+      } catch (error) {
         if (!mounted) return;
         setState(() {
-          _errorText = 'Dev user login failed. Please try again.';
+          _errorText = _friendlyAuthError(
+            error,
+            fallback: 'Dev user login failed. Please try again.',
+          );
         });
       } finally {
         if (mounted) {
@@ -180,12 +207,18 @@ class _LoginPageViewState extends State<LoginPageView> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorText = passwordSignInErrorMessage(e.message);
+        _errorText = _friendlyAuthError(
+          e,
+          fallback: passwordSignInErrorMessage(e.message),
+        );
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorText = 'Login failed. Please try again.';
+        _errorText = _friendlyAuthError(
+          error,
+          fallback: 'Login failed. Please try again.',
+        );
       });
     } finally {
       if (mounted) {
@@ -207,12 +240,18 @@ class _LoginPageViewState extends State<LoginPageView> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorText = e.message;
+        _errorText = _friendlyAuthError(
+          e,
+          fallback: e.message,
+        );
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorText = 'Google sign-in failed. Please try again.';
+        _errorText = _friendlyAuthError(
+          error,
+          fallback: 'Google sign-in failed. Please try again.',
+        );
       });
     } finally {
       if (mounted) {

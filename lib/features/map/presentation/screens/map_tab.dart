@@ -20,6 +20,7 @@ import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/presentation/screens/property_details_screen.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
+import '../widgets/map_search_filter_bar.dart';
 
 const int _initialMapAnnotationBatchSize = 8;
 const int _mapAnnotationBatchSize = 12;
@@ -1449,7 +1450,7 @@ class _MapTabState extends State<MapTab> {
               top: 16,
               left: 16,
               right: 96,
-              child: _MapPlacesSearchBar(onTap: _openNegrosPlacesSheet),
+              child: MapSearchFilterBar(onTap: _openNegrosPlacesSheet),
             ),
           Positioned(
             top: 16,
@@ -2033,74 +2034,6 @@ class _MapPropertyInfoChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MapPlacesSearchBar extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _MapPlacesSearchBar({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 28,
-            spreadRadius: -6,
-            offset: Offset(0, 14),
-            color: Color(0x4D000000),
-          ),
-          BoxShadow(
-            blurRadius: 8,
-            offset: Offset(0, 3),
-            color: Color(0x26000000),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Material(
-            color: theme.colorScheme.surface.withValues(alpha: 0.46),
-            child: InkWell(
-              onTap: onTap,
-              child: SizedBox(
-                height: 48,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search_rounded,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Search Negros places',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
