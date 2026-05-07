@@ -11,6 +11,7 @@ import '../../../location/data/datasources/negros_places_datasource.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../data/services/agent_property_service.dart';
+import '../widgets/property_basic_info_section.dart';
 
 class PropertyFormPage extends StatefulWidget {
   final Property? initialProperty;
@@ -297,25 +298,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     );
   }
 
-  Widget _buildCompactFieldRow({required Widget left, required Widget right}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 420) {
-          return Column(children: [left, const SizedBox(height: 12), right]);
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: left),
-            const SizedBox(width: 8),
-            Expanded(child: right),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildFormField({
     required TextEditingController controller,
     required String label,
@@ -403,41 +385,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSelectionField({
-    required BuildContext context,
-    required String label,
-    required IconData icon,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    String? helperText,
-  }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helperText,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
-      ),
-      items: items
-          .map(
-            (item) => DropdownMenuItem<String>(
-              value: item,
-              child: Text(item, overflow: TextOverflow.ellipsis),
-            ),
-          )
-          .toList(),
-      validator: (selectedValue) {
-        if (selectedValue == null || selectedValue.trim().isEmpty) {
-          return 'Please select a title status.';
-        }
-        return null;
-      },
     );
   }
 
@@ -1213,116 +1160,65 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
             const SizedBox(height: 12),
             _buildPreviewCard(context),
             const SizedBox(height: 12),
-            _buildSectionCard(
-              context: context,
-              title: 'Listing Identity',
-              subtitle:
-                  'Add the core listing details the agent should track and publish.',
-              children: [
-                _buildCompactFieldRow(
-                  left: _buildFormField(
-                    controller: _referenceCodeController,
-                    label: 'Listing code',
-                    hintText: 'LF-000120008',
-                    icon: Icons.pin_outlined,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a listing code.';
-                      }
-                      return null;
-                    },
-                  ),
-                  right: _buildFormField(
-                    controller: _titleController,
-                    label: 'Clean title',
-                    hintText: 'Prime Residential Lot',
-                    icon: Icons.title_rounded,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a clean title.';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildFormField(
-                  controller: _locationController,
-                  label: 'Location / area',
-                  hintText: 'Example: Dumaguete City or 9.3077, 123.3054',
-                  icon: Icons.location_on_outlined,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a location or area.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _pickNegrosPlaceForLocation,
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('Pick from Negros places'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildCompactFieldRow(
-                  left: _buildFormField(
-                    controller: _priceController,
-                    label: 'Price',
-                    hintText: '₱1,200,000',
-                    icon: Icons.payments_outlined,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a price.';
-                      }
-                      return null;
-                    },
-                  ),
-                  right: _buildFormField(
-                    controller: _sizeController,
-                    label: 'Lot size',
-                    hintText: '500 sqm',
-                    icon: Icons.straighten_rounded,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a lot size.';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildCompactFieldRow(
-                  left: _buildFormField(
-                    controller: _statusController,
-                    label: 'Card tag',
-                    hintText: 'Featured',
-                    icon: Icons.sell_outlined,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a card tag.';
-                      }
-                      return null;
-                    },
-                  ),
-                  right: _buildSelectionField(
-                    context: context,
-                    label: 'Title status',
-                    icon: Icons.verified_outlined,
-                    value: _selectedTitleStatus,
-                    items: _titleStatusOptions,
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _selectedTitleStatus = value;
-                      });
-                    },
-                  ),
-                ),
-              ],
+            PropertyBasicInfoSection(
+              referenceCodeController: _referenceCodeController,
+              titleController: _titleController,
+              locationController: _locationController,
+              priceController: _priceController,
+              sizeController: _sizeController,
+              statusController: _statusController,
+              selectedTitleStatus: _selectedTitleStatus,
+              titleStatusOptions: _titleStatusOptions,
+              onFieldChanged: () => setState(() {}),
+              onPickNegrosPlace: _pickNegrosPlaceForLocation,
+              onTitleStatusChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedTitleStatus = value;
+                });
+              },
+              referenceCodeValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a listing code.';
+                }
+                return null;
+              },
+              titleValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a clean title.';
+                }
+                return null;
+              },
+              locationValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a location or area.';
+                }
+                return null;
+              },
+              priceValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a price.';
+                }
+                return null;
+              },
+              sizeValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a lot size.';
+                }
+                return null;
+              },
+              statusValidator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a card tag.';
+                }
+                return null;
+              },
+              titleStatusValidator: (selectedValue) {
+                if (selectedValue == null || selectedValue.trim().isEmpty) {
+                  return 'Please select a title status.';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             _buildSectionCard(

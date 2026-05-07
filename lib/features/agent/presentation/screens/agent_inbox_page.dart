@@ -51,7 +51,7 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
   String get _pageTitle {
     return _activeFilter == AgentInboxFilter.unread
         ? 'Unread Inquiries'
-        : 'Agent Inbox';
+        : 'Buyer Messages';
   }
 
   String get _emptyMessage {

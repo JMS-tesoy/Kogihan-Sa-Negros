@@ -33,14 +33,15 @@ android {
         debug {
             // applicationIdSuffix = ".dev"   ← remove or comment this out
             versionNameSuffix = "-dev"
-            resValue("string", "app_name", "ksn.kogihan_sa_negros Dev")
+            resValue("string", "app_name", "KSN-Land-finder")
+
         }
 
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
-            resValue("string", "app_name", "ksn.kogihan_sa_negros")
+            resValue("string", "app_name", "KSN-Landfinder")
         }
     }
 }
