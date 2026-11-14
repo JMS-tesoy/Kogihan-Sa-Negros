@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_scaffold_shell.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 
 import '../../data/models/agent_profile.dart';
+import '../../data/models/team_request.dart';
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
@@ -31,60 +32,6 @@ class AppUser {
       fullName: (map['full_name'] ?? '').toString().trim(),
       email: (map['email'] ?? '').toString().trim(),
       role: (map['role'] ?? 'user').toString().trim(),
-      createdAt: map['created_at'] != null
-          ? DateTime.tryParse(map['created_at'].toString())
-          : null,
-    );
-  }
-}
-
-class _TeamRequest {
-  final String id;
-  final String userId;
-  final String teamId;
-  final String teamName;
-  final String requesterName;
-  final String requesterEmail;
-  final String status;
-  final DateTime? createdAt;
-
-  const _TeamRequest({
-    required this.id,
-    required this.userId,
-    required this.teamId,
-    required this.teamName,
-    required this.requesterName,
-    required this.requesterEmail,
-    required this.status,
-    this.createdAt,
-  });
-
-  factory _TeamRequest.fromMap(Map<String, dynamic> map) {
-    final Object? team = map['agent_teams'];
-    final Object? profile = map['profiles'];
-
-    Map<String, dynamic>? teamMap;
-    if (team is Map) {
-      teamMap = Map<String, dynamic>.from(team);
-    } else if (team is List && team.isNotEmpty) {
-      teamMap = Map<String, dynamic>.from(team.first);
-    }
-
-    Map<String, dynamic>? profileMap;
-    if (profile is Map) {
-      profileMap = Map<String, dynamic>.from(profile);
-    } else if (profile is List && profile.isNotEmpty) {
-      profileMap = Map<String, dynamic>.from(profile.first);
-    }
-
-    return _TeamRequest(
-      id: map['id']?.toString() ?? '',
-      userId: map['user_id']?.toString() ?? '',
-      teamId: map['team_id']?.toString() ?? '',
-      teamName: teamMap?['name']?.toString().trim() ?? 'Unknown Team',
-      requesterName: profileMap?['full_name']?.toString().trim() ?? 'Unknown',
-      requesterEmail: profileMap?['email']?.toString().trim() ?? '',
-      status: (map['status'] ?? 'pending').toString().trim(),
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
           : null,
@@ -118,7 +65,7 @@ Future<List<AppUser>> _fetchUsers() async {
       .toList();
 }
 
-Future<List<_TeamRequest>> _fetchTeamRequests() async {
+Future<List<TeamRequest>> _fetchTeamRequests() async {
   final List<dynamic> response = await _db
       .from('team_requests')
       .select('*, agent_teams(id, name), profiles(full_name, email)')
@@ -126,7 +73,7 @@ Future<List<_TeamRequest>> _fetchTeamRequests() async {
       .order('created_at', ascending: false);
   return response
       .map(
-        (item) => _TeamRequest.fromMap(Map<String, dynamic>.from(item as Map)),
+        (item) => TeamRequest.fromMap(Map<String, dynamic>.from(item as Map)),
       )
       .toList();
 }
@@ -684,7 +631,7 @@ class _RequestsTab extends StatefulWidget {
 }
 
 class _RequestsTabState extends State<_RequestsTab> {
-  List<_TeamRequest> _requests = const <_TeamRequest>[];
+  List<TeamRequest> _requests = const <TeamRequest>[];
   bool _isLoading = true;
   String? _error;
 
@@ -700,7 +647,7 @@ class _RequestsTabState extends State<_RequestsTab> {
       _error = null;
     });
     try {
-      final List<_TeamRequest> requests = await _fetchTeamRequests();
+      final List<TeamRequest> requests = await _fetchTeamRequests();
       if (!mounted) return;
       setState(() {
         _requests = requests;
@@ -735,7 +682,7 @@ class _RequestsTabState extends State<_RequestsTab> {
     return '${months[local.month - 1]} ${local.day}, ${local.year}';
   }
 
-  void _handleRequest(_TeamRequest req, String status) async {
+  void _handleRequest(TeamRequest req, String status) async {
     try {
       await _respondToTeamRequest(requestId: req.id, status: status);
       if (!mounted) return;
@@ -781,7 +728,7 @@ class _RequestsTabState extends State<_RequestsTab> {
         itemCount: _requests.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
-          final _TeamRequest req = _requests[index];
+          final TeamRequest req = _requests[index];
           return Card(
             margin: EdgeInsets.zero,
             child: Padding(
