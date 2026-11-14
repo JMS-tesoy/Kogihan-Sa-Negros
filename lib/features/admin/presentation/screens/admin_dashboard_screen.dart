@@ -6,68 +6,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/widgets/app_scaffold_shell.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 
+import '../../data/models/agent_profile.dart';
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
-class _AgentProfile {
-  final String id;
-  final String fullName;
-  final String email;
-  final String phone;
-  final String? avatarUrl;
-  final String? teamId;
-  final String? teamName;
-  final String? role;
-
-  const _AgentProfile({
-    required this.id,
-    required this.fullName,
-    required this.email,
-    required this.phone,
-    this.avatarUrl,
-    this.teamId,
-    this.teamName,
-    this.role,
-  });
-
-  factory _AgentProfile.fromMap(Map<String, dynamic> map) {
-    final Object? team = map['agent_teams'];
-    final String? teamName = team is Map
-        ? (team['name']?.toString().trim().isEmpty ?? true)
-              ? null
-              : team['name']?.toString().trim()
-        : null;
-    final String? teamId = team is Map
-        ? (team['id']?.toString().trim().isEmpty ?? true)
-              ? null
-              : team['id']?.toString().trim()
-        : _toNullableString(map['team_id']);
-
-    return _AgentProfile(
-      id: map['id']?.toString() ?? '',
-      fullName: (map['full_name'] ?? '').toString().trim(),
-      email: (map['email'] ?? '').toString().trim(),
-      phone: (map['phone'] ?? '').toString().trim(),
-      avatarUrl: _toNullableString(map['avatar_url']),
-      teamId: teamId,
-      teamName: teamName,
-      role: _toNullableString(map['role']),
-    );
-  }
-
-  static String? _toNullableString(dynamic value) {
-    final String normalized = (value?.toString() ?? '').trim();
-    return normalized.isEmpty ? null : normalized;
-  }
-}
-
-class _AppUser {
+class AppUser {
   final String id;
   final String fullName;
   final String email;
   final String role;
   final DateTime? createdAt;
 
-  const _AppUser({
+  const AppUser({
     required this.id,
     required this.fullName,
     required this.email,
@@ -75,8 +25,8 @@ class _AppUser {
     this.createdAt,
   });
 
-  factory _AppUser.fromMap(Map<String, dynamic> map) {
-    return _AppUser(
+  factory AppUser.fromMap(Map<String, dynamic> map) {
+    return AppUser(
       id: map['id']?.toString() ?? '',
       fullName: (map['full_name'] ?? '').toString().trim(),
       email: (map['email'] ?? '').toString().trim(),
@@ -146,25 +96,25 @@ class _TeamRequest {
 
 SupabaseClient get _db => Supabase.instance.client;
 
-Future<List<_AgentProfile>> _fetchAgentProfiles() async {
+Future<List<AgentProfile>> _fetchAgentProfiles() async {
   final List<dynamic> response = await _db
       .from('profiles')
       .select('*, agent_teams(id, name)')
       .order('full_name');
   return response
       .map(
-        (item) => _AgentProfile.fromMap(Map<String, dynamic>.from(item as Map)),
+        (item) => AgentProfile.fromMap(Map<String, dynamic>.from(item as Map)),
       )
       .toList();
 }
 
-Future<List<_AppUser>> _fetchUsers() async {
+Future<List<AppUser>> _fetchUsers() async {
   final List<dynamic> response = await _db
       .from('profiles')
       .select('id, full_name, email, role, created_at')
       .order('created_at', ascending: false);
   return response
-      .map((item) => _AppUser.fromMap(Map<String, dynamic>.from(item as Map)))
+      .map((item) => AppUser.fromMap(Map<String, dynamic>.from(item as Map)))
       .toList();
 }
 
@@ -420,12 +370,12 @@ class _AgentsTab extends StatefulWidget {
 }
 
 class _AgentsTabState extends State<_AgentsTab> {
-  List<_AgentProfile> _profiles = const <_AgentProfile>[];
+  List<AgentProfile> _profiles = const <AgentProfile>[];
   bool _isLoading = true;
   String? _error;
   String _search = '';
 
-  List<_AgentProfile> get _filtered {
+  List<AgentProfile> get _filtered {
     final String q = _search.trim().toLowerCase();
     if (q.isEmpty) return _profiles;
     return _profiles.where((p) {
@@ -448,7 +398,7 @@ class _AgentsTabState extends State<_AgentsTab> {
       _error = null;
     });
     try {
-      final List<_AgentProfile> profiles = await _fetchAgentProfiles();
+      final List<AgentProfile> profiles = await _fetchAgentProfiles();
       if (!mounted) return;
       setState(() {
         _profiles = profiles;
@@ -463,7 +413,7 @@ class _AgentsTabState extends State<_AgentsTab> {
     }
   }
 
-  void _showEditDialog(_AgentProfile profile) {
+  void _showEditDialog(AgentProfile profile) {
     final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     final TextEditingController fullNameCtrl = TextEditingController(
       text: profile.fullName,
@@ -608,7 +558,7 @@ class _AgentsTabState extends State<_AgentsTab> {
       return _ErrorView(message: _error!, onRetry: _load);
     }
 
-    final List<_AgentProfile> filtered = _filtered;
+    final List<AgentProfile> filtered = _filtered;
 
     return Column(
       children: <Widget>[
@@ -653,7 +603,7 @@ class _AgentsTabState extends State<_AgentsTab> {
                 itemCount: filtered.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final _AgentProfile profile = filtered[index];
+                  final AgentProfile profile = filtered[index];
                   return Card(
                     margin: EdgeInsets.zero,
                     child: ListTile(
@@ -942,12 +892,12 @@ class _UsersTab extends StatefulWidget {
 }
 
 class _UsersTabState extends State<_UsersTab> {
-  List<_AppUser> _users = const <_AppUser>[];
+  List<AppUser> _users = const <AppUser>[];
   bool _isLoading = true;
   String? _error;
   String _search = '';
 
-  List<_AppUser> get _filtered {
+  List<AppUser> get _filtered {
     final String q = _search.trim().toLowerCase();
     if (q.isEmpty) return _users;
     return _users.where((u) {
@@ -969,7 +919,7 @@ class _UsersTabState extends State<_UsersTab> {
       _error = null;
     });
     try {
-      final List<_AppUser> users = await _fetchUsers();
+      final List<AppUser> users = await _fetchUsers();
       if (!mounted) return;
       setState(() {
         _users = users;
@@ -1017,7 +967,7 @@ class _UsersTabState extends State<_UsersTab> {
       return _ErrorView(message: _error!, onRetry: _load);
     }
 
-    final List<_AppUser> filtered = _filtered;
+    final List<AppUser> filtered = _filtered;
 
     return Column(
       children: <Widget>[
@@ -1062,7 +1012,7 @@ class _UsersTabState extends State<_UsersTab> {
                 itemCount: filtered.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final _AppUser user = filtered[index];
+                  final AppUser user = filtered[index];
                   final Color roleColor = switch (user.role) {
                     'admin' => cs.error,
                     'agent' => cs.primary,
