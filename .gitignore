@@ -24,7 +24,9 @@ migrate_working_dir/
 
 # Flutter / Dart / Pub
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 build/
@@ -43,6 +45,27 @@ android/app/debug/
 android/app/profile/
 android/app/release/
 
+# NEW: Android / Gradle (heavy folders and machine-specific files)
+.gradle/
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/gradle-wrapper.jar
+**/android/key.properties
+*.jks
+*.keystore
+
+# NEW: iOS / macOS (CocoaPods and generated files)
+**/ios/Pods/
+**/macos/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Flutter/ephemeral/
+
 # Environment files
 .env
 .env.*
@@ -51,13 +74,12 @@ android/app/release/
 lib_chunk_txt/
 cheatsheet_prompt/
 cheatsheet prompt/
+
 # Supabase local temp files
 supabase/.temp/
 
 /home.png
 lib_updated_full.txt
 firebase-service-account.json
-
 *service-account*.json
-
 *.firebase-adminsdk*.json
