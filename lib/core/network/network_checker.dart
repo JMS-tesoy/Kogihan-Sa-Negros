@@ -5,9 +5,12 @@ class NetworkChecker {
 
   Future<bool> get hasConnection async {
     try {
-      final result = await InternetAddress.lookup('example.com');
-      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
-    } on SocketException {
+      final result = await InternetAddress.lookup(
+        'vludvvjkrrqzjahxjdjl.supabase.co',
+      );
+
+      return result.isNotEmpty;
+    } catch (_) {
       return false;
     }
   }
