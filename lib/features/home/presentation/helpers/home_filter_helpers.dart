@@ -13,8 +13,16 @@ List<Property> filterHomeProperties({
 }) {
   final String normalizedQuery = normalizeSearchText(searchQuery);
   final String numericQuery = digitsOnly(searchQuery);
-  final bool hasSearchQuery =
-      normalizedQuery.isNotEmpty || numericQuery.isNotEmpty;
+  final bool hasSearchQuery = normalizedQuery.isNotEmpty;
+  final bool isNumericSearch =
+      numericQuery.isNotEmpty &&
+      RegExp(r'^[\d\s,.\u20b1]+$', unicode: true).hasMatch(normalizedQuery);
+  final RegExp? wordStartQuery = hasSearchQuery
+      ? RegExp(
+          '(^|[^\\p{L}\\p{N}])${RegExp.escape(normalizedQuery)}',
+          unicode: true,
+        )
+      : null;
   final bool hasLocationFilter = selectedLocation != null;
   final bool hasLotSizeFilter = selectedLotSize != null;
   final bool hasBudgetFilter = selectedBudget != null;
@@ -92,15 +100,12 @@ List<Property> filterHomeProperties({
         final String normalizedLocation = normalizeSearchText(
           property.location,
         );
-        final String normalizedPrice = normalizeSearchText(property.price);
-
-        if (normalizedTitle.contains(normalizedQuery) ||
-            normalizedLocation.contains(normalizedQuery) ||
-            normalizedPrice.contains(normalizedQuery)) {
+        if (wordStartQuery!.hasMatch(normalizedTitle) ||
+            wordStartQuery.hasMatch(normalizedLocation)) {
           return true;
         }
 
-        if (numericQuery.isEmpty) return false;
+        if (!isNumericSearch) return false;
 
         final String numericPrice = digitsOnly(property.price);
         return numericPrice.contains(numericQuery);

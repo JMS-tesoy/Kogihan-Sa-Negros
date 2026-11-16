@@ -1,4 +1,3 @@
-import '../../../../core/enums/subscription_status.dart';
 import '../../../../core/enums/subscription_tier.dart';
 import '../models/plan_model.dart';
 import '../models/subscription_model.dart';
@@ -52,22 +51,8 @@ class SubscriptionRemoteDatasource {
   }
 
   Future<SubscriptionModel> subscribe(String planId) async {
-    // Mock subscription logic
-    final tier = planId == 'yearly_plan'
-        ? SubscriptionTier.yearly
-        : planId == 'monthly_plan'
-        ? SubscriptionTier.monthly
-        : SubscriptionTier.free;
-
-    return SubscriptionModel(
-      id: 'sub_mock_${DateTime.now().millisecondsSinceEpoch}',
-      tier: tier,
-      status: SubscriptionStatus.active,
-      expiresAt: tier == SubscriptionTier.free
-          ? null
-          : DateTime.now().add(
-              Duration(days: tier == SubscriptionTier.yearly ? 365 : 30),
-            ),
+    throw UnsupportedError(
+      'Purchases are unavailable until store billing is configured.',
     );
   }
 }

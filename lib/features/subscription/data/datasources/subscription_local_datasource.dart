@@ -54,5 +54,9 @@ class SubscriptionLocalDatasource {
     await prefs.remove(_subscriptionKey);
   }
 
-  Future<void> restoreSubscription() async {}
+  Future<void> restoreSubscription() async {
+    throw UnsupportedError(
+      'Purchase restoration is unavailable until store billing is configured.',
+    );
+  }
 }

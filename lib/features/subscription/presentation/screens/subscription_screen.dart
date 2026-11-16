@@ -165,6 +165,17 @@ class _SubscriptionBody extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Store billing is not configured. Purchases, restoration '
+                  'and cancellation are unavailable. Plan prices and locally '
+                  'stored access are for demonstration only.',
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             _StatusCard(
               subscription: subscription,
               isActing: controller.isActing,
@@ -187,7 +198,7 @@ class _SubscriptionBody extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: controller.isActing ? null : onRestore,
+              onPressed: null,
               icon: const Icon(Icons.restore),
               label: const Text('Restore Purchase'),
             ),
@@ -295,7 +306,7 @@ class _StatusCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: isActing ? null : onCancel,
+                  onPressed: null,
                   icon: const Icon(Icons.cancel_outlined),
                   label: const Text('Cancel Subscription'),
                   style: OutlinedButton.styleFrom(
@@ -437,7 +448,7 @@ class _PlanCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isActive || isActing ? null : onSubscribe,
+                onPressed: null,
                 child: isActing && !isActive
                     ? const SizedBox(
                         height: 18,

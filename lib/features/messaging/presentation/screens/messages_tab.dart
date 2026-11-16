@@ -10,7 +10,9 @@ import '../widgets/message_palettes.dart';
 import 'chat_page.dart';
 
 class MessagesTab extends StatefulWidget {
-  const MessagesTab({super.key});
+  const MessagesTab({super.key, this.showHeader = true});
+
+  final bool showHeader;
 
   @override
   State<MessagesTab> createState() => _MessagesTabState();
@@ -205,13 +207,15 @@ class _MessagesTabState extends State<MessagesTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              'Inbox',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 20),
+            if (widget.showHeader) ...<Widget>[
+              Text(
+                'Inbox',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => _loadConversations(showLoader: false),

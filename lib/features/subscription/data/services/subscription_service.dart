@@ -151,32 +151,22 @@ class SubscriptionService {
   }
 
   static Future<UserSubscription> purchasePlan(SubscriptionTier tier) async {
-    final UserSubscription subscription = UserSubscription(
-      tier: tier,
-      expiresAt: switch (tier) {
-        SubscriptionTier.free => null,
-        SubscriptionTier.monthly => DateTime.now().add(
-          const Duration(days: 30),
-        ),
-        SubscriptionTier.yearly => DateTime.now().add(
-          const Duration(days: 365),
-        ),
-      },
+    throw UnsupportedError(
+      'Purchases are unavailable until store billing is configured.',
     );
-    await _saveSubscription(subscription);
-    return subscription;
   }
 
   static Future<UserSubscription> restorePurchases() async {
-    final UserSubscription subscription = await loadCurrentSubscription();
-    appSubscriptionNotifier.value = subscription;
-    return subscription;
+    throw UnsupportedError(
+      'Purchase restoration is unavailable until store billing is configured.',
+    );
   }
 
   static Future<UserSubscription> cancelSubscription() async {
-    const UserSubscription subscription = UserSubscription.free();
-    await _saveSubscription(subscription);
-    return subscription;
+    throw UnsupportedError(
+      'Subscription cancellation is unavailable until store billing is '
+      'configured.',
+    );
   }
 
   /// Called by [SubscriptionController] to push entity changes

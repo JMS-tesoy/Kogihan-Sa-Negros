@@ -7,8 +7,8 @@ import '../widgets/home_header.dart';
 import '../widgets/nearby_properties_section.dart';
 import '../widgets/quick_filter_bar.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class GuestHomeScreen extends StatelessWidget {
+  const GuestHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -6,7 +6,9 @@ import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../subscription/data/services/subscription_service.dart';
 import '../../../subscription/presentation/navigation/subscription_navigation.dart';
 import '../../data/datasources/shared_properties.dart';
+import '../../domain/entities/property_image_entity.dart';
 import 'contact_agent_screen.dart';
+import 'property_gallery_screen.dart';
 import '../widgets/property_image.dart';
 import '../widgets/property_map_preview.dart';
 
@@ -274,6 +276,23 @@ class _PropertyDetailsGalleryState extends State<_PropertyDetailsGallery> {
     );
   }
 
+  void _openFullGallery() {
+    final List<String> imageUrls = _imageUrls;
+    Navigator.of(context).pushNamed(
+      RouteNames.propertyGallery,
+      arguments: PropertyGalleryArgs(
+        images: List<PropertyImageEntity>.generate(
+          imageUrls.length,
+          (index) => PropertyImageEntity(
+            id: '${widget.property.id}-$index',
+            url: imageUrls[index],
+          ),
+        ),
+        initialIndex: _currentIndex,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<String> imageUrls = _imageUrls;
@@ -422,6 +441,16 @@ class _PropertyDetailsGalleryState extends State<_PropertyDetailsGallery> {
                   _SaveButton(
                     isSaved: widget.isSaved,
                     onTap: widget.onToggleSave,
+                  ),
+                  const SizedBox(height: 8),
+                  IconButton(
+                    tooltip: 'Open full gallery',
+                    onPressed: _openFullGallery,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black54,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.fullscreen_rounded),
                   ),
                   const SizedBox(height: 8),
                   Expanded(

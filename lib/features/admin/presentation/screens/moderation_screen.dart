@@ -9,7 +9,7 @@ class ModerationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const AppScaffoldShell(
       title: 'Moderation',
-      body: Center(child: Text('Moderation queue')),
+      body: Center(child: Text('Moderation is not available yet.')),
     );
   }
 }

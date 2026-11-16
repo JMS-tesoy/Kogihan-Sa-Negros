@@ -10,7 +10,7 @@ class InquiriesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const AppScaffoldShell(
       title: 'Inquiries',
-      body: AppEmptyState(message: 'No inquiries yet.'),
+      body: AppEmptyState(message: 'Inquiries are not available yet.'),
     );
   }
 }

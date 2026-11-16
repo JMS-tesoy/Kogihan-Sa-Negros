@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/storage_constants.dart';
 import '../datasources/shared_properties.dart';
@@ -16,20 +17,31 @@ class SavedPropertiesSnapshot {
 class SavedPropertyStorageService {
   const SavedPropertyStorageService._();
 
+  static String savedPropertyIdsStorageKey(String? userId) {
+    final String normalizedUserId = (userId ?? '').trim();
+    if (normalizedUserId.isEmpty) return StorageConstants.savedPropertyIds;
+    return '${StorageConstants.savedPropertyIds}_$normalizedUserId';
+  }
+
+  static String get _currentStorageKey {
+    final String? userId = Supabase.instance.client.auth.currentUser?.id;
+    return savedPropertyIdsStorageKey(userId);
+  }
+
   static Future<Set<String>> loadSavedPropertyIds() async {
+    final String storageKey = _currentStorageKey;
     final SharedPreferences preferences = await SharedPreferences.getInstance();
-    return preferences
-            .getStringList(StorageConstants.savedPropertyIds)
-            ?.toSet() ??
-        <String>{};
+    return preferences.getStringList(storageKey)?.toSet() ?? <String>{};
   }
 
   static Future<void> saveSavedPropertyIds(Set<String> propertyIds) async {
+    final String storageKey = _currentStorageKey;
+    final List<String> ids = propertyIds.toList();
     final SharedPreferences preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(
-      StorageConstants.savedPropertyIds,
-      propertyIds.toList(),
-    );
+    final bool saved = await preferences.setStringList(storageKey, ids);
+    if (!saved) {
+      throw StateError('Failed to persist saved properties.');
+    }
   }
 
   static Future<SavedPropertiesSnapshot> loadSavedProperties({

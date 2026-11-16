@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app_shell.dart';
 import '../../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/screens/moderation_screen.dart';
 import '../../features/agent/presentation/screens/agent_dashboard_screen.dart';
@@ -12,7 +13,7 @@ import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/favorites/presentation/screens/favorites_screen.dart';
-import '../../features/home/presentation/screens/home_screen.dart';
+import '../../features/home/presentation/screens/guest_home_screen.dart';
 import '../../features/inquiries/presentation/screens/inquiries_screen.dart';
 import '../../features/map/presentation/screens/map_screen.dart';
 import '../../features/messaging/presentation/screens/chat_screen.dart';
@@ -58,7 +59,7 @@ abstract final class AppRouter {
       case RouteNames.forgotPassword:
         return const ForgotPasswordScreen();
       case RouteNames.home:
-        return const HomeScreen();
+        return _buyerHomeRoute();
       case RouteNames.properties:
         return const PropertyListScreen();
       case RouteNames.propertyDetails:
@@ -70,7 +71,15 @@ abstract final class AppRouter {
           onToggleSave: args.onToggleSave,
         );
       case RouteNames.propertyGallery:
-        return const PropertyGalleryScreen();
+        final Object? arguments = settings.arguments;
+        if (arguments is! PropertyGalleryArgs) {
+          throw ArgumentError.value(
+            arguments,
+            'settings.arguments',
+            'Expected PropertyGalleryArgs for ${RouteNames.propertyGallery}.',
+          );
+        }
+        return PropertyGalleryScreen(arguments: arguments);
       case RouteNames.propertyFilter:
         return const PropertyFilterScreen();
       case RouteNames.propertySearch:
@@ -86,11 +95,23 @@ abstract final class AppRouter {
       case RouteNames.inbox:
         return const InboxScreen();
       case RouteNames.chat:
-        return const ChatScreen();
+        final Object? arguments = settings.arguments;
+        if (arguments is! ChatScreenArgs) {
+          throw ArgumentError.value(
+            arguments,
+            'settings.arguments',
+            'Expected ChatScreenArgs for ${RouteNames.chat}.',
+          );
+        }
+        return ChatScreen(
+          conversationId: arguments.conversationId,
+          senderName: arguments.senderName,
+          initialMessages: arguments.initialMessages,
+        );
       case RouteNames.agentDashboard:
         return _agentRoute(const AgentDashboardScreen());
       case RouteNames.agentTeams:
-        return const AgentTeamsScreen();
+        return _authenticatedRoute(const AgentTeamsScreen());
       case RouteNames.manageListings:
         return _agentRoute(const ManageListingsScreen());
       case RouteNames.createListing:
@@ -117,16 +138,30 @@ abstract final class AppRouter {
     }
   }
 
+  static Widget _buyerHomeRoute() {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    return user == null ? const GuestHomeScreen() : const AppHomePage();
+  }
+
+  static Widget _authenticatedRoute(Widget screen) {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    return user == null ? const LoginScreen() : screen;
+  }
+
   static Widget _agentRoute(Widget screen) {
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) return const LoginScreen();
-    return RouteGuards.canAccessAgentRoutes(user) ? screen : const HomeScreen();
+    return RouteGuards.canAccessAgentRoutes(user)
+        ? screen
+        : const GuestHomeScreen();
   }
 
   static Widget _adminRoute(Widget screen) {
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) return const LoginScreen();
-    return RouteGuards.canAccessAdminRoutes(user) ? screen : const HomeScreen();
+    return RouteGuards.canAccessAdminRoutes(user)
+        ? screen
+        : const GuestHomeScreen();
   }
 }
 
