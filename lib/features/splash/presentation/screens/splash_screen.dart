@@ -183,7 +183,7 @@ class _SplashLogo extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(34),
-        child: Image.asset('asset/ksn_logo.png', fit: BoxFit.cover),
+        child: Image.asset('assets/branding/ksn_logo.png', fit: BoxFit.cover),
       ),
     );
   }

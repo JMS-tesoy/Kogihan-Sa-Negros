@@ -63,10 +63,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "asset/ksn_logo.png"
+  image_path: "assets/branding/ksn_logo.png"
   web:
     generate: true
-    image_path: "asset/ksn_logo.png"
+    image_path: "assets/branding/ksn_logo.png"
     background_color: "#ffffff"
     theme_color: "#ffffff"
 
@@ -82,7 +82,7 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - asset/
+    - assets/branding/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

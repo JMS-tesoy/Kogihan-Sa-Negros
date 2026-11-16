@@ -143,7 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Image.asset(
-                              'asset/ksn_logo.png',
+                              'assets/branding/ksn_logo.png',
                               fit: BoxFit.cover,
                             ),
                           ),

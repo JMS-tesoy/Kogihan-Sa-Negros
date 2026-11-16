@@ -8,6 +8,40 @@
 
 Land Finder is a Flutter-based mobile application prototype designed to help users browse, filter, and save real estate property listings. The app focuses on properties in the Negros region (Philippines), providing a localized experience with features like search, filtering by location, lot size, and budget, and a personal saved properties list.
 
+## Project Structure
+
+The app uses feature-first Clean Architecture. Feature code stays together,
+with `data/`, `domain/`, and `presentation/` layers where they are useful.
+Shared app setup belongs in `lib/app/`, cross-feature foundations in
+`lib/core/`, and reusable components in `lib/shared/`.
+
+```text
+lib/
+  app/
+  core/
+  features/<feature>/
+    data/
+    domain/
+    presentation/
+  l10n/
+  shared/
+assets/
+  branding/
+test/
+  app/
+  features/
+  integration/
+supabase/
+  functions/
+  migrations/
+docs/
+archive/
+```
+
+Tests are grouped by the app area they cover; cross-feature behavior belongs
+under `test/integration/`. Historical source snapshots and review patches are
+kept under `archive/` rather than alongside active source code.
+
 ## Screenshots
 
 > *[Add screenshots or GIFs of your app here to demonstrate the UI/UX]*
@@ -132,11 +166,11 @@ The DTD URI is tied to the current running app session. If you stop and rerun th
 ### Things to Be Aware Of
 
 - **Hardcoded Data**: Currently, property listings are hardcoded within `lib/main.dart`. For a production application, this data would typically come from an API or a database.
-- **Single File Architecture**: The entire application logic and UI are contained within `lib/main.dart`. As the project grows, it's highly recommended to refactor this into a multi-file, modular structure (e.g., `lib/models`, `lib/screens`, `lib/widgets`, `lib/services`).
+- **Feature-first Architecture**: The app is organized by feature under `lib/features/`, with shared app configuration, core utilities, and reusable UI kept in their respective top-level folders.
 - **State Management**: The app uses `setState` for local state management. For more complex state, consider adopting a dedicated state management solution like Provider, Riverpod, or BLoC.
 - **Placeholder Features**: The "Map" tab is a placeholder. The "Dark Mode" toggle in settings is currently not wired up to change the actual theme.
 - **Error Handling**: Minimal error handling is implemented.
-- **Testing**: No unit or widget tests are currently included.
+- **Testing**: Automated tests are organized under `test/` by feature or test type.
 
 ### Standard Procedures
 
