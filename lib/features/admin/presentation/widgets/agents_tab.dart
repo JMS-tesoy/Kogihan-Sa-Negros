@@ -24,11 +24,17 @@ class AgentsTab extends StatefulWidget {
     required this.fetchProfiles,
     required this.upsertProfile,
     required this.deleteProfile,
+    required this.onCountChanged,
+    this.onProfileDeleted,
+    this.refreshVersion = 0,
   });
 
   final FetchAgentProfiles fetchProfiles;
   final UpsertAgentProfile upsertProfile;
   final DeleteAgentProfile deleteProfile;
+  final ValueChanged<int> onCountChanged;
+  final VoidCallback? onProfileDeleted;
+  final int refreshVersion;
 
   @override
   State<AgentsTab> createState() => _AgentsTabState();
@@ -39,6 +45,7 @@ class _AgentsTabState extends State<AgentsTab> {
   bool _isLoading = true;
   String? _error;
   String _search = '';
+  int _loadVersion = 0;
 
   List<AgentProfile> get _filtered {
     final String q = _search.trim().toLowerCase();
@@ -57,20 +64,30 @@ class _AgentsTabState extends State<AgentsTab> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant AgentsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshVersion != widget.refreshVersion) {
+      _load();
+    }
+  }
+
   Future<void> _load() async {
+    final int loadVersion = ++_loadVersion;
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
       final List<AgentProfile> profiles = await widget.fetchProfiles();
-      if (!mounted) return;
+      if (!mounted || loadVersion != _loadVersion) return;
       setState(() {
         _profiles = profiles;
         _isLoading = false;
       });
+      widget.onCountChanged(profiles.length);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || loadVersion != _loadVersion) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -167,6 +184,7 @@ class _AgentsTabState extends State<AgentsTab> {
                     if (mounted) {
                       AppSnackBar.success(context, 'Agent deleted.');
                       _load();
+                      widget.onProfileDeleted?.call();
                     }
                   } catch (e) {
                     if (mounted) {
@@ -216,7 +234,21 @@ class _AgentsTabState extends State<AgentsTab> {
     final ColorScheme cs = theme.colorScheme;
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(
+              'Loading agents…',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_error != null) {
@@ -248,98 +280,105 @@ class _AgentsTabState extends State<AgentsTab> {
           ),
         ),
         const SizedBox(height: 8),
-        if (filtered.isEmpty)
-          Expanded(
-            child: Center(
-              child: Text(
-                _search.isEmpty ? 'No agents found.' : 'No results.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: filtered.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final AgentProfile profile = filtered[index];
-                  return Card(
-                    margin: EdgeInsets.zero,
-                    child: ListTile(
-                      onTap: () => _showEditDialog(profile),
-                      leading: CircleAvatar(
-                        backgroundColor: cs.primaryContainer,
-                        backgroundImage:
-                            profile.avatarUrl != null &&
-                                profile.avatarUrl!.isNotEmpty
-                            ? NetworkImage(profile.avatarUrl!)
-                            : null,
-                        child:
-                            profile.avatarUrl == null ||
-                                profile.avatarUrl!.isEmpty
-                            ? Icon(
-                                Icons.person_outline_rounded,
-                                color: cs.onPrimaryContainer,
-                              )
-                            : null,
-                      ),
-                      title: Text(
-                        profile.fullName.isEmpty
-                            ? '(no name)'
-                            : profile.fullName,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: filtered.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    children: <Widget>[
+                      SizedBox(
+                        height: 240,
+                        child: _AgentsEmptyState(
+                          title: _search.trim().isEmpty
+                              ? 'No agents yet'
+                              : 'No matching agents',
+                          message: _search.trim().isEmpty
+                              ? 'Create an agent profile to get started.'
+                              : 'Try a different name, email, phone, or team.',
                         ),
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            profile.email.isEmpty ? '—' : profile.email,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
+                    ],
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final AgentProfile profile = filtered[index];
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        child: ListTile(
+                          onTap: () => _showEditDialog(profile),
+                          leading: CircleAvatar(
+                            backgroundColor: cs.primaryContainer,
+                            backgroundImage:
+                                profile.avatarUrl != null &&
+                                    profile.avatarUrl!.isNotEmpty
+                                ? NetworkImage(profile.avatarUrl!)
+                                : null,
+                            child:
+                                profile.avatarUrl == null ||
+                                    profile.avatarUrl!.isEmpty
+                                ? Icon(
+                                    Icons.person_outline_rounded,
+                                    color: cs.onPrimaryContainer,
+                                  )
+                                : null,
+                          ),
+                          title: Text(
+                            profile.fullName.isEmpty
+                                ? '(no name)'
+                                : profile.fullName,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          if (profile.teamName != null &&
-                              profile.teamName!.isNotEmpty)
-                            Row(
-                              children: <Widget>[
-                                Icon(
-                                  Icons.group_outlined,
-                                  size: 13,
-                                  color: cs.primary,
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                profile.email.isEmpty ? '—' : profile.email,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  profile.teamName!,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: cs.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              ),
+                              if (profile.teamName != null &&
+                                  profile.teamName!.isNotEmpty)
+                                Row(
+                                  children: <Widget>[
+                                    Icon(
+                                      Icons.group_outlined,
+                                      size: 13,
+                                      color: cs.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      profile.teamName!,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: cs.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                        ],
-                      ),
-                      trailing: const Icon(Icons.edit_outlined, size: 20),
-                    ),
-                  );
-                },
-              ),
-            ),
+                            ],
+                          ),
+                          trailing: const Icon(Icons.edit_outlined, size: 20),
+                        ),
+                      );
+                    },
+                  ),
           ),
+        ),
       ],
     );
   }
 }
 
-// ─── Missing Error View Widget ──────────────────────────────────────────────
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
 
@@ -348,18 +387,32 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+            Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: theme.colorScheme.error,
+            ),
             const SizedBox(height: 12),
+            Text(
+              'Something went wrong',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 15),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -369,6 +422,43 @@ class _ErrorView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AgentsEmptyState extends StatelessWidget {
+  const _AgentsEmptyState({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.badge_outlined, size: 40, color: cs.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

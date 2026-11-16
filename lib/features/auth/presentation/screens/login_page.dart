@@ -16,12 +16,14 @@ import 'sign_up_page.dart';
 class LoginPageView extends StatefulWidget {
   final WidgetBuilder loginBuilder;
   final WidgetBuilder homeBuilder;
+  final WidgetBuilder agentBuilder;
   final WidgetBuilder adminBuilder;
 
   const LoginPageView({
     super.key,
     required this.loginBuilder,
     required this.homeBuilder,
+    required this.agentBuilder,
     required this.adminBuilder,
   });
 
@@ -39,13 +41,11 @@ class _LoginPageViewState extends State<LoginPageView> {
   String? _errorText;
   StreamSubscription<AuthState>? _authSubscription;
   bool _isRouting = false;
-  bool _isOpeningPasswordRecovery = false;
 
   @override
   void initState() {
     super.initState();
     _authSubscription = AuthSessionService.listenForLoginRouting(
-      onPasswordRecovery: _openPasswordRecoveryPage,
       onSignedIn: _routeToAuthenticatedUser,
     );
   }
@@ -59,7 +59,7 @@ class _LoginPageViewState extends State<LoginPageView> {
   }
 
   Future<void> _routeToAuthenticatedUser(User? user) async {
-    if (user == null || !mounted || _isRouting || _isOpeningPasswordRecovery) {
+    if (user == null || !mounted || _isRouting) {
       return;
     }
 
@@ -71,23 +71,13 @@ class _LoginPageViewState extends State<LoginPageView> {
         context,
         user: user,
         adminBuilder: widget.adminBuilder,
+        agentBuilder: widget.agentBuilder,
         homeBuilder: widget.homeBuilder,
       );
     } finally {
       if (mounted) {
         _isRouting = false;
       }
-    }
-  }
-
-  Future<void> _openPasswordRecoveryPage() async {
-    if (!mounted || _isOpeningPasswordRecovery) return;
-
-    _isOpeningPasswordRecovery = true;
-    await openPasswordRecoveryPage(context, loginBuilder: widget.loginBuilder);
-
-    if (mounted) {
-      _isOpeningPasswordRecovery = false;
     }
   }
 
@@ -131,6 +121,39 @@ class _LoginPageViewState extends State<LoginPageView> {
       setState(() {
         _errorText = disabledDevShortcutMessage;
       });
+      return;
+    }
+
+    if (devShortcut.isAgent) {
+      setState(() {
+        _isLoading = true;
+        _errorText = null;
+      });
+
+      try {
+        final User? user =
+            await AuthSessionService.signInWithDevAgentShortcut();
+        await _routeToAuthenticatedUser(user);
+      } on AuthException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _errorText = _friendlyAuthError(e, fallback: e.message);
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _errorText = _friendlyAuthError(
+            error,
+            fallback: 'Agent login failed. Please try again.',
+          );
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
       return;
     }
 

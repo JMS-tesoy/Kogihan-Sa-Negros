@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../auth/presentation/navigation/auth_navigation.dart';
 import '../../../../app/router/route_names.dart';
+import '../../data/services/agent_property_service.dart';
 import '../models/agent_inquiry.dart';
 import 'agent_inbox_page.dart';
-import '../../../agent_teams/presentation/screens/manage_agent_teams_screen.dart';
 import '../../../agent_teams/presentation/screens/team_inbox_screen.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
@@ -33,6 +34,11 @@ class AdminHomePage extends StatefulWidget {
 class _AdminHomePageState extends State<AdminHomePage> {
   List<AgentInquiry> _inquiries = const [];
   bool _isInboxLoading = true;
+  bool _isPropertiesLoading = true;
+  String? _propertiesError;
+  List<Property> _properties = const <Property>[];
+  late final String? _userId;
+  StreamSubscription<AuthState>? _authSubscription;
   RealtimeChannel? _inboxChannel;
   int _selectedDashboardActionTab = 1;
   int _dashboardActionTransitionDirection = 1;
@@ -50,12 +56,24 @@ class _AdminHomePageState extends State<AdminHomePage> {
     });
   }
 
-  List<Property> get _properties => appPropertiesNotifier.value;
-
   @override
   void initState() {
     super.initState();
-    appPropertiesNotifier.addListener(_refreshDashboard);
+    _userId = Supabase.instance.client.auth.currentUser?.id;
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      state,
+    ) {
+      if (state.session?.user.id != _userId && mounted) {
+        setState(() {
+          _properties = const <Property>[];
+          _inquiries = const <AgentInquiry>[];
+          _propertiesError = 'Your account changed. Please sign in again.';
+          _isPropertiesLoading = false;
+          _isInboxLoading = false;
+        });
+      }
+    });
+    unawaited(_loadProperties());
     final List<AgentInquiry> cachedInquiries = cachedAgentInquiries();
     if (cachedInquiries.isNotEmpty) {
       _inquiries = cachedInquiries;
@@ -67,16 +85,39 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   @override
   void dispose() {
-    appPropertiesNotifier.removeListener(_refreshDashboard);
+    unawaited(_authSubscription?.cancel());
     if (_inboxChannel != null) {
       unawaited(Supabase.instance.client.removeChannel(_inboxChannel!));
     }
     super.dispose();
   }
 
-  void _refreshDashboard() {
-    if (!mounted) return;
-    setState(() {});
+  bool get _isCurrentUser =>
+      _userId != null &&
+      Supabase.instance.client.auth.currentUser?.id == _userId;
+
+  Future<void> _loadProperties() async {
+    if (!mounted || !_isCurrentUser) return;
+    setState(() {
+      _isPropertiesLoading = true;
+      _propertiesError = null;
+    });
+    try {
+      final List<Property> properties =
+          await AgentPropertyService.fetchMyProperties();
+      if (!mounted || !_isCurrentUser) return;
+      setState(() {
+        _properties = properties;
+        _isPropertiesLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || !_isCurrentUser) return;
+      setState(() {
+        _properties = const <Property>[];
+        _propertiesError = 'Failed to load your properties: $error';
+        _isPropertiesLoading = false;
+      });
+    }
   }
 
   void _subscribeToInboxUpdates() {
@@ -114,17 +155,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
     try {
       final List<ConversationSummary> summaries =
           await MessagingService.fetchMyConversationSummaries();
-      if (!mounted) return;
+      if (!mounted || !_isCurrentUser) return;
       setState(() {
-        _inquiries = AgentInquiry.groupedFromConversationSummaries(summaries);
+        _inquiries = AgentInquiry.groupedFromConversationSummaries(
+          summaries.where((summary) => summary.agentId == _userId).toList(),
+        );
         _isInboxLoading = false;
       });
-    } catch (_) {
-      if (!mounted) return;
+    } catch (error) {
+      if (!mounted || !_isCurrentUser) return;
       setState(() {
         _inquiries = const [];
         _isInboxLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load buyer inquiries.')),
+      );
     }
   }
 
@@ -137,7 +183,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
     if (newProperty == null || !mounted) return;
 
     try {
+      if (!_isCurrentUser || newProperty.agentId != _userId) {
+        throw StateError('Please sign in again before adding a property.');
+      }
       final Property createdProperty = await createProperty(newProperty);
+      await _loadProperties();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,6 +202,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Future<void> _openManagePropertiesPage() async {
+    if (_isPropertiesLoading || _propertiesError != null || !_isCurrentUser) {
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -162,6 +215,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         ),
       ),
     );
+    if (mounted && _isCurrentUser) await _loadProperties();
   }
 
   Future<void> _openInboxPage({
@@ -193,7 +247,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Future<void> _openManageTeamsPage() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const ManageAgentTeamsScreen()),
+      MaterialPageRoute(
+        builder: (context) => const TeamInboxPage(showTeamDetails: true),
+      ),
     );
   }
 
@@ -206,11 +262,17 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Future<void> _updatePropertyRecord(Property updatedProperty) async {
-    await updateProperty(updatedProperty);
+    if (!_isCurrentUser || updatedProperty.agentId != _userId) {
+      throw StateError('You can only update your own properties.');
+    }
+    await updateProperty(updatedProperty, agentId: _userId);
   }
 
   Future<void> _deletePropertyRecord(String propertyId) async {
-    await deleteProperty(propertyId);
+    if (!_isCurrentUser) {
+      throw StateError('Please sign in again.');
+    }
+    await deleteProperty(propertyId, agentId: _userId);
   }
 
   void _markInquiryAsRead(String inquiryId) {
@@ -344,7 +406,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
       accentColor: Colors.orange,
       title: 'Manage Properties',
       subtitle: 'Review and update your active listings.',
-      badgeText: '${_properties.length} listing(s)',
+      badgeText: _isPropertiesLoading
+          ? 'Loading listings...'
+          : _propertiesError != null
+          ? 'Listings unavailable'
+          : '${_properties.length} listing(s)',
       onTap: _openManagePropertiesPage,
     );
 
@@ -352,9 +418,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
       context: context,
       icon: Icons.admin_panel_settings_outlined,
       accentColor: Colors.teal,
-      title: 'Manage Teams',
-      subtitle: 'View members, handle join requests, and manage agent teams.',
-      badgeText: 'Admin',
+      title: 'My Teams',
+      subtitle: 'View the teams you belong to.',
+      badgeText: 'Your teams',
       onTap: _openManageTeamsPage,
     );
 
@@ -434,7 +500,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             children: [
               _buildPropertyActionTabButton(
                 context: context,
-                label: 'Manage Team',
+                label: 'My Teams',
                 icon: Icons.admin_panel_settings_outlined,
                 isSelected: isManageTeamSelected,
                 onTap: () => _selectDashboardActionTab(0),
@@ -714,7 +780,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
             children: [
               _buildOverviewTile(
                 context: context,
-                value: '${_properties.length}',
+                value: _isPropertiesLoading
+                    ? '...'
+                    : _propertiesError != null
+                    ? '-'
+                    : '${_properties.length}',
                 label: 'Listings',
                 icon: Icons.home_work_rounded,
                 accentColor: theme.colorScheme.primary,
@@ -740,6 +810,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
             ],
           ),
+          if (_propertiesError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _propertiesError!,
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+            TextButton(onPressed: _loadProperties, child: const Text('Retry')),
+          ],
           const SizedBox(height: 22),
           _buildPropertyActionSplitTabs(context),
         ],
@@ -751,10 +829,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
 class AgentDashboardScreen extends StatelessWidget {
   const AgentDashboardScreen({super.key});
 
-  static Future<void> _noopLogout(BuildContext context) async {}
+  static Future<void> _signOut(BuildContext context) {
+    return signOutAndReturnToLoginRoute(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AdminHomePage(onLogout: _noopLogout);
+    return AdminHomePage(onLogout: _signOut);
   }
 }

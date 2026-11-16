@@ -110,7 +110,10 @@ class _AgentInboxPageState extends State<AgentInboxPage> {
           await MessagingService.fetchMyConversationSummaries();
       if (!mounted) return;
       setState(() {
-        _inquiries = AgentInquiry.groupedFromConversationSummaries(summaries);
+        final String? userId = Supabase.instance.client.auth.currentUser?.id;
+        _inquiries = AgentInquiry.groupedFromConversationSummaries(
+          summaries.where((summary) => summary.agentId == userId).toList(),
+        );
       });
     } catch (_) {}
   }

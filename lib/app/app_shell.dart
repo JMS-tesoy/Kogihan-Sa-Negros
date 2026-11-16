@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../features/agent/presentation/screens/agent_dashboard_screen.dart';
 import '../features/auth/presentation/navigation/auth_navigation.dart';
 import '../features/auth/presentation/screens/login_page.dart';
@@ -38,8 +39,8 @@ class AppLoginPage extends StatelessWidget {
     return LoginPageView(
       loginBuilder: (context) => const AppLoginPage(),
       homeBuilder: (context) => const AppHomePage(),
-      adminBuilder: (context) =>
-          AdminHomePage(onLogout: _signOutAndReturnToLogin),
+      agentBuilder: (context) => const AgentDashboardScreen(),
+      adminBuilder: (context) => const AdminDashboardScreen(),
     );
   }
 }

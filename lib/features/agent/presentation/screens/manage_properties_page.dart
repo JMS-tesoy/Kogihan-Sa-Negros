@@ -246,12 +246,18 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
 
     if (index == -1) return;
 
+    try {
+      await widget.onUpdateProperty(updatedProperty);
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'Failed to update property: $error');
+      return;
+    }
+    if (!mounted) return;
+
     setState(() {
       _properties[index] = updatedProperty;
     });
-    await widget.onUpdateProperty(updatedProperty);
-    if (!mounted) return;
-
     AppSnackBar.success(
       context,
       '${updatedProperty.title} updated successfully.',
@@ -259,12 +265,18 @@ class _ManagePropertiesPageState extends State<ManagePropertiesPage> {
   }
 
   Future<void> _deleteProperty(Property property) async {
+    try {
+      await widget.onDeleteProperty(property.id);
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'Failed to delete property: $error');
+      return;
+    }
+    if (!mounted) return;
+
     setState(() {
       _properties.removeWhere((item) => item.id == property.id);
     });
-    await widget.onDeleteProperty(property.id);
-    if (!mounted) return;
-
     AppSnackBar.success(context, '${property.title} deleted.');
   }
 

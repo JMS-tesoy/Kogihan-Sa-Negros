@@ -9,7 +9,7 @@ class PropertyContactBar extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: FilledButton.icon(
-            onPressed: () {},
+            onPressed: null,
             icon: const Icon(Icons.message),
             label: const Text('Message'),
           ),
@@ -17,7 +17,7 @@ class PropertyContactBar extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: null,
             icon: const Icon(Icons.call),
             label: const Text('Call'),
           ),

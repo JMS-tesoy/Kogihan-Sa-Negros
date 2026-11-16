@@ -13,7 +13,7 @@ class MediaUploadGrid extends StatelessWidget {
       children: <Widget>[
         for (final item in items) Chip(label: Text(item)),
         OutlinedButton.icon(
-          onPressed: () {},
+          onPressed: null,
           icon: const Icon(Icons.add_photo_alternate),
           label: const Text('Add media'),
         ),

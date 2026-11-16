@@ -6,7 +6,7 @@ metadata:
 disable-model-invocation: false
 ---
 
-Entered plan mode. You should now focus on exploring the codebase and designing an implementation approach.
+Entered plan mode. You should now focus on exploring the codebase and designing an implementation approach. Plan mode ends only when the user explicitly approves the plan or asks you to proceed. Until then, do not make edits or run non-readonly tools.
 
 In plan mode, you should:
 1. Thoroughly explore the codebase to understand existing patterns
@@ -16,18 +16,18 @@ In plan mode, you should:
 5. When ready, answer with your plan. you also could write plan somewhere and return path to this plan.
 
 Remember: DO NOT write or edit any files yet (except plan). This is a read-only exploration and planning phase.
-You should mostly rely on subagents to explore codebase and design plan. For the subagent model parameter you should use a cheap model.
+You should mostly rely on subagents to explore codebase and design plan. When launching design agents in Phase 2, use the most powerful models available. For exploration agents in Phase 1, use a cheap model.
 <system-reminder>
 Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.
 
 ## Plan File Info:
-No plan file exists yet. You should create your plan at {{ subagent_artifact_path }}/{{ uuid }}_plan.md
+No plan file exists yet. You should create your plan at {{ subagent_artifact_path }}/{{ uuid }}_plan.md. If the path variables are not populated, stop and ask the user for a plan file location.
 You should build your plan incrementally by writing to or editing this file. NOTE that this is the only file you are allowed to edit - other than this you are only allowed to take READ-ONLY actions.
 
 ## Plan Workflow
 
 ### Phase 1: Initial Understanding
-Goal: Gain a comprehensive understanding of the user's request by reading through code and asking them questions.
+Goal: Gain a comprehensive understanding of the user's request by reading through code and asking them questions. If key requirements are unclear after exploration, ask the user up to 3 concise questions in a single message, then wait for their answers before Phase 2.
 
 **CRITICAL: In this phase you MUST ONLY use research agents - no other agent types.**
 
@@ -35,23 +35,21 @@ Goal: Gain a comprehensive understanding of the user's request by reading throug
 
 2. **Launch up to 3 research agents for exploring IN PARALLEL** (single message, multiple tool calls) to efficiently explore the codebase.
    - Use `skill: 'research'` for all exploration agents
-   - Use the cheapest model available
-   - Use 1 agent when the task is isolated to known files, the user provided specific file paths, or you're making a small targeted change.
-   - Use multiple agents when: the scope is uncertain, multiple areas of the codebase are involved, or you need to understand existing patterns before planning.
-   - Quality over quantity - 3 agents maximum, but you should try to use the minimum number of agents necessary (usually just 1)
+   - Set the subagent model parameter to the lowest-cost model from the configured model list (for example, the model tagged as cheap in the environment).
+   - Default to 1 research agent. Use 2-3 agents only when at least one listed condition applies (scope uncertain, multiple code areas involved, or existing patterns must be understood first).
    - If using multiple agents: Provide each agent with a specific search focus or area to explore. Example: One agent searches for existing implementations, another explores related components, a third investigating testing patterns
 
 ### Phase 2: Design
 Goal: Design an implementation approach.
 
-Launch agent(s) to design the implementation based on the user's intent and your exploration results from Phase 1.
+Launch agent(s) to design the implementation based on the user's intent and your exploration results from Phase 1. If a subagent fails or returns no usable output, retry once with a narrower prompt. If it fails again, continue with your own read-only analysis and note the gap in the plan.
 
 You can launch up to 3 agent(s) in parallel.
 
 **Guidelines:**
-- **Default**: Launch at least 1 design agent for most tasks - it helps validate your understanding and consider alternatives. Use the most powerful models for design work
+- **Default**: Launch at least 1 design agent for most tasks - it helps validate your understanding and consider alternatives. Use the most powerful models for design work.
 - **Skip agents**: Only for truly trivial tasks (typo fixes, single-line changes, simple renames)
-- **Multiple agents**: Use up to 3 agents for complex tasks that benefit from different perspectives. When multiple providers are available, use a different provider for each agent to leverage the most capable model from each provider and gain diverse perspectives
+- **Multiple agents**: Use up to 3 agents for complex tasks that benefit from different perspectives. When multiple providers are available, use a different provider for each agent to leverage the most capable model from each provider and gain diverse perspectives. If only one provider is available, use that provider for all agents and vary each agent's perspective instead.
 
 Examples of when to use multiple agents:
 - The task touches multiple parts of the codebase

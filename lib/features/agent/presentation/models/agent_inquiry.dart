@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../messaging/data/services/messaging_service.dart';
 
 enum AgentInboxFilter { all, unread }
@@ -40,7 +42,10 @@ List<AgentInquiry> cachedAgentInquiries() {
   final List<ConversationSummary> cachedSummaries =
       MessagingService.getCachedConversationSummaries();
   if (cachedSummaries.isEmpty) return const [];
-  return AgentInquiry.groupedFromConversationSummaries(cachedSummaries);
+  final String? userId = Supabase.instance.client.auth.currentUser?.id;
+  return AgentInquiry.groupedFromConversationSummaries(
+    cachedSummaries.where((summary) => summary.agentId == userId).toList(),
+  );
 }
 
 class AgentInquiry {

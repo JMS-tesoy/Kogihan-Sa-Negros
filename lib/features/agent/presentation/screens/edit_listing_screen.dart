@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/app_scaffold_shell.dart';
-import '../widgets/listing_form.dart';
+import '../../../properties/data/datasources/shared_properties.dart';
+import 'property_form_page.dart';
 
 class EditListingScreen extends StatelessWidget {
-  const EditListingScreen({super.key});
+  final Property? initialProperty;
+
+  const EditListingScreen({super.key, this.initialProperty});
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffoldShell(
-      title: 'Edit Listing',
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListingForm(submitLabel: 'Save changes', onSubmit: () {}),
-      ),
-    );
+    return PropertyFormPage(initialProperty: initialProperty);
   }
 }

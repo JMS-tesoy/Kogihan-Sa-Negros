@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/screens/moderation_screen.dart';
@@ -31,6 +32,7 @@ import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/subscription/presentation/screens/plans_screen.dart';
 import '../../features/subscription/presentation/screens/subscription_screen.dart';
+import 'route_guards.dart';
 import 'route_names.dart';
 
 abstract final class AppRouter {
@@ -86,15 +88,16 @@ abstract final class AppRouter {
       case RouteNames.chat:
         return const ChatScreen();
       case RouteNames.agentDashboard:
-        return const AgentDashboardScreen();
+        return _agentRoute(const AgentDashboardScreen());
       case RouteNames.agentTeams:
         return const AgentTeamsScreen();
       case RouteNames.manageListings:
-        return const ManageListingsScreen();
+        return _agentRoute(const ManageListingsScreen());
       case RouteNames.createListing:
-        return const CreateListingScreen();
+        return _agentRoute(const CreateListingScreen());
       case RouteNames.editListing:
-        return const EditListingScreen();
+        final Property? property = settings.arguments as Property?;
+        return _agentRoute(EditListingScreen(initialProperty: property));
       case RouteNames.profile:
         return const ProfileScreen();
       case RouteNames.editProfile:
@@ -106,12 +109,24 @@ abstract final class AppRouter {
       case RouteNames.notifications:
         return const NotificationsScreen();
       case RouteNames.adminDashboard:
-        return const AdminDashboardScreen();
+        return _adminRoute(const AdminDashboardScreen());
       case RouteNames.moderation:
-        return const ModerationScreen();
+        return _adminRoute(const ModerationScreen());
       default:
         return const SplashScreen();
     }
+  }
+
+  static Widget _agentRoute(Widget screen) {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return const LoginScreen();
+    return RouteGuards.canAccessAgentRoutes(user) ? screen : const HomeScreen();
+  }
+
+  static Widget _adminRoute(Widget screen) {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return const LoginScreen();
+    return RouteGuards.canAccessAdminRoutes(user) ? screen : const HomeScreen();
   }
 }
 

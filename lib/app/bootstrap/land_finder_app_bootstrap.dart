@@ -14,19 +14,27 @@ import '../config/mapbox_config.dart';
 import '../config/supabase_config.dart';
 import '../state/app_display_preferences.dart';
 
-Future<void> initializeLandFinderAppBootstrap() async {
+String resolveMapboxAccessToken({Map<String, String>? env}) {
+  final source = env ?? dotenv.env;
+  return (source['MAPBOX_ACCESS_TOKEN'] ?? '').trim();
+}
+
+Future<void> initializeMapboxConfiguration() async {
   try {
     await dotenv.load(fileName: '.env');
-    final String envToken = dotenv.env['MAPBOX_ACCESS_TOKEN']?.trim() ?? '';
-    if (envToken.isNotEmpty) {
-      MapboxConfig.accessToken = envToken;
-    }
   } catch (_) {}
+
+  final String envToken = resolveMapboxAccessToken();
+  if (envToken.isNotEmpty) {
+    MapboxConfig.accessToken = envToken;
+  }
 
   if (MapboxConfig.accessToken.isNotEmpty) {
     MapboxOptions.setAccessToken(MapboxConfig.accessToken);
   }
+}
 
+Future<void> initializeFirebaseServices() async {
   // Firebase must be initialized before Supabase so the FCM token
   // is available when NotificationService registers it after login.
   try {
@@ -40,7 +48,9 @@ Future<void> initializeLandFinderAppBootstrap() async {
       stackTrace: stackTrace,
     );
   }
+}
 
+Future<void> initializeSupabaseServices() async {
   try {
     await Supabase.initialize(
       url: SupabaseConfig.effectiveUrl,
@@ -57,7 +67,12 @@ Future<void> initializeLandFinderAppBootstrap() async {
       stackTrace: stackTrace,
     );
   }
+}
 
+Future<void> initializeLandFinderAppBootstrap() async {
+  await initializeMapboxConfiguration();
+  await initializeFirebaseServices();
+  await initializeSupabaseServices();
   await SubscriptionService.initialize();
   await initializeAppThemePreference();
 }

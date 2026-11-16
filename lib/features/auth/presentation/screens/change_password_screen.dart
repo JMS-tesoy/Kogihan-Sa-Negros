@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/config/auth_config.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 
 class ChangePasswordPage extends StatefulWidget {
@@ -57,6 +59,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     return null;
   }
 
+  bool _isConfiguredDevAgentPassword(String password) {
+    final User? user = Supabase.instance.client.auth.currentUser;
+    return kDebugMode &&
+        widget.isPasswordRecovery &&
+        AuthConfig.hasDevAgentCredentials &&
+        user?.email?.trim().toLowerCase() ==
+            AuthConfig.devAgentEmail.trim().toLowerCase() &&
+        password == AuthConfig.devAgentPassword;
+  }
+
   Future<void> _changePassword() async {
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -68,7 +80,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       return;
     }
 
-    final passwordError = _validatePasswordComplexity(newPassword);
+    final passwordError = _isConfiguredDevAgentPassword(newPassword)
+        ? null
+        : _validatePasswordComplexity(newPassword);
     if (passwordError != null) {
       setState(() {
         _errorText = passwordError;

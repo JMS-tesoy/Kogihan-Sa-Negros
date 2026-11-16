@@ -1,13 +1,12 @@
-import '../../core/enums/user_role.dart';
-import '../state/app_session.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../features/auth/domain/helpers/auth_user_role.dart';
 
 abstract final class RouteGuards {
-  static bool canAccessAgentRoutes(AppSession session) {
-    return session.user?.role == UserRole.agent ||
-        session.user?.role == UserRole.admin;
+  static bool canAccessAgentRoutes(User? user) {
+    return user != null && (isAgentAuthUser(user) || isAdminAuthUser(user));
   }
 
-  static bool canAccessAdminRoutes(AppSession session) {
-    return session.user?.role == UserRole.admin;
-  }
+  static bool canAccessAdminRoutes(User? user) =>
+      user != null && isAdminAuthUser(user);
 }

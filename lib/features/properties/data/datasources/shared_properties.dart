@@ -413,11 +413,15 @@ Future<Property> createProperty(Property property) async {
   return createdProperty;
 }
 
-Future<Property> updateProperty(Property property) async {
-  final Map<String, dynamic> response = await Supabase.instance.client
+Future<Property> updateProperty(Property property, {String? agentId}) async {
+  var query = Supabase.instance.client
       .from('properties')
       .update(property.toUpdateMap())
-      .eq('id', property.id)
+      .eq('id', property.id);
+  if (agentId != null) {
+    query = query.eq('agent_id', agentId);
+  }
+  final Map<String, dynamic> response = await query
       .select(
         '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
         'agent_teams(name)',
@@ -442,11 +446,18 @@ Future<Property> updateProperty(Property property) async {
   return updatedProperty;
 }
 
-Future<void> deleteProperty(String propertyId) async {
-  await Supabase.instance.client
+Future<void> deleteProperty(String propertyId, {String? agentId}) async {
+  var query = Supabase.instance.client
       .from('properties')
       .delete()
       .eq('id', propertyId);
+  if (agentId != null) {
+    query = query.eq('agent_id', agentId);
+  }
+  final List<dynamic> deleted = await query.select('id');
+  if (deleted.isEmpty) {
+    throw StateError('Property not found or you do not have permission.');
+  }
 
   appPropertiesNotifier.value = appPropertiesNotifier.value
       .where((property) => property.id != propertyId)

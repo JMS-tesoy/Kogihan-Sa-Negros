@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_snack_bar.dart';
+import '../../data/datasources/agent_teams_remote_datasource.dart';
 import '../../data/models/team_chat_team.dart';
 import '../../data/services/team_messages_service.dart';
+import '../../domain/entities/agent_team_entity.dart';
+import 'agent_team_detail_screen.dart';
 import 'team_conversation_screen.dart';
 
 Route<T> _instantRoute<T>(Widget child) {
@@ -16,7 +20,9 @@ Route<T> _instantRoute<T>(Widget child) {
 }
 
 class TeamInboxPage extends StatefulWidget {
-  const TeamInboxPage({super.key});
+  const TeamInboxPage({super.key, this.showTeamDetails = false});
+
+  final bool showTeamDetails;
 
   @override
   State<TeamInboxPage> createState() => _TeamInboxPageState();
@@ -63,6 +69,26 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   }
 
   Future<void> _openTeamChat(TeamChatTeam team) async {
+    if (widget.showTeamDetails) {
+      try {
+        final AgentTeamEntity? details = await AgentTeamsRemoteDatasource()
+            .getAgentTeamById(team.id);
+        if (!mounted) return;
+        if (details == null) {
+          throw StateError('Team no longer exists.');
+        }
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AgentTeamDetailScreen(team: details),
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        AppSnackBar.error(context, 'Failed to load team: $error');
+      }
+      return;
+    }
     await Navigator.push(
       context,
       _instantRoute(TeamConversationPage(team: team)),
@@ -72,7 +98,9 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Team Inbox')),
+      appBar: AppBar(
+        title: Text(widget.showTeamDetails ? 'My Teams' : 'Team Inbox'),
+      ),
       body: RefreshIndicator(onRefresh: _loadTeams, child: _buildBody(context)),
     );
   }
@@ -130,7 +158,7 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Create at least one team before using the admin Team Inbox.',
+            'You do not belong to any teams yet.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -166,7 +194,9 @@ class _TeamInboxPageState extends State<TeamInboxPage> {
             title: Text(team.name),
             subtitle: Text(
               team.specialization.isEmpty
-                  ? 'Open team realtime chat'
+                  ? (widget.showTeamDetails
+                        ? 'View team details'
+                        : 'Open team realtime chat')
                   : team.specialization,
             ),
             trailing: const Icon(Icons.chevron_right_rounded),

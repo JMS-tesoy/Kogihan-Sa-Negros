@@ -2,17 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/config/app_config.dart';
+import '../../../../app/router/route_names.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../properties/data/datasources/shared_properties.dart';
 import '../../../properties/presentation/widgets/property_image.dart';
 import '../../data/services/auth_session_service.dart';
 import '../../domain/helpers/auth_user_role.dart';
-import '../screens/change_password_screen.dart';
 
 Future<void> signOutAndReturnToLogin(
   BuildContext context, {
   required WidgetBuilder loginBuilder,
 }) async {
+  await _signOutAndNavigateToLogin(context, () {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: loginBuilder),
+      (route) => false,
+    );
+  });
+}
+
+Future<void> signOutAndReturnToLoginRoute(BuildContext context) {
+  return _signOutAndNavigateToLogin(context, () {
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(RouteNames.login, (route) => false);
+  });
+}
+
+Future<void> _signOutAndNavigateToLogin(
+  BuildContext context,
+  VoidCallback navigateToLogin,
+) async {
   try {
     await AuthSessionService.signOutCurrentUser();
 
@@ -20,11 +41,7 @@ Future<void> signOutAndReturnToLogin(
       return;
     }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: loginBuilder),
-      (route) => false,
-    );
+    navigateToLogin();
   } catch (_) {
     if (!context.mounted) {
       return;
@@ -32,21 +49,6 @@ Future<void> signOutAndReturnToLogin(
 
     AppSnackBar.error(context, 'Failed to log out. Please try again.');
   }
-}
-
-Future<void> openPasswordRecoveryPage(
-  BuildContext context, {
-  required WidgetBuilder loginBuilder,
-}) {
-  return Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ChangePasswordPage(
-        isPasswordRecovery: true,
-        recoveryLoginBuilder: loginBuilder,
-      ),
-    ),
-  );
 }
 
 Future<void> replaceWithAuthenticatedHome(
@@ -73,6 +75,7 @@ Future<void> routeAuthenticatedUser(
   BuildContext context, {
   required User user,
   required WidgetBuilder adminBuilder,
+  required WidgetBuilder agentBuilder,
   required WidgetBuilder homeBuilder,
 }) async {
   await loadProperties();
@@ -83,6 +86,14 @@ Future<void> routeAuthenticatedUser(
 
   if (isAdminAuthUser(user)) {
     await replaceWithAuthenticatedAdmin(context, adminBuilder: adminBuilder);
+    return;
+  }
+
+  if (isAgentAuthUser(user)) {
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: agentBuilder),
+    );
     return;
   }
 

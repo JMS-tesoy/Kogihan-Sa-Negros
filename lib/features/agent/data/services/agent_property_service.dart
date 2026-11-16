@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../properties/data/datasources/shared_properties.dart';
+
 class ListingTeamOption {
   const ListingTeamOption({required this.id, required this.name});
 
@@ -41,6 +43,37 @@ class AgentPropertyService {
   const AgentPropertyService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
+
+  static Future<List<Property>> fetchMyProperties() async {
+    final String? userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Please sign in again to view your properties.');
+    }
+
+    const int pageSize = 100;
+    final List<Property> properties = <Property>[];
+    while (true) {
+      final List<dynamic> rows = await _client
+          .from('properties')
+          .select(
+            '*, agent:agent_id(id, full_name, email, phone, avatar_url), '
+            'agent_teams(name)',
+          )
+          .eq('agent_id', userId)
+          .order('created_at', ascending: false)
+          .order('id')
+          .range(properties.length, properties.length + pageSize - 1);
+      if (_client.auth.currentUser?.id != userId) {
+        throw StateError('Your account changed while loading properties.');
+      }
+      properties.addAll(
+        rows.map(
+          (row) => Property.fromMap(Map<String, dynamic>.from(row as Map)),
+        ),
+      );
+      if (rows.length < pageSize) return properties;
+    }
+  }
 
   static Future<List<ListingTeamOption>> fetchListingTeamOptions() async {
     final List<dynamic> rows = await _client

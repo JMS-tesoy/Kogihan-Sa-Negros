@@ -268,8 +268,32 @@ class MessagingService {
   static List<ConversationSummary> _conversationSummariesCache = const [];
   static final Map<String, List<ConversationMessage>>
   _conversationMessagesCache = <String, List<ConversationMessage>>{};
+  static String? _cacheUserId;
+  static int _cacheGeneration = 0;
+  static bool _isAuthListenerRegistered = false;
+
+  static void _synchronizeCache() {
+    if (!_isAuthListenerRegistered) {
+      _isAuthListenerRegistered = true;
+      _client.auth.onAuthStateChange.listen((_) => _synchronizeCache());
+    }
+    final String? userId = _client.auth.currentUser?.id;
+    if (_cacheUserId == userId) return;
+    _cacheUserId = userId;
+    _cacheGeneration++;
+    _conversationSummariesCache = const [];
+    _conversationMessagesCache.clear();
+  }
+
+  static void _checkCacheSession(String userId, int generation) {
+    _synchronizeCache();
+    if (_cacheUserId != userId || _cacheGeneration != generation) {
+      throw StateError('Your account changed while loading messages.');
+    }
+  }
 
   static User get _currentUser {
+    _synchronizeCache();
     final User? user = _client.auth.currentUser;
     if (user == null) {
       throw StateError('You must be logged in to use messaging.');
@@ -340,6 +364,7 @@ class MessagingService {
   }
 
   static List<ConversationSummary> getCachedConversationSummaries() {
+    _synchronizeCache();
     return List<ConversationSummary>.from(_conversationSummariesCache);
   }
 
@@ -347,6 +372,7 @@ class MessagingService {
     String conversationId, {
     int? limit,
   }) {
+    _synchronizeCache();
     final List<ConversationMessage> cached = List<ConversationMessage>.from(
       _conversationMessagesCache[conversationId] ??
           const <ConversationMessage>[],
@@ -360,6 +386,7 @@ class MessagingService {
     List<String> conversationIds, {
     int? limit,
   }) {
+    _synchronizeCache();
     final List<ConversationMessage> cached = _mergeMessages(
       conversationIds.expand(
         (conversationId) =>
@@ -374,6 +401,7 @@ class MessagingService {
   static Future<List<ConversationSummary>>
   fetchMyConversationSummaries() async {
     final User user = _currentUser;
+    final int generation = _cacheGeneration;
     final List<dynamic> response = await _client
         .from('conversations')
         .select(
@@ -396,6 +424,7 @@ class MessagingService {
           ),
         )
         .toList();
+    _checkCacheSession(user.id, generation);
     _conversationSummariesCache = summaries;
     return summaries;
   }
@@ -404,6 +433,7 @@ class MessagingService {
     String conversationId,
   ) async {
     final User user = _currentUser;
+    final int generation = _cacheGeneration;
     final Map<String, dynamic>? response = await _client
         .from('conversations')
         .select(
@@ -419,6 +449,7 @@ class MessagingService {
         .limit(1, referencedTable: 'messages')
         .maybeSingle();
 
+    _checkCacheSession(user.id, generation);
     if (response == null) {
       return null;
     }
@@ -458,6 +489,8 @@ class MessagingService {
     int limit = initialMessagePageSize,
     DateTime? before,
   }) async {
+    final User user = _currentUser;
+    final int generation = _cacheGeneration;
     dynamic request = _client
         .from('messages')
         .select()
@@ -479,6 +512,7 @@ class MessagingService {
         .toList()
         .reversed
         .toList();
+    _checkCacheSession(user.id, generation);
     _storeConversationMessages(conversationId, messages);
     return messages;
   }
@@ -490,6 +524,8 @@ class MessagingService {
     DateTime? before,
   }) async {
     if (conversationIds.isEmpty) return const [];
+    final User user = _currentUser;
+    final int generation = _cacheGeneration;
 
     dynamic request = _client
         .from('messages')
@@ -512,6 +548,7 @@ class MessagingService {
         .reversed
         .toList();
 
+    _checkCacheSession(user.id, generation);
     for (final String conversationId in conversationIds) {
       final List<ConversationMessage> conversationMessages = messages
           .where((message) => message.conversationId == conversationId)
@@ -526,12 +563,14 @@ class MessagingService {
 
   static Future<void> markConversationAsRead(String conversationId) async {
     final User user = _currentUser;
+    final int generation = _cacheGeneration;
     await _client
         .from('messages')
         .update({'read_at': DateTime.now().toIso8601String()})
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .isFilter('read_at', null);
+    _checkCacheSession(user.id, generation);
     _conversationSummariesCache = _conversationSummariesCache
         .map(
           (summary) => summary.id == conversationId
@@ -555,6 +594,7 @@ class MessagingService {
     ChatAttachment? attachment,
   }) async {
     final User user = _currentUser;
+    final int generation = _cacheGeneration;
     final String trimmedBody = body.trim();
     final String bodyToInsert = trimmedBody.isNotEmpty
         ? trimmedBody
@@ -579,6 +619,7 @@ class MessagingService {
         .select()
         .single();
     final ConversationMessage message = ConversationMessage.fromMap(response);
+    _checkCacheSession(user.id, generation);
     _storeConversationMessages(conversationId, [message]);
     _conversationSummariesCache =
         _conversationSummariesCache
@@ -638,10 +679,13 @@ class MessagingService {
     required String messageId,
     required String body,
   }) async {
+    final User user = _currentUser;
+    final int generation = _cacheGeneration;
     await _client
         .from('messages')
         .update({'body': body.trim()})
         .eq('id', messageId);
+    _checkCacheSession(user.id, generation);
     _conversationMessagesCache.updateAll((_, messages) {
       return messages
           .map(
@@ -666,14 +710,20 @@ class MessagingService {
   }
 
   static Future<void> deleteMessage(String messageId) async {
+    final User user = _currentUser;
+    final int generation = _cacheGeneration;
     await _client.from('messages').delete().eq('id', messageId);
+    _checkCacheSession(user.id, generation);
     _conversationMessagesCache.updateAll((_, messages) {
       return messages.where((message) => message.id != messageId).toList();
     });
   }
 
   static Future<void> deleteConversation(String conversationId) async {
+    final User user = _currentUser;
+    final int generation = _cacheGeneration;
     await _client.from('conversations').delete().eq('id', conversationId);
+    _checkCacheSession(user.id, generation);
     _conversationMessagesCache.remove(conversationId);
     _conversationSummariesCache = _conversationSummariesCache
         .where((summary) => summary.id != conversationId)
@@ -753,9 +803,7 @@ class MessagingService {
     final User user = _currentUser;
     final MessagingProfile? existingProfile = await fetchCurrentProfile();
     final bool isEmailContact = contactValue.contains('@');
-    final String normalizedRole = _normalizeRole(
-      (user.appMetadata['role'] ?? user.userMetadata?['role']) as String?,
-    );
+    final String normalizedRole = _normalizeRole(user.appMetadata['role']);
 
     await _client.from('profiles').upsert({
       'id': user.id,
@@ -774,8 +822,10 @@ class MessagingService {
     }, onConflict: 'id');
   }
 
-  static String _normalizeRole(String? role) {
-    switch ((role ?? '').toLowerCase()) {
+  static String _normalizeRole(Object? role) {
+    if (role is! String) return 'user';
+
+    switch (role.trim().toLowerCase()) {
       case 'admin':
         return 'admin';
       case 'agent':

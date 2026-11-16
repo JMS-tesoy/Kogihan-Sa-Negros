@@ -76,7 +76,6 @@ class _SignUpPageState extends State<SignUpPage> {
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
-        data: const {'role': 'user'},
       );
 
       if (!mounted) return;

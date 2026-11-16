@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../auth/domain/helpers/auth_user_role.dart';
 import '../../../messaging/data/services/messaging_service.dart';
 import '../models/team_chat_message.dart';
 import '../models/team_chat_team.dart';
@@ -32,10 +33,35 @@ class TeamMessagesService {
   }
 
   Future<List<TeamChatTeam>> fetchTeams() async {
-    final List<dynamic> rows = await _client
-        .from('agent_teams')
-        .select('id, name, specialization, logo_url')
-        .order('name');
+    final User? user = _client.auth.currentUser;
+    if (user == null) throw StateError('Please sign in to view your teams.');
+
+    final List<dynamic> rows;
+    if (isAdminAuthUser(user)) {
+      rows = await _client
+          .from('agent_teams')
+          .select('id, name, specialization, logo_url')
+          .order('name');
+    } else {
+      final List<dynamic> memberships = await _client
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', user.id);
+      final List<String> teamIds = memberships
+          .map((row) => (row as Map)['team_id'])
+          .whereType<String>()
+          .toList();
+      if (teamIds.isEmpty) return const <TeamChatTeam>[];
+      rows = await _client
+          .from('agent_teams')
+          .select('id, name, specialization, logo_url')
+          .inFilter('id', teamIds)
+          .order('name');
+    }
+
+    if (_client.auth.currentUser?.id != user.id) {
+      throw StateError('Your account changed while loading teams.');
+    }
 
     return rows
         .map(
