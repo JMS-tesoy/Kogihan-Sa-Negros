@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,7 +23,10 @@ String resolveMapboxAccessToken({Map<String, String>? env}) {
 Future<void> initializeMapboxConfiguration() async {
   try {
     await dotenv.load(fileName: '.env');
-  } catch (_) {}
+    debugPrint('✅ .env loaded');
+  } catch (e) {
+    debugPrint('❌ .env LOAD FAILED: $e');
+  }
 
   final String envToken = resolveMapboxAccessToken();
   if (envToken.isNotEmpty) {
@@ -58,8 +62,10 @@ Future<void> initializeSupabaseServices() async {
     );
     unawaited(loadProperties());
     unawaited(loadNegrosPlaces());
-    developer.log('✅ Supabase connected successfully!', name: 'Supabase');
+    debugPrint('✅ Supabase connected successfully!');
   } catch (e, stackTrace) {
+    debugPrint('❌ SUPABASE INIT FAILED: $e');
+    debugPrint('$stackTrace');
     developer.log(
       '❌ Supabase connection failed',
       name: 'Supabase',

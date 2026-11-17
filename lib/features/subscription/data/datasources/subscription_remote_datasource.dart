@@ -106,11 +106,15 @@ class SubscriptionRemoteDatasource {
         body: requestBody,
       );
 
-      // Response is a FunctionResponse which contains JSON data
-      final responseData = response as Map<String, dynamic>;
-      if (responseData.isEmpty || responseData['verified'] != true) {
+      // Edge function returned a non-2xx status
+      if (response.status != 200) {
+        throw Exception('Purchase verification failed (${response.status})');
+      }
+
+      final data = response.data;
+      if (data is! Map<String, dynamic> || data['verified'] != true) {
         throw Exception(
-          responseData['error'] ?? 'Purchase verification failed',
+          (data is Map ? data['error'] : null) ?? 'Purchase verification failed',
         );
       }
 
