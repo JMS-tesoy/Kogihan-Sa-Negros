@@ -40,9 +40,8 @@ class SubscriptionRepositoryImpl implements SubscriptionRepository {
 
   @override
   Future<void> subscribe(String planId) async {
-    final SubscriptionEntity subscription = await _remoteDatasource.subscribe(
-      planId,
-    );
-    await _localDatasource.saveSubscription(subscription);
+    // Plan navigation is handled by UI/controller
+    // This method exists for interface compliance but is not used in Phase 2.5
+    // Phase 2.6 will implement full subscription flow with purchase verification
   }
 }

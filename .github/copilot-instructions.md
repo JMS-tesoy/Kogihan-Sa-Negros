@@ -1,2 +1,2 @@
-- Source code is in lib/. Do not read build/, .dart_tool/, or platform folders (android/, ios/) unless the task requires it.
-- Don't open generated files (*.g.dart, *.freezed.dart).
+- Source code is in lib/. Do not read build/, .dart_tool/, or platform folders (android/, ios/, web/, macos/, windows/, linux/) unless the task requires it.
+- Don't open generated files (*.g.dart, *.freezed.dart) unless the task explicitly requires inspecting them. If you must open one, state the reason before reading it.

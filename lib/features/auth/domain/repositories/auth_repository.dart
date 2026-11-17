@@ -8,5 +8,20 @@ abstract interface class AuthRepository {
     required String password,
   });
 
+  Future<AuthUserEntity> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String role,
+  });
+
   Future<void> signOut();
+
+  Future<void> resetPassword(String email);
+
+  Future<void> updatePassword(String newPassword);
+
+  Future<String> getUserRole(String userId);
+
+  Future<bool> emailExists(String email);
 }

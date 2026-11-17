@@ -21,6 +21,10 @@ class SubscriptionModel extends SubscriptionEntity {
     );
   }
 
+  factory SubscriptionModel.fromJson(Map<String, dynamic> json) {
+    return SubscriptionModel.fromMap(json);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
