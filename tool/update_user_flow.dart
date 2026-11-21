@@ -219,6 +219,9 @@ void validate(
 
   final routePattern = RegExp(r'/[a-z][a-z0-9-]*');
   for (final node in nodes) {
+    if (node['status'] == 'planned') {
+      continue;
+    }
     final route = node['route'] as String;
     if (route.contains('no route')) {
       continue;
@@ -234,14 +237,19 @@ void validate(
 
 String edgeType(List<String> edge, Map<String, Map<String, dynamic>> byId) {
   final label = edge[2].toLowerCase();
+  final sourceStatus = byId[edge[0]]!['status'];
   final targetStatus = byId[edge[1]]!['status'];
-  if (targetStatus == 'blocked' ||
+  if (sourceStatus == 'blocked' ||
+      targetStatus == 'blocked' ||
       label.contains('not connected') ||
       label.contains('not verified')) {
     return 'blocked';
   }
   if (targetStatus == 'guarded') {
     return 'guard';
+  }
+  if (sourceStatus == 'planned' || targetStatus == 'planned') {
+    return 'planned';
   }
   if (label == 'at limit' || label == 'existing buyer') {
     return 'needs';

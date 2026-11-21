@@ -75,20 +75,15 @@
       z-index: 50;
     }
 
-    .brand-mark {
-      display: grid;
-      grid-template-columns: repeat(2, 11px);
-      grid-template-rows: repeat(2, 11px);
-      gap: 3px;
-      width: 29px;
-      transform: rotate(7deg);
+    .brand-logo {
+      display: block;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+      object-fit: cover;
       flex: 0 0 auto;
     }
-
-    .brand-mark i { display: block; background: var(--green); border-radius: 3px 3px 0 3px; }
-    .brand-mark i:nth-child(2) { background: transparent; border: 1px solid var(--green); }
-    .brand-mark i:nth-child(3) { background: var(--amber); }
-    .brand-mark i:nth-child(4) { background: var(--panel-3); }
 
     .title-group { min-width: 250px; }
     .eyebrow {
@@ -287,6 +282,7 @@
     }
     .edge-path.needs { stroke: var(--amber); stroke-dasharray: 4 4; opacity: .65; }
     .edge-path.guard { stroke: var(--violet); stroke-dasharray: 2 4; opacity: .85; }
+    .edge-path.planned { stroke: var(--muted); stroke-dasharray: 1 5; opacity: .8; }
     .edge-path.blocked {
       stroke: var(--danger); stroke-dasharray: 2 6; opacity: .85;
     }
@@ -501,6 +497,64 @@
     .progress-note p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
     .progress-note b { color: var(--text); font-weight: 700; }
 
+
+    .dot.muted { background: var(--muted); }
+    .metric { min-width: 96px; padding: 7px 14px; }
+    .metric.is-danger strong { color: var(--danger); }
+    .metric.is-violet strong { color: var(--violet); }
+    .metric.is-muted strong { color: var(--muted); }
+    .search {
+      min-height: 35px; width: 240px; padding: 7px 11px; border: 1px solid var(--line);
+      border-radius: 6px; background: var(--bg); color: var(--text); font: 11px var(--sans);
+    }
+    .search::placeholder { color: var(--dim); }
+    .progress-strip { padding: 10px 24px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .progress-bar { display: flex; height: 7px; gap: 2px; border-radius: 4px; overflow: hidden; background: var(--bg); }
+    .progress-bar span { display: block; min-width: 3px; }
+    .progress-caption { margin: 7px 0 0; color: var(--muted); font: 600 9px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    .progress-caption b { color: var(--text); }
+
+    .node.is-focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(110,231,183,.55), 0 8px 18px rgba(0,0,0,.25); }
+    .node.is-focus::before {
+      content: "NEXT"; position: absolute; top: -8px; right: 10px; padding: 2px 6px; border-radius: 4px;
+      background: var(--green); color: #07110d; font: 800 8px var(--mono); letter-spacing: .08em;
+    }
+    .node.is-tested::after { content: "✓"; position: absolute; top: 8px; right: 9px; color: var(--green); font: 800 11px var(--mono); }
+    .edge-label.quiet { opacity: 0; }
+    .edge-label.quiet.is-connected { opacity: .95; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .chip {
+      padding: 3px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted);
+      font: 600 9px var(--mono); letter-spacing: .04em; text-transform: uppercase;
+    }
+    .chip.role { color: var(--violet); border-color: rgba(156,168,255,.3); }
+    .chip.focus { color: #07110d; background: var(--green); border-color: var(--green); }
+    .detail-tools { display: flex; flex-direction: column; gap: 9px; margin-top: 18px; }
+    .check-row { display: flex; align-items: center; gap: 8px; color: #c7d0d5; font-size: 11px; cursor: pointer; }
+    .check-row input { accent-color: var(--green); width: 15px; height: 15px; }
+    .btn-small {
+      align-self: flex-start; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+      background: transparent; color: var(--muted); cursor: pointer; font-size: 10px;
+    }
+    .btn-small:hover { color: var(--text); background: var(--panel-3); }
+    .conn-list { list-style: none; padding: 0; margin: 0; }
+    .conn-list li { margin-top: 6px; }
+    .conn-list button {
+      width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px;
+      border: 1px solid var(--line-soft); border-radius: 6px; background: var(--bg);
+      color: #c7d0d5; font-size: 11px; text-align: left; cursor: pointer;
+    }
+    .conn-list button:hover { border-color: #52626a; }
+    .conn-list small { color: var(--dim); font: 600 8px var(--mono); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+
+    .health { padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--bg); }
+    .health h3 { margin: 0 0 8px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .health p, .health li { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .health ul { margin: 0; padding-left: 18px; }
+    .health .ok { color: var(--green); }
+    .health .warn { color: var(--amber); }
+
     @media (max-width: 1150px) {
       .review-stamp { display: none; }
       .metric { min-width: 100px; padding-inline: 13px; }
@@ -551,6 +605,25 @@
       .graph-caption { display: none; }
     }
 
+
+    /* Softer highlight: change --hl to retune every highlight at once */
+    :root { --hl: #5f9a86; --hl-soft: rgba(95,154,134,.12); }
+    .edge-path.is-journey, .edge-path.is-connected { stroke: var(--hl); stroke-width: 1.6; opacity: .75; }
+    .edge-label.is-connected { fill: var(--hl); opacity: .8; }
+    .node.is-selected {
+      border-color: var(--hl); background: #15201c;
+      box-shadow: 0 0 0 1px rgba(95,154,134,.28), 0 6px 14px rgba(0,0,0,.22);
+    }
+    .node.is-path { border-color: rgba(95,154,134,.3); background: #151e1b; box-shadow: 0 6px 14px rgba(0,0,0,.2); }
+    .node.is-dim { opacity: .3; }
+    .node.is-focus { border-color: rgba(95,154,134,.6); box-shadow: 0 0 0 1px rgba(95,154,134,.25), 0 6px 14px rgba(0,0,0,.22); }
+    .node.is-focus::before { background: #16231e; color: var(--hl); border: 1px solid rgba(95,154,134,.5); }
+    .node.is-tested::after { color: var(--hl); }
+    .chip.focus { background: var(--hl-soft); color: var(--hl); border-color: rgba(95,154,134,.45); }
+    .filter[aria-pressed="true"] { color: var(--hl); background: var(--hl-soft); border-color: rgba(95,154,134,.5); font-weight: 700; }
+    .journey[aria-pressed="true"] { border-color: rgba(95,154,134,.6); background: #121a17; }
+    .skip-link { background: var(--hl); }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
     }
@@ -560,19 +633,20 @@
   <a class="skip-link" href="#flow-map">Skip to flow map</a>
   <div class="app-shell">
     <header class="masthead">
-      <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <img class="brand-logo" src="assets/ksn_logo.png" alt="Kogihan sa Negros logo">
       <div class="title-group">
         <div class="eyebrow">Implementation map</div>
         <h1>Kogihan sa Negros</h1>
         <p class="subtitle">User flow &amp; build progress</p>
       </div>
-      <div class="metrics" aria-label="Build progress overview">
-        <div class="metric"><strong id="screen-count">25</strong><span>Mapped screens</span></div>
-        <div class="metric is-green"><strong id="complete-count">7</strong><span>Completed UI flows</span></div>
-        <div class="metric is-amber"><strong id="service-count">11</strong><span>Service checks</span></div>
-      </div>
-      <div class="review-stamp"><b>Review state</b><br>Implementation preview</div>
+      <div class="metrics" id="metrics" aria-label="Build progress overview"></div>
+      <div class="review-stamp" id="review-stamp"><b>Review state</b><br>Implementation preview</div>
     </header>
+
+    <div class="progress-strip">
+      <div class="progress-bar" id="progress-bar" role="img" aria-label="Build status breakdown"></div>
+      <p class="progress-caption" id="progress-caption"></p>
+    </div>
 
     <nav class="command-bar" aria-label="Flow controls">
       <div class="filter-group" aria-label="Role filter">
@@ -582,13 +656,11 @@
         <button class="filter" type="button" data-filter="agent" aria-pressed="false">Agent</button>
         <button class="filter" type="button" data-filter="admin" aria-pressed="false">Admin</button>
       </div>
-      <div class="legend" aria-label="Status legend">
-        <span class="control-label">Status</span>
-        <span class="legend-item"><i class="dot"></i>Completed UI</span>
-        <span class="legend-item"><i class="dot amber"></i>Needs integration</span>
-        <span class="legend-item"><i class="dot violet"></i>Guarded route</span>
-        <span class="legend-item"><i class="dot danger"></i>Blocked / unverified</span>
+      <div class="filter-group">
+        <label class="control-label" for="search">Find</label>
+        <input class="search" id="search" type="search" placeholder="Screen, route or file  ( / )" autocomplete="off">
       </div>
+      <div class="legend" id="legend" aria-label="Status legend"></div>
     </nav>
 
     <main>
@@ -597,7 +669,7 @@
           <div class="graph-topline">
             <i class="live-dot" aria-hidden="true"></i>
             <span>Product flow · source-reviewed</span>
-            <span class="graph-caption">Select a screen to inspect its route</span>
+            <span class="graph-caption">Select a screen to inspect its route · links are shareable via #screen-id</span>
           </div>
           <div class="graph-tools" aria-label="Graph zoom controls">
             <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
@@ -614,7 +686,7 @@
                       <path d="M0,0 L7,3.5 L0,7 z" fill="#657179"></path>
                     </marker>
                     <marker id="arrow-active" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-                      <path d="M0,0 L7,3.5 L0,7 z" fill="#6ee7b7"></path>
+                      <path d="M0,0 L7,3.5 L0,7 z" style="fill: var(--hl)"></path>
                     </marker>
                   </defs>
                 </svg>
@@ -626,7 +698,7 @@
         <aside class="detail-panel" aria-labelledby="detail-title" aria-live="polite">
           <div class="detail-head">
             <span class="detail-kicker">Screen inspector</span>
-            <span id="detail-index" class="detail-index">01 / 25</span>
+            <span id="detail-index" class="detail-index">01 / --</span>
             <button
               class="detail-collapse"
               id="detail-collapse"
@@ -645,6 +717,11 @@
           <div>
             <span class="status-pill" id="detail-status">Completed UI</span>
           </div>
+          <div class="chips" id="detail-chips"></div>
+          <div class="detail-tools">
+            <label class="check-row"><input type="checkbox" id="detail-tested"> Tested on a real device</label>
+            <button class="btn-small" id="detail-focus" type="button">Set as current focus</button>
+          </div>
           <section class="detail-block">
             <h3>What it does</h3>
             <p class="detail-copy" id="detail-description"></p>
@@ -652,6 +729,10 @@
           <section class="detail-block">
             <h3>Next screens &amp; actions</h3>
             <ul class="action-list" id="detail-actions"></ul>
+          </section>
+          <section class="detail-block">
+            <h3>Connected screens</h3>
+            <ul class="conn-list" id="detail-links"></ul>
           </section>
           <section class="detail-block">
             <h3>Testing note</h3>
@@ -671,6 +752,7 @@
         </div>
         <div class="journey-grid" id="journey-grid"></div>
       </section>
+      <section class="health" id="map-health" aria-live="polite"></section>
     </main>
 
     <footer class="progress-note">
@@ -680,7 +762,7 @@
       </div>
       <div>
         <h3>How to read this map</h3>
-        <p>Solid emerald is implemented UI, dashed amber depends on runtime services, violet marks a role guard, and red marks a blocked or unverified connection. Each node shows its incoming and outgoing link count.</p>
+        <p>Solid emerald is implemented UI, dashed amber depends on runtime services, violet marks a role guard, and red marks a blocked or unverified connection. Each node shows its link count. Select a screen to reveal every edge label; tick “Tested on a real device” in the inspector to track verification (saved in this browser only).</p>
       </div>
       <div>
         <h3>Not live analytics</h3>
@@ -698,7 +780,51 @@
       if (!flowData) {
         throw new Error("flow-data.js is missing. Run the update task first.");
       }
-      const { nodes, edges, journeys, statusLabels } = flowData;
+      const { nodes, journeys, statusLabels } = flowData;
+      const nodeIdSet = new Set(nodes.map(node => node.id));
+      const health = [];
+      const edges = flowData.edges.filter(edge => {
+        const ok = nodeIdSet.has(edge[0]) && nodeIdSet.has(edge[1]);
+        if (!ok) health.push(`Edge "${edge[0]} → ${edge[1]}" points to a screen with no @node entry.`);
+        return ok;
+      });
+      journeys.forEach(journey => {
+        journey.nodes = journey.nodes.filter(id => {
+          if (!nodeIdSet.has(id)) health.push(`Journey "${journey.title}" references unknown screen "${id}".`);
+          return nodeIdSet.has(id);
+        });
+        for (let i = 0; i < journey.nodes.length - 1; i++) {
+          const a = journey.nodes[i], b = journey.nodes[i + 1];
+          if (!edges.some(edge => edge[0] === a && edge[1] === b)) {
+            health.push(`Journey "${journey.title}" has no link ${a} → ${b}.`);
+          }
+        }
+      });
+      const STORE_KEY = "ksn-flow-progress-v1";
+      const progress = { tested: {}, focus: null };
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+        progress.tested =
+          saved &&
+          saved.tested &&
+          typeof saved.tested === "object" &&
+          !Array.isArray(saved.tested)
+          ? saved.tested
+          : {};
+        progress.focus =
+          saved && typeof saved.focus === "string" ? saved.focus : null;
+      } catch (error) {}
+      const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(progress)); } catch (error) {} };
+      const LEGACY_ROLES = { create: ["agent", "admin"] };
+      const rolesOf = node => node.roles || LEGACY_ROLES[node.id] || [node.role];
+      const accessOf = node => node.access || (node.status === "guarded"
+        ? ({ agent: "Agent only", admin: "Admin only" }[node.role] || "Signed in")
+        : node.role === "entry" ? "Public" : "Buyer app");
+      const focusId = () => progress.focus || (nodes.find(node => node.focus) || {}).id || null;
+      const STATUS_COLORS = { complete: "var(--green)", integration: "var(--amber)", guarded: "var(--violet)", blocked: "var(--danger)", planned: "var(--dim)" };
+      const STATUS_ORDER = ["complete", "integration", "blocked", "guarded", "planned"];
+      let query = "";
+      const matches = node => [node.title, node.route, node.source, node.description].join(" ").toLowerCase().includes(query);
       const elementById = id => document.getElementById(id);
       const filters = [...document.querySelectorAll(".filter")];
       const graphNodes = () => document.querySelectorAll(".node");
@@ -708,13 +834,6 @@
           element.setAttribute("aria-pressed", String(element === activeElement))
         );
       };
-      elementById("screen-count").textContent = nodes.length;
-      elementById("complete-count").textContent = nodes.filter(
-        node => node.status === "complete",
-      ).length;
-      elementById("service-count").textContent = nodes.filter(
-        node => node.status === "integration",
-      ).length;
       const lanes = [
         { role:"entry", title:"Entry", code:"01", x:16, w:190 },
         { role:"buyer", title:"Buyer shell", code:"02", x:290, w:190 },
@@ -736,6 +855,14 @@
       let activeJourney = -1;
       let focusSelection = false;
       let zoom = 1;
+      const canvasW = Math.max(1880, ...nodes.map(node => node.x + 166 + 70));
+      const canvasH = Math.max(900, ...nodes.map(node => node.y + 75 + 60));
+      const scaleEl = elementById("graph-scale");
+      [scaleEl, canvas, svg].forEach(el => {
+        el.style.width = canvasW + "px";
+        el.style.height = canvasH + "px";
+      });
+      svg.setAttribute("viewBox", `0 0 ${canvasW} ${canvasH}`);
 
       lanes.forEach(lane => {
         const element = document.createElement("div");
@@ -743,6 +870,7 @@
         element.dataset.role = lane.role;
         element.style.left = lane.x + "px";
         element.style.width = lane.w + "px";
+        element.style.height = (canvasH - 53) + "px";
         const title = document.createElement("span");
         title.className = "lane-title";
         const code = document.createElement("b");
@@ -820,7 +948,7 @@
           return `M${sx},${sy} C${sx + 42},${sy} ${tx - 42},${ty} ${tx},${ty}`;
         }
         if (tx <= sx + 15) {
-          const bend = Math.min(sx + 58, 1850);
+          const bend = Math.min(sx + 58, canvasW - 30);
           return `M${sx},${sy} C${bend},${sy} ${bend},${ty} ${tx},${ty}`;
         }
         const mid = sx + (tx - sx) / 2;
@@ -836,12 +964,13 @@
         path.dataset.to = toId;
         if (type === "needs") path.classList.add("needs");
         if (type === "guard") path.classList.add("guard");
+        if (type === "planned") path.classList.add("planned");
         if (type === "blocked") path.classList.add("blocked");
         path.setAttribute("d", routePath(from, to, type));
         path.setAttribute("marker-end", "url(#arrow)");
         svg.appendChild(path);
 
-        if (label && ["branch","route","needs","guard"].includes(type)) {
+        if (label && ["branch","route","needs","guard","planned"].includes(type)) {
           const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
           text.classList.add("edge-label");
           text.dataset.from = fromId;
@@ -857,6 +986,16 @@
             "text",
           );
           text.classList.add("edge-label", "blocked");
+          text.dataset.from = fromId;
+          text.dataset.to = toId;
+          text.textContent = label.toUpperCase();
+          text.setAttribute("x", Math.round((from.x + 166 + to.x) / 2));
+          text.setAttribute("y", Math.round((from.y + to.y) / 2 + 31));
+          text.setAttribute("text-anchor", "middle");
+          svg.appendChild(text);
+        } else if (label) {
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.classList.add("edge-label", "quiet");
           text.dataset.from = fromId;
           text.dataset.to = toId;
           text.textContent = label.toUpperCase();
@@ -882,7 +1021,9 @@
         title.textContent = journey.title;
         const description = document.createElement("span");
         description.className = "journey-desc";
-        description.textContent = journey.short;
+        const built = journey.nodes.filter(id => byId.get(id).status === "complete").length;
+        const hasBlocked = journey.nodes.some(id => byId.get(id).status === "blocked");
+        description.textContent = `${journey.short} · ${built}/${journey.nodes.length} built${hasBlocked ? " · blocked" : ""}`;
         button.append(number, title, description);
         button.addEventListener("click", () => highlightJourney(index));
         journeyGrid.appendChild(button);
@@ -914,6 +1055,59 @@
           item.textContent = action;
           list.appendChild(item);
         });
+        const chips = elementById("detail-chips");
+        chips.replaceChildren();
+        const addChip = (text, cls) => {
+          const chip = document.createElement("span");
+          chip.className = "chip " + (cls || "");
+          chip.textContent = text;
+          chips.appendChild(chip);
+        };
+        addChip("Access: " + accessOf(node));
+        rolesOf(node).forEach(role => addChip(role, "role"));
+        if (focusId() === id) addChip("Current focus", "focus");
+        const links = elementById("detail-links");
+        links.replaceChildren();
+        [["out", "→"], ["in", "←"]].forEach(([dir, arrow]) => {
+          edges.filter(edge => dir === "out" ? edge[0] === id : edge[1] === id).forEach(edge => {
+            const other = byId.get(dir === "out" ? edge[1] : edge[0]);
+            const item = document.createElement("li");
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = `${arrow} ${other.title}`;
+            if (edge[2]) {
+              const small = document.createElement("small");
+              small.textContent = edge[2];
+              button.append(small);
+            }
+            button.addEventListener("click", () => {
+              activeJourney = -1;
+              roleFilter = "all";
+              focusSelection = true;
+              setPressed(
+                filters,
+                filters.find(item => item.dataset.filter === "all"),
+              );
+              journeyButtons().forEach(item =>
+                item.setAttribute("aria-pressed", "false")
+              );
+              selectNode(other.id, true);
+              applyVisualState();
+            });
+            item.appendChild(button);
+            links.appendChild(item);
+          });
+        });
+        if (!links.children.length) {
+          const empty = document.createElement("li");
+          empty.className = "detail-copy";
+          empty.textContent = "No links yet.";
+          links.appendChild(empty);
+        }
+        elementById("detail-tested").checked = !!progress.tested[id];
+        elementById("detail-focus").textContent =
+          focusId() === id ? "Clear current focus" : "Set as current focus";
+        try { history.replaceState(null, "", "#" + id); } catch (error) {}
         if (scrollIntoView) {
           const target = elementById("node-" + id);
           target?.scrollIntoView({
@@ -939,14 +1133,15 @@
         });
         graphNodes().forEach(element => {
           const node = byId.get(element.dataset.id);
-          const allowed = roleFilter === "all" || node.role === roleFilter || node.role === "entry" || (roleFilter === "admin" && node.role === "agent" && node.id === "create");
+          const allowed = roleFilter === "all" || node.role === "entry" || rolesOf(node).includes(roleFilter);
           const dimByRole = !allowed;
           const dimByJourney = !!journey && !journeyNodes.has(node.id);
           const dimBySelection =
             focusSelection && !journey && !connectedNodes.has(node.id);
+          const dimBySearch = !!query && !matches(node);
           element.classList.toggle(
             "is-dim",
-            dimByRole || dimByJourney || dimBySelection
+            dimByRole || dimByJourney || dimBySelection || dimBySearch
           );
           element.classList.toggle(
             "is-path",
@@ -976,7 +1171,7 @@
             highlighted ? "url(#arrow-active)" : "url(#arrow)"
           );
           path.style.opacity = journey || focusSelection
-            ? (highlighted ? "1" : ".07")
+            ? (highlighted ? ".85" : ".12")
             : relevantRole ? "" : ".04";
         });
         document.querySelectorAll(".edge-label").forEach(label => {
@@ -1041,8 +1236,8 @@
         zoom = Math.max(.65, Math.min(1.35, next));
         const scale = elementById("graph-scale");
         scale.style.transform = `scale(${zoom})`;
-        scale.style.marginRight = `${1880 * (zoom - 1)}px`;
-        scale.style.marginBottom = `${900 * (zoom - 1)}px`;
+        scale.style.marginRight = `${canvasW * (zoom - 1)}px`;
+        scale.style.marginBottom = `${canvasH * (zoom - 1)}px`;
         elementById("zoom-value").textContent =
           Math.round(zoom * 100) + "%";
       }
@@ -1067,6 +1262,166 @@
         );
       });
 
+      function refreshMarks() {
+        graphNodes().forEach(element => {
+          element.classList.toggle("is-tested", !!progress.tested[element.dataset.id]);
+          element.classList.toggle("is-focus", focusId() === element.dataset.id);
+        });
+      }
+
+      function renderMetrics() {
+        const counts = {};
+        nodes.forEach(node => { counts[node.status] = (counts[node.status] || 0) + 1; });
+        const tested = nodes.filter(node => progress.tested[node.id]).length;
+        const metricClass = { complete: "is-green", integration: "is-amber", blocked: "is-danger", guarded: "is-violet", planned: "is-muted" };
+        const items = [["Mapped screens", nodes.length, ""]];
+        STATUS_ORDER.filter(key => counts[key]).forEach(key =>
+          items.push([statusLabels[key] || key, counts[key], metricClass[key]])
+        );
+        items.push(["Tested on device", `${tested}/${nodes.length}`, "is-green"]);
+        const box = elementById("metrics");
+        box.replaceChildren();
+        items.forEach(([label, value, cls]) => {
+          const metric = document.createElement("div");
+          metric.className = "metric " + cls;
+          const strong = document.createElement("strong");
+          strong.textContent = value;
+          const span = document.createElement("span");
+          span.textContent = label;
+          metric.append(strong, span);
+          box.appendChild(metric);
+        });
+        const bar = elementById("progress-bar");
+        bar.replaceChildren();
+        STATUS_ORDER.filter(key => counts[key]).forEach(key => {
+          const seg = document.createElement("span");
+          seg.style.flex = String(counts[key]);
+          seg.style.background = STATUS_COLORS[key];
+          seg.title = `${statusLabels[key] || key}: ${counts[key]}`;
+          bar.appendChild(seg);
+        });
+        const pct = Math.round(((counts.complete || 0) / nodes.length) * 100);
+        const caption = elementById("progress-caption");
+        caption.replaceChildren();
+        const b = document.createElement("b");
+        b.textContent = `${pct}% UI complete`;
+        caption.append(b, ` · ${tested} of ${nodes.length} tested on a real device` +
+          (focusId() && byId.get(focusId()) ? ` · next: ${byId.get(focusId()).title}` : ""));
+      }
+
+      function renderLegend() {
+        const legend = elementById("legend");
+        legend.replaceChildren();
+        const label = document.createElement("span");
+        label.className = "control-label";
+        label.textContent = "Status";
+        legend.appendChild(label);
+        const dotClass = { complete: "", integration: "amber", guarded: "violet", blocked: "danger", planned: "muted" };
+        Object.keys(statusLabels).forEach(key => {
+          const item = document.createElement("span");
+          item.className = "legend-item";
+          const dot = document.createElement("i");
+          dot.className = "dot " + (dotClass[key] || "muted");
+          item.append(dot, statusLabels[key]);
+          legend.appendChild(item);
+        });
+        const extra = document.createElement("span");
+        extra.className = "legend-item";
+        extra.textContent = "✓ tested · NEXT = current focus";
+        legend.appendChild(extra);
+      }
+
+      function renderHealth() {
+        const box = elementById("map-health");
+        box.replaceChildren();
+        nodes.forEach(node => {
+          if (!edges.some(edge => edge[0] === node.id || edge[1] === node.id)) {
+            health.push(`Screen "${node.id}" has no links.`);
+          }
+        });
+        const title = document.createElement("h3");
+        title.textContent = "Map health";
+        box.appendChild(title);
+        if (!health.length) {
+          const ok = document.createElement("p");
+          ok.className = "ok";
+          ok.textContent = `All ${edges.length} links and ${journeys.length} journeys reference real, connected screens.`;
+          box.appendChild(ok);
+          return;
+        }
+        const list = document.createElement("ul");
+        health.forEach(text => {
+          const item = document.createElement("li");
+          item.className = "warn";
+          item.textContent = text;
+          list.appendChild(item);
+        });
+        box.appendChild(list);
+      }
+
+      const searchInput = elementById("search");
+      searchInput.addEventListener("input", () => {
+        query = searchInput.value.trim().toLowerCase();
+        activeJourney = -1;
+        focusSelection = false;
+        journeyButtons().forEach(item => item.setAttribute("aria-pressed", "false"));
+        applyVisualState();
+      });
+      searchInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+          const first = nodes.find(node => query && matches(node));
+          if (first) {
+            activeJourney = -1;
+            roleFilter = "all";
+            focusSelection = true;
+            setPressed(
+              filters,
+              filters.find(button => button.dataset.filter === "all"),
+            );
+            journeyButtons().forEach(button =>
+              button.setAttribute("aria-pressed", "false")
+            );
+            selectNode(first.id, true);
+            applyVisualState();
+          }
+        } else if (event.key === "Escape") {
+          searchInput.value = ""; query = ""; applyVisualState(); searchInput.blur();
+        }
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "/" && document.activeElement !== searchInput) {
+          event.preventDefault();
+          searchInput.focus();
+        }
+      });
+      elementById("detail-tested").addEventListener("change", event => {
+        if (event.target.checked) progress.tested[selectedId] = true;
+        else delete progress.tested[selectedId];
+        persist(); refreshMarks(); renderMetrics();
+      });
+      elementById("detail-focus").addEventListener("click", () => {
+        progress.focus = focusId() === selectedId ? "" : selectedId;
+        persist(); refreshMarks(); renderMetrics(); selectNode(selectedId, false);
+      });
+      window.addEventListener("hashchange", () => {
+        const id = decodeURIComponent(location.hash.slice(1));
+        if (byId.has(id) && id !== selectedId) {
+          focusSelection = true; selectNode(id, true); applyVisualState();
+        }
+      });
+
+      const hashId = decodeURIComponent(location.hash.slice(1));
+      if (byId.has(hashId)) selectedId = hashId;
+      const stamp = elementById("review-stamp");
+      stamp.replaceChildren();
+      const stampTitle = document.createElement("b");
+      stampTitle.textContent = "Page saved";
+      stamp.append(stampTitle, document.createElement("br"),
+        new Date(document.lastModified).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }));
+      renderMetrics();
+      renderLegend();
+      renderHealth();
+      refreshMarks();
       if (selectedId) {
         selectNode(selectedId, false);
       }

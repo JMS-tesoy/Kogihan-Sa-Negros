@@ -265,7 +265,7 @@ window.APP_FLOW_DATA =
       "id": "limit",
       "title": "Saved Limit",
       "x": 970,
-      "y": 316,
+      "y": 92,
       "role": "buyer",
       "lane": "upgrade",
       "status": "integration",
@@ -284,7 +284,7 @@ window.APP_FLOW_DATA =
       "id": "plans",
       "title": "Subscription Plans",
       "x": 970,
-      "y": 428,
+      "y": 204,
       "role": "buyer",
       "lane": "upgrade",
       "status": "integration",
@@ -303,7 +303,7 @@ window.APP_FLOW_DATA =
       "id": "purchase",
       "title": "Purchase / Verify",
       "x": 970,
-      "y": 540,
+      "y": 428,
       "role": "buyer",
       "lane": "upgrade",
       "status": "integration",
@@ -322,7 +322,7 @@ window.APP_FLOW_DATA =
       "id": "restore",
       "title": "Restore / Manage",
       "x": 970,
-      "y": 652,
+      "y": 540,
       "role": "buyer",
       "lane": "upgrade",
       "status": "integration",
@@ -341,7 +341,7 @@ window.APP_FLOW_DATA =
       "id": "paymongoMethods",
       "title": "PayMongo Methods",
       "x": 970,
-      "y": 92,
+      "y": 652,
       "role": "buyer",
       "lane": "upgrade",
       "status": "blocked",
@@ -359,7 +359,7 @@ window.APP_FLOW_DATA =
       "id": "paymongoCheckout",
       "title": "PayMongo Checkout",
       "x": 970,
-      "y": 204,
+      "y": 764,
       "role": "buyer",
       "lane": "upgrade",
       "status": "blocked",
@@ -378,7 +378,7 @@ window.APP_FLOW_DATA =
       "id": "paymongoVerify",
       "title": "Order / Webhook Verify",
       "x": 970,
-      "y": 764,
+      "y": 876,
       "role": "buyer",
       "lane": "upgrade",
       "status": "blocked",
@@ -487,6 +487,101 @@ window.APP_FLOW_DATA =
       "source": "lib/features/agent_teams/presentation"
     },
     {
+      "id": "guestGate",
+      "title": "Login Required Gate",
+      "x": 28,
+      "y": 540,
+      "role": "buyer",
+      "lane": "entry",
+      "status": "planned",
+      "icon": "LG",
+      "route": "Internal gate (no route)",
+      "description": "Stops a guest who tries a protected action (save, inquire, subscribe), sends them to login, then resumes the original action.",
+      "actions": [
+        "Explain why login is needed",
+        "Open login or registration",
+        "Resume the interrupted action"
+      ],
+      "note": "Verify the intended action survives login, registration, and password recovery.",
+      "source": "lib/features/auth/presentation (to be added)"
+    },
+    {
+      "id": "signout",
+      "title": "Sign Out",
+      "x": 302,
+      "y": 652,
+      "role": "buyer",
+      "lane": "shell",
+      "status": "planned",
+      "icon": "SO",
+      "route": "Profile action (no route)",
+      "description": "Ends the session, clears cached account state, and returns the user to onboarding.",
+      "actions": [
+        "Confirm sign out",
+        "Clear local session and push token",
+        "Return to onboarding"
+      ],
+      "note": "Check agent and admin sign-out, token cleanup, and back-button behavior after logout.",
+      "source": "lib/features/profile/presentation (to be added)"
+    },
+    {
+      "id": "deleteAcct",
+      "title": "Delete Account",
+      "x": 302,
+      "y": 764,
+      "role": "buyer",
+      "lane": "shell",
+      "status": "planned",
+      "icon": "DA",
+      "route": "/delete-account (planned)",
+      "description": "In-app account deletion, expected by Apple and Google for apps that allow account creation.",
+      "actions": [
+        "Confirm identity",
+        "Delete account and personal data",
+        "Return to onboarding"
+      ],
+      "note": "Decide what happens to an agent's listings, chats, and active subscription when the account is deleted.",
+      "source": "lib/features/profile/presentation and a Supabase edge function (to be added)"
+    },
+    {
+      "id": "report",
+      "title": "Report Listing",
+      "x": 636,
+      "y": 652,
+      "role": "buyer",
+      "lane": "journey",
+      "status": "planned",
+      "icon": "RP",
+      "route": "Property details action (planned)",
+      "description": "Lets a buyer report a listing, feeding the admin moderation queue that already handles reported content.",
+      "actions": [
+        "Pick a reason",
+        "Submit report",
+        "Show confirmation"
+      ],
+      "note": "Prevent duplicate reports and confirm the report appears in the moderation queue with context.",
+      "source": "lib/features/properties/presentation (to be added)"
+    },
+    {
+      "id": "billingChoice",
+      "title": "Billing Route Decision",
+      "x": 970,
+      "y": 316,
+      "role": "buyer",
+      "lane": "upgrade",
+      "status": "planned",
+      "icon": "BR",
+      "route": "Internal decision (no route)",
+      "description": "Decides whether a purchase uses native store billing or PayMongo, so the two paths never overlap for the same unlock.",
+      "actions": [
+        "Select store billing by platform",
+        "Offer PayMongo only where allowed",
+        "Fall back with a clear message"
+      ],
+      "note": "Check Apple and Google billing policy for digital unlocks before enabling PayMongo in the mobile app.",
+      "source": "lib/features/subscription/data/services"
+    },
+    {
       "id": "admin",
       "title": "Admin Dashboard",
       "x": 1572,
@@ -506,22 +601,117 @@ window.APP_FLOW_DATA =
     },
     {
       "id": "moderation",
-      "title": "Moderation",
+      "title": "Moderation Queue",
       "x": 1572,
       "y": 204,
       "role": "admin",
       "lane": "admin",
       "status": "guarded",
-      "icon": "RV",
+      "icon": "MQ",
       "route": "/moderation",
-      "description": "Admin-role-protected review queue for submitted or reported property content.",
+      "description": "Admin-only queue for listing submissions, edits awaiting review, buyer reports, and previously rejected content.",
       "actions": [
-        "Approve or reject listing",
-        "Request changes",
-        "Return to admin dashboard"
+        "Filter pending cases",
+        "Open a listing review",
+        "Open a buyer report"
       ],
-      "note": "Test duplicate review, audit history, reason requirements, and author notification.",
+      "note": "Verify queue counts, permissions, stale cases, and priority ordering.",
       "source": "lib/features/admin/presentation"
+    },
+    {
+      "id": "listingReview",
+      "title": "Listing Review",
+      "x": 1572,
+      "y": 316,
+      "role": "admin",
+      "lane": "admin",
+      "status": "guarded",
+      "icon": "LR",
+      "route": "Moderation detail state (admin only)",
+      "description": "Review workspace for the submitted listing, property images, agent identity, and edit history.",
+      "actions": [
+        "Inspect listing content",
+        "Compare previous version",
+        "Open decision panel"
+      ],
+      "note": "Confirm the original submission is preserved and unavailable images do not block review.",
+      "source": "lib/features/admin/presentation"
+    },
+    {
+      "id": "reportDetails",
+      "title": "Report Details",
+      "x": 1572,
+      "y": 428,
+      "role": "admin",
+      "lane": "admin",
+      "status": "guarded",
+      "icon": "RD",
+      "route": "Moderation report detail (admin only)",
+      "description": "Displays the buyer report reason, evidence, duplicate reports, listing context, and resolution state.",
+      "actions": [
+        "Inspect report evidence",
+        "Open reported listing",
+        "Continue to decision"
+      ],
+      "note": "Prevent duplicate reports from creating duplicate cases and protect reporter identity appropriately.",
+      "source": "lib/features/admin/presentation"
+    },
+    {
+      "id": "moderationDecision",
+      "title": "Decision & Reason",
+      "x": 1572,
+      "y": 540,
+      "role": "admin",
+      "lane": "admin",
+      "status": "guarded",
+      "icon": "MD",
+      "route": "Moderation action panel (admin only)",
+      "description": "Captures the admin decision and required reason for approval, rejection, requested changes, temporary hiding, or escalation.",
+      "actions": [
+        "Approve or publish",
+        "Reject with reason",
+        "Request changes",
+        "Hide or escalate"
+      ],
+      "note": "Require a reason for adverse actions and keep decisions idempotent when requests are retried.",
+      "source": "lib/features/admin/presentation"
+    },
+    {
+      "id": "moderationNotify",
+      "title": "Notify Agent / Reporter",
+      "x": 1572,
+      "y": 652,
+      "role": "admin",
+      "lane": "admin",
+      "status": "integration",
+      "icon": "NT",
+      "route": "Backend notifications (no app route)",
+      "description": "Sends the decision to the agent and resolves the buyer report when applicable.",
+      "actions": [
+        "Notify listing agent",
+        "Notify reporter",
+        "Refresh listing status"
+      ],
+      "note": "Verify delivery, retries, notification preferences, and no sensitive report details are exposed.",
+      "source": "lib/features/notifications and Supabase integration"
+    },
+    {
+      "id": "moderationAudit",
+      "title": "Moderation Audit Log",
+      "x": 1572,
+      "y": 764,
+      "role": "admin",
+      "lane": "admin",
+      "status": "guarded",
+      "icon": "AL",
+      "route": "Moderation review audit section",
+      "description": "Immutable history of reviewer, previous status, decision, reason, and timestamp displayed inside the admin review screen.",
+      "actions": [
+        "Inspect review history",
+        "Return to the queue"
+      ],
+      "note": "The UI is connected to the audit table; audit visibility and writes are protected by database RLS and the admin-only RPC.",
+      "source": "lib/features/admin/presentation and Supabase backend"
     }
   ],
   "edges": [
@@ -530,6 +720,24 @@ window.APP_FLOW_DATA =
       "onboarding",
       "first run",
       "straight"
+    ],
+    [
+      "splash",
+      "home",
+      "session restored",
+      "branch"
+    ],
+    [
+      "splash",
+      "agent",
+      "agent session",
+      "guard"
+    ],
+    [
+      "splash",
+      "admin",
+      "admin session",
+      "guard"
     ],
     [
       "onboarding",
@@ -541,6 +749,12 @@ window.APP_FLOW_DATA =
       "auth",
       "recovery",
       "forgot",
+      "branch"
+    ],
+    [
+      "recovery",
+      "auth",
+      "back to login",
       "branch"
     ],
     [
@@ -622,6 +836,42 @@ window.APP_FLOW_DATA =
       "branch"
     ],
     [
+      "details",
+      "limit",
+      "at limit",
+      "needs"
+    ],
+    [
+      "details",
+      "guestGate",
+      "guest action",
+      "planned"
+    ],
+    [
+      "guestGate",
+      "auth",
+      "sign in",
+      "planned"
+    ],
+    [
+      "auth",
+      "details",
+      "resume action",
+      "branch"
+    ],
+    [
+      "details",
+      "report",
+      "report",
+      "planned"
+    ],
+    [
+      "report",
+      "reportDetails",
+      "submitted",
+      "guard"
+    ],
+    [
       "contact",
       "chat",
       "thread",
@@ -647,9 +897,21 @@ window.APP_FLOW_DATA =
     ],
     [
       "plans",
-      "purchase",
+      "billingChoice",
       "choose plan",
-      "straight"
+      "planned"
+    ],
+    [
+      "billingChoice",
+      "purchase",
+      "store billing",
+      "planned"
+    ],
+    [
+      "billingChoice",
+      "paymongoMethods",
+      "PayMongo",
+      "blocked"
     ],
     [
       "plans",
@@ -670,10 +932,40 @@ window.APP_FLOW_DATA =
       "branch"
     ],
     [
+      "profile",
+      "plans",
+      "manage plan",
+      "branch"
+    ],
+    [
+      "profile",
+      "signout",
+      "sign out",
+      "planned"
+    ],
+    [
+      "signout",
+      "onboarding",
+      "signed out",
+      "planned"
+    ],
+    [
+      "profile",
+      "deleteAcct",
+      "delete",
+      "planned"
+    ],
+    [
+      "deleteAcct",
+      "onboarding",
+      "confirmed",
+      "planned"
+    ],
+    [
       "purchase",
-      "paymongoMethods",
-      "not connected",
-      "blocked"
+      "plans",
+      "failed / cancelled",
+      "branch"
     ],
     [
       "paymongoMethods",
@@ -690,7 +982,13 @@ window.APP_FLOW_DATA =
     [
       "paymongoVerify",
       "saved",
-      "not verified",
+      "verified",
+      "blocked"
+    ],
+    [
+      "paymongoVerify",
+      "plans",
+      "failed / pending",
       "blocked"
     ],
     [
@@ -724,6 +1022,12 @@ window.APP_FLOW_DATA =
       "guard"
     ],
     [
+      "agentInbox",
+      "chat",
+      "open",
+      "branch"
+    ],
+    [
       "agent",
       "teams",
       "team",
@@ -739,6 +1043,66 @@ window.APP_FLOW_DATA =
       "admin",
       "moderation",
       "review",
+      "guard"
+    ],
+    [
+      "moderation",
+      "listingReview",
+      "open submission",
+      "guard"
+    ],
+    [
+      "moderation",
+      "reportDetails",
+      "open report",
+      "guard"
+    ],
+    [
+      "listingReview",
+      "moderationDecision",
+      "inspect evidence",
+      "guard"
+    ],
+    [
+      "reportDetails",
+      "moderationDecision",
+      "review report",
+      "guard"
+    ],
+    [
+      "moderationDecision",
+      "moderationNotify",
+      "approve / reject",
+      "branch"
+    ],
+    [
+      "moderationDecision",
+      "manage",
+      "changes required",
+      "guard"
+    ],
+    [
+      "moderationDecision",
+      "moderationAudit",
+      "record",
+      "guard"
+    ],
+    [
+      "moderationAudit",
+      "moderation",
+      "back to queue",
+      "guard"
+    ],
+    [
+      "moderationNotify",
+      "manage",
+      "status update",
+      "guard"
+    ],
+    [
+      "moderationNotify",
+      "reportDetails",
+      "report resolved",
       "guard"
     ]
   ],
@@ -832,11 +1196,12 @@ window.APP_FLOW_DATA =
     },
     {
       "title": "Buyer upgrades",
-      "short": "Limit → plans → purchase",
+      "short": "Limit → plans → decision → purchase",
       "nodes": [
         "saved",
         "limit",
         "plans",
+        "billingChoice",
         "purchase"
       ],
       "edges": [
@@ -850,16 +1215,20 @@ window.APP_FLOW_DATA =
         ],
         [
           "plans",
+          "billingChoice"
+        ],
+        [
+          "billingChoice",
           "purchase"
         ]
       ]
     },
     {
       "title": "PayMongo checkout",
-      "short": "Purchase → methods → checkout → verification (blocked)",
+      "short": "Decision → methods → checkout → verification (blocked)",
       "nodes": [
         "plans",
-        "purchase",
+        "billingChoice",
         "paymongoMethods",
         "paymongoCheckout",
         "paymongoVerify",
@@ -868,10 +1237,10 @@ window.APP_FLOW_DATA =
       "edges": [
         [
           "plans",
-          "purchase"
+          "billingChoice"
         ],
         [
-          "purchase",
+          "billingChoice",
           "paymongoMethods"
         ],
         [
@@ -928,6 +1297,182 @@ window.APP_FLOW_DATA =
         [
           "admin",
           "moderation"
+        ]
+      ]
+    },
+    {
+      "title": "Returning user resumes",
+      "short": "Splash → restored session → home",
+      "nodes": [
+        "splash",
+        "home"
+      ],
+      "edges": [
+        [
+          "splash",
+          "home"
+        ]
+      ]
+    },
+    {
+      "title": "Guest hits a login gate",
+      "short": "Details → gate → login",
+      "nodes": [
+        "details",
+        "guestGate",
+        "auth"
+      ],
+      "edges": [
+        [
+          "details",
+          "guestGate"
+        ],
+        [
+          "guestGate",
+          "auth"
+        ]
+      ]
+    },
+    {
+      "title": "Password recovery",
+      "short": "Onboarding → login → recovery",
+      "nodes": [
+        "onboarding",
+        "auth",
+        "recovery"
+      ],
+      "edges": [
+        [
+          "onboarding",
+          "auth"
+        ],
+        [
+          "auth",
+          "recovery"
+        ]
+      ]
+    },
+    {
+      "title": "Buyer reports a listing",
+      "short": "Details → report → report review → decision",
+      "nodes": [
+        "details",
+        "report",
+        "reportDetails",
+        "moderationDecision"
+      ],
+      "edges": [
+        [
+          "details",
+          "report"
+        ],
+        [
+          "report",
+          "reportDetails"
+        ],
+        [
+          "reportDetails",
+          "moderationDecision"
+        ]
+      ]
+    },
+    {
+      "title": "Listing submission review",
+      "short": "Create → queue → listing review → decision",
+      "nodes": [
+        "create",
+        "moderation",
+        "listingReview",
+        "moderationDecision"
+      ],
+      "edges": [
+        [
+          "create",
+          "moderation"
+        ],
+        [
+          "moderation",
+          "listingReview"
+        ],
+        [
+          "listingReview",
+          "moderationDecision"
+        ]
+      ]
+    },
+    {
+      "title": "Moderation result",
+      "short": "Decision → notify → manage",
+      "nodes": [
+        "moderationDecision",
+        "moderationNotify",
+        "manage"
+      ],
+      "edges": [
+        [
+          "moderationDecision",
+          "moderationNotify"
+        ],
+        [
+          "moderationNotify",
+          "manage"
+        ]
+      ]
+    },
+    {
+      "title": "Moderation audit",
+      "short": "Decision → audit log → queue",
+      "nodes": [
+        "moderationDecision",
+        "moderationAudit",
+        "moderation"
+      ],
+      "edges": [
+        [
+          "moderationDecision",
+          "moderationAudit"
+        ],
+        [
+          "moderationAudit",
+          "moderation"
+        ]
+      ]
+    },
+    {
+      "title": "Sign out",
+      "short": "Profile → sign out → onboarding",
+      "nodes": [
+        "profile",
+        "signout",
+        "onboarding"
+      ],
+      "edges": [
+        [
+          "profile",
+          "signout"
+        ],
+        [
+          "signout",
+          "onboarding"
+        ]
+      ]
+    },
+    {
+      "title": "Delete account",
+      "short": "Profile → delete → onboarding",
+      "nodes": [
+        "profile",
+        "deleteAcct",
+        "onboarding"
+      ],
+      "edges": [
+        [
+          "profile",
+          "deleteAcct"
+        ],
+        [
+          "deleteAcct",
+          "onboarding"
         ]
       ]
     }

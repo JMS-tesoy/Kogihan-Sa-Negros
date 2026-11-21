@@ -45,7 +45,8 @@ class PropertyRepositoryImpl implements PropertyRepository {
       if (property.description.isNotEmpty) 'description': property.description,
       if (property.address.isNotEmpty) 'address': property.address,
       'listing_type': property.listingType.name,
-      'status': property.status.name,
+      'status': 'pending',
+      'moderation_status': 'pending',
     };
 
     if (imageUrl != null) {

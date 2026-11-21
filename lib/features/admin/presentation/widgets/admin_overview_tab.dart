@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/router/route_names.dart';
 import 'admin_stats_header.dart';
 
 class AdminOverviewTab extends StatelessWidget {
@@ -72,6 +73,13 @@ class AdminOverviewTab extends StatelessWidget {
               color: colorScheme.onPrimaryContainer,
             ),
           ),
+        ),
+        const SizedBox(height: 8),
+        _OverviewActionTile(
+          icon: Icons.shield_outlined,
+          title: 'Moderate listings and reports',
+          subtitle: 'Review pending submissions and community reports.',
+          onTap: () => Navigator.of(context).pushNamed(RouteNames.moderation),
         ),
         const SizedBox(height: 8),
         _OverviewActionTile(
