@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../../../app/config/env_config.dart';
-import '../../../../core/enums/subscription_tier.dart';
 import '../models/subscription_model.dart';
+import '../datasources/subscription_remote_datasource.dart';
+import 'subscription_service.dart';
 
 /// Enum representing the state of a purchase operation
 enum PurchaseState {
@@ -123,14 +125,19 @@ class PurchaseException implements Exception {
 class PurchaseHandler {
   late final InAppPurchase _iap;
   late final Stream<List<PurchaseDetails>> _purchaseStream;
+  final SubscriptionRemoteDatasource _remoteDatasource;
 
   /// Map of product IDs to subscription tiers
   static const Map<String, SubscriptionTier> productTierMap = {
     // Will be populated from environment config
   };
 
-  PurchaseHandler() {
-    _iap = InAppPurchase.instance;
+  PurchaseHandler({
+    InAppPurchase? iap,
+    SubscriptionRemoteDatasource? remoteDatasource,
+  }) : _remoteDatasource =
+           remoteDatasource ?? SubscriptionRemoteDatasource() {
+    _iap = iap ?? InAppPurchase.instance;
     _purchaseStream = _iap.purchaseStream;
   }
 
@@ -160,10 +167,18 @@ class PurchaseHandler {
   Future<List<ProductDetails>> loadProducts() async {
     try {
       final productIds = <String>{
-        if (EnvConfig.googlePlayMonthlySku.isNotEmpty)
-          EnvConfig.googlePlayMonthlySku,
-        if (EnvConfig.googlePlayYearlySku.isNotEmpty)
-          EnvConfig.googlePlayYearlySku,
+        if (defaultTargetPlatform == TargetPlatform.android) ...{
+          if (EnvConfig.googlePlayMonthlySku.isNotEmpty)
+            EnvConfig.googlePlayMonthlySku,
+          if (EnvConfig.googlePlayYearlySku.isNotEmpty)
+            EnvConfig.googlePlayYearlySku,
+        },
+        if (defaultTargetPlatform == TargetPlatform.iOS) ...{
+          if (EnvConfig.appStoreMonthlySku.isNotEmpty)
+            EnvConfig.appStoreMonthlySku,
+          if (EnvConfig.appStoreYearlySku.isNotEmpty)
+            EnvConfig.appStoreYearlySku,
+        },
       };
 
       if (productIds.isEmpty) {
@@ -195,7 +210,6 @@ class PurchaseHandler {
   /// Returns immediately with processing state; actual result comes via purchaseUpdates stream
   Future<PurchaseResult> purchaseProduct({
     required ProductDetails product,
-    required String userId,
   }) async {
     try {
       // Validate product
@@ -234,14 +248,15 @@ class PurchaseHandler {
   /// Stream of purchase updates from store
   /// Listens to both successful and failed purchase attempts
   Stream<PurchaseResult> get purchaseUpdates {
-    return _purchaseStream.asyncMap((purchases) async {
+    return _purchaseStream.asyncExpand((purchases) {
       if (purchases.isEmpty) {
-        return PurchaseResult(state: PurchaseState.idle);
+        return Stream<PurchaseResult>.value(
+          PurchaseResult(state: PurchaseState.idle),
+        );
       }
-
-      // Handle first purchase in the list
-      final purchase = purchases.first;
-      return await _handlePurchaseUpdate(purchase);
+      return Stream<PurchaseDetails>.fromIterable(purchases).asyncMap(
+        _handlePurchaseUpdate,
+      );
     });
   }
 
@@ -293,7 +308,10 @@ class PurchaseHandler {
   ) async {
     try {
       // Get purchase details
-      final purchaseToken = purchase.verificationData.localVerificationData;
+      final purchaseToken =
+          purchase.verificationData.serverVerificationData.isNotEmpty
+          ? purchase.verificationData.serverVerificationData
+          : purchase.verificationData.localVerificationData;
 
       if (purchaseToken.isEmpty) {
         return PurchaseResult(
@@ -304,11 +322,31 @@ class PurchaseHandler {
         );
       }
 
-      // TODO: Call Supabase Edge Function to verify receipt
-      // This should return verified subscription from server
-      // For now, return placeholder
+      final bool isAndroid =
+          defaultTargetPlatform == TargetPlatform.android;
+      final SubscriptionModel subscription = await _remoteDatasource
+          .verifyAndUpdateSubscription(
+            productId: purchase.productID,
+            purchaseToken: isAndroid ? purchaseToken : null,
+            receiptData: isAndroid ? null : purchaseToken,
+            isAndroid: isAndroid,
+          );
+
+      if (!subscription.isPremium) {
+        return PurchaseResult(
+          state: PurchaseState.error,
+          error: PurchaseError.verificationFailed,
+          errorMessage: 'Verified purchase did not create an active entitlement',
+          actionMessage: 'Please try again or contact support',
+        );
+      }
+
+      await SubscriptionService.syncFromEntity(subscription);
+      await _iap.completePurchase(purchase);
+
       return PurchaseResult(
         state: PurchaseState.success,
+        subscription: subscription,
         actionMessage: 'Your subscription has been activated!',
       );
     } catch (e) {
@@ -318,13 +356,6 @@ class PurchaseHandler {
         errorMessage: 'Failed to verify purchase: $e',
         actionMessage: 'Please try again or contact support',
       );
-    } finally {
-      // Complete the purchase to clear it from queue
-      try {
-        await _iap.completePurchase(purchase);
-      } catch (e) {
-        // Log but don't fail - purchase was already processed
-      }
     }
   }
 

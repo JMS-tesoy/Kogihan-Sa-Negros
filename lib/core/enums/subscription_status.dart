@@ -1,1 +1,1 @@
-enum SubscriptionStatus { inactive, active, expired, canceled }
+enum SubscriptionStatus { inactive, active, expired, cancelled, paused }

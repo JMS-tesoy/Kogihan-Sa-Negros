@@ -93,28 +93,13 @@ class SubscriptionController extends ChangeNotifier {
     }
   }
 
-  Future<void> cancelSubscription() async {
-    _isActing = true;
-    _error = null;
-    notifyListeners();
-    try {
-      final UserSubscription cancelled =
-          await SubscriptionService.cancelSubscription();
-      _subscription = SubscriptionEntity(
-        id: _subscription?.id ?? '',
-        tier: cancelled.tier,
-        expiresAt: cancelled.expiresAt,
-      );
-    } catch (_) {
-      _error = 'Cancellation failed. Please try again.';
-    } finally {
-      _isActing = false;
-      notifyListeners();
-    }
-  }
-
   Future<void> _loadSubscription() async {
     _subscription = await _getCurrentSubscription.call();
+    if (_subscription != null) {
+      await SubscriptionService.syncFromEntity(_subscription!);
+    } else {
+      await SubscriptionService.clear();
+    }
   }
 
   Future<void> _loadPlans() async {

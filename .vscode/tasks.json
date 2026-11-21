@@ -2,6 +2,25 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Update app user-flow preview",
+      "type": "shell",
+      "command": "dart",
+      "args": [
+        "run",
+        "tool\\update_user_flow.dart"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Take Screenshot.bat",
       "type": "shell",
       "command": "cmd",

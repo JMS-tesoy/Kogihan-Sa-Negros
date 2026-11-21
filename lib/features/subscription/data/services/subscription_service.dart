@@ -1,8 +1,12 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/enums/subscription_status.dart';
 import '../../../../core/enums/subscription_tier.dart';
 import '../../domain/entities/subscription_entity.dart';
+import '../repositories/subscription_repository_impl.dart';
 
 export '../../../../core/enums/subscription_tier.dart' show SubscriptionTier;
 
@@ -30,18 +34,25 @@ class SubscriptionPlan {
 
 class UserSubscription {
   final SubscriptionTier tier;
+  final SubscriptionStatus status;
   final DateTime? expiresAt;
 
-  const UserSubscription({required this.tier, required this.expiresAt});
+  const UserSubscription({
+    required this.tier,
+    this.status = SubscriptionStatus.active,
+    required this.expiresAt,
+  });
 
   const UserSubscription.free()
     : tier = SubscriptionTier.free,
+      status = SubscriptionStatus.inactive,
       expiresAt = null;
 
   bool get isPremium {
+    if (status != SubscriptionStatus.active) return false;
     if (tier == SubscriptionTier.free) return false;
-    if (expiresAt == null) return true;
-    return expiresAt!.isAfter(DateTime.now());
+    final DateTime? expiry = expiresAt;
+    return expiry != null && expiry.isAfter(DateTime.now());
   }
 
   String get planName => switch (tier) {
@@ -52,11 +63,13 @@ class UserSubscription {
 
   UserSubscription copyWith({
     SubscriptionTier? tier,
+    SubscriptionStatus? status,
     DateTime? expiresAt,
     bool clearExpiresAt = false,
   }) {
     return UserSubscription(
       tier: tier ?? this.tier,
+      status: status ?? this.status,
       expiresAt: clearExpiresAt ? null : expiresAt ?? this.expiresAt,
     );
   }
@@ -68,27 +81,36 @@ class UserSubscription {
     final DateTime? expiresAt = _parseDateTime(
       preferences.getString(_subscriptionExpiresAtPrefsKey),
     );
+    final SubscriptionStatus status = _subscriptionStatusFromStorage(
+      preferences.getString(_subscriptionStatusPrefsKey),
+    );
     return UserSubscription(
       tier: tier,
+      status: status,
       expiresAt: tier == SubscriptionTier.free ? null : expiresAt,
     );
   }
 
   factory UserSubscription.fromProfileMap(Map<String, dynamic> map) {
     final SubscriptionTier tier = _subscriptionTierFromStorage(
-      map['subscription_tier']?.toString(),
+      map['tier']?.toString() ?? map['subscription_tier']?.toString(),
+    );
+    final SubscriptionStatus status = _subscriptionStatusFromStorage(
+      map['status']?.toString() ?? map['subscription_status']?.toString(),
     );
     final DateTime? expiresAt = _parseDateTime(
-      map['subscription_expires_at'] ?? map['expires_at'],
+      map['subscription_expires_at'] ?? map['expires_at'] ?? map['renewal_at'],
     );
     return UserSubscription(
       tier: tier,
+      status: status,
       expiresAt: tier == SubscriptionTier.free ? null : expiresAt,
     );
   }
 
   static UserSubscription? maybeFromProfileMap(Map<String, dynamic> map) {
-    final bool hasTier = map.containsKey('subscription_tier');
+    final bool hasTier =
+        map.containsKey('tier') || map.containsKey('subscription_tier');
     final bool hasExpiry =
         map.containsKey('subscription_expires_at') ||
         map.containsKey('expires_at');
@@ -99,7 +121,11 @@ class UserSubscription {
   /// Bridge: convert a [SubscriptionEntity] from the clean-arch layer
   /// into a [UserSubscription] for the notifier.
   factory UserSubscription.fromEntity(SubscriptionEntity entity) {
-    return UserSubscription(tier: entity.tier, expiresAt: entity.expiresAt);
+    return UserSubscription(
+      tier: entity.tier,
+      status: entity.status,
+      expiresAt: entity.expiresAt,
+    );
   }
 }
 
@@ -139,34 +165,28 @@ class SubscriptionService {
   SubscriptionService._();
 
   static Future<void> initialize() async {
-    final SharedPreferences preferences = await SharedPreferences.getInstance();
-    appSubscriptionNotifier.value = UserSubscription.fromPreferences(
-      preferences,
-    );
+    appSubscriptionNotifier.value = const UserSubscription.free();
+    try {
+      final SubscriptionEntity? subscription =
+          await SubscriptionRepositoryImpl().getCurrentSubscription();
+      if (subscription != null) {
+        await syncFromEntity(subscription);
+      } else {
+        await clear();
+      }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Unable to refresh subscription during app initialization',
+        name: 'SubscriptionService',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   static Future<UserSubscription> loadCurrentSubscription() async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     return UserSubscription.fromPreferences(preferences);
-  }
-
-  static Future<UserSubscription> purchasePlan(SubscriptionTier tier) async {
-    throw UnsupportedError(
-      'Purchases are unavailable until store billing is configured.',
-    );
-  }
-
-  static Future<UserSubscription> restorePurchases() async {
-    throw UnsupportedError(
-      'Purchase restoration is unavailable until store billing is configured.',
-    );
-  }
-
-  static Future<UserSubscription> cancelSubscription() async {
-    throw UnsupportedError(
-      'Subscription cancellation is unavailable until store billing is '
-      'configured.',
-    );
   }
 
   /// Called by [SubscriptionController] to push entity changes
@@ -176,11 +196,23 @@ class SubscriptionService {
     await _saveSubscription(subscription);
   }
 
+  static Future<void> clear() async {
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_subscriptionTierPrefsKey);
+    await preferences.remove(_subscriptionStatusPrefsKey);
+    await preferences.remove(_subscriptionExpiresAtPrefsKey);
+    appSubscriptionNotifier.value = const UserSubscription.free();
+  }
+
   static Future<void> _saveSubscription(UserSubscription subscription) async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setString(
       _subscriptionTierPrefsKey,
       subscription.tier.name,
+    );
+    await preferences.setString(
+      _subscriptionStatusPrefsKey,
+      subscription.status.name,
     );
     if (subscription.expiresAt == null) {
       await preferences.remove(_subscriptionExpiresAtPrefsKey);
@@ -195,6 +227,7 @@ class SubscriptionService {
 }
 
 const String _subscriptionTierPrefsKey = 'subscription_tier';
+const String _subscriptionStatusPrefsKey = 'subscription_status';
 const String _subscriptionExpiresAtPrefsKey = 'subscription_expires_at';
 
 SubscriptionTier _subscriptionTierFromStorage(String? value) {
@@ -212,4 +245,20 @@ DateTime? _parseDateTime(Object? value) {
   if (value == null) return null;
   if (value is DateTime) return value;
   return DateTime.tryParse(value.toString());
+}
+
+SubscriptionStatus _subscriptionStatusFromStorage(String? value) {
+  switch ((value ?? '').trim().toLowerCase()) {
+    case 'active':
+      return SubscriptionStatus.active;
+    case 'expired':
+      return SubscriptionStatus.expired;
+    case 'cancelled':
+    case 'canceled':
+      return SubscriptionStatus.cancelled;
+    case 'paused':
+      return SubscriptionStatus.paused;
+    default:
+      return SubscriptionStatus.inactive;
+  }
 }

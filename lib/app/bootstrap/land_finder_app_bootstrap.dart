@@ -87,10 +87,12 @@ Future<void> initializeLandFinderAppBootstrap() async {
 /// Registers the FCM token with Supabase so the device receives notifications.
 Future<void> onUserLoggedIn() async {
   await NotificationService.initialize();
+  await SubscriptionService.initialize();
 }
 
 /// Call this before signing the user out.
 /// Removes the FCM token from Supabase so the device stops receiving notifications.
 Future<void> onUserLoggedOut() async {
   await NotificationService.clearTokenOnLogout();
+  await SubscriptionService.clear();
 }

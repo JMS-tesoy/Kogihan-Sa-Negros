@@ -7,6 +7,9 @@ import '../models/subscription_model.dart';
 class SubscriptionRemoteDatasource {
   SubscriptionRemoteDatasource();
 
+  String? get currentUserId =>
+      Supabase.instance.client.auth.currentUser?.id;
+
   Future<SubscriptionModel?> getCurrentSubscription() async {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -77,8 +80,7 @@ class SubscriptionRemoteDatasource {
     required bool isAndroid,
   }) async {
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) {
+      if (Supabase.instance.client.auth.currentUser == null) {
         throw Exception('User not authenticated');
       }
 
@@ -89,15 +91,12 @@ class SubscriptionRemoteDatasource {
 
       final requestBody = isAndroid
           ? {
-              'userId': userId,
               'productId': productId,
               'purchaseToken': purchaseToken,
             }
           : {
-              'userId': userId,
               'productId': productId,
               'receiptData': receiptData,
-              'environment': 'production',
             };
 
       // Call the appropriate verification function
@@ -114,7 +113,8 @@ class SubscriptionRemoteDatasource {
       final data = response.data;
       if (data is! Map<String, dynamic> || data['verified'] != true) {
         throw Exception(
-          (data is Map ? data['error'] : null) ?? 'Purchase verification failed',
+          (data is Map<String, dynamic> ? data['error'] : null) ??
+              'Purchase verification failed',
         );
       }
 
@@ -178,32 +178,12 @@ class SubscriptionRemoteDatasource {
       return {
         'tier': response['tier'] ?? 'free',
         'status': response['status'] ?? 'inactive',
+        'expiresAt': response['expires_at'],
         'renewalAt': response['renewal_at'],
         'verifiedAt': response['last_verification_at'],
       };
     } catch (e) {
       return {'tier': 'free', 'status': 'inactive'};
-    }
-  }
-
-  /// Cancel subscription (soft delete - mark as inactive)
-  Future<void> cancelSubscription() async {
-    try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      await Supabase.instance.client
-          .from('subscriptions')
-          .update({
-            'status': 'inactive',
-            'tier': 'free',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', userId);
-    } catch (e) {
-      rethrow;
     }
   }
 

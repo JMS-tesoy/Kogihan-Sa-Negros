@@ -7,56 +7,71 @@ import '../../../../core/enums/subscription_tier.dart';
 import '../../domain/entities/subscription_entity.dart';
 
 class SubscriptionLocalDatasource {
-  static const String _subscriptionKey = 'cached_subscription';
+  static const String _subscriptionKeyPrefix = 'cached_subscription_';
+  static const Duration maximumCacheAge = Duration(hours: 24);
 
-  Future<void> saveSubscription(SubscriptionEntity subscription) async {
+  Future<void> saveSubscription(
+    String userId,
+    SubscriptionEntity subscription,
+  ) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      _subscriptionKey,
+      '$_subscriptionKeyPrefix$userId',
       jsonEncode(<String, dynamic>{
         'id': subscription.id,
-        'subscription_tier': subscription.tier.name,
-        'subscription_status': subscription.status.name,
+        'tier': subscription.tier.name,
+        'status': subscription.status.name,
         'expires_at': subscription.expiresAt?.toIso8601String(),
+        'cached_at': DateTime.now().toUtc().toIso8601String(),
+        'verified_by_server': true,
       }),
     );
   }
 
-  Future<SubscriptionEntity?> getCachedSubscription() async {
+  Future<SubscriptionEntity?> getCachedSubscription(String userId) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? json = prefs.getString(_subscriptionKey);
+    final String? json = prefs.getString('$_subscriptionKeyPrefix$userId');
     if (json == null) return null;
 
-    final Map<String, dynamic> map = jsonDecode(json) as Map<String, dynamic>;
+    try {
+      final Map<String, dynamic> map =
+          jsonDecode(json) as Map<String, dynamic>;
+      final DateTime? cachedAt = DateTime.tryParse(
+        map['cached_at']?.toString() ?? '',
+      );
+      if (map['verified_by_server'] != true ||
+          cachedAt == null ||
+          DateTime.now().toUtc().difference(cachedAt) > maximumCacheAge) {
+        return null;
+      }
 
-    final SubscriptionTier tier = SubscriptionTier.values.firstWhere(
-      (e) => e.name == map['subscription_tier'],
-      orElse: () => SubscriptionTier.free,
-    );
-    final SubscriptionStatus status = SubscriptionStatus.values.firstWhere(
-      (e) => e.name == map['subscription_status'],
-      orElse: () => SubscriptionStatus.inactive,
-    );
-    final DateTime? expiresAt = map['expires_at'] != null
-        ? DateTime.tryParse(map['expires_at'].toString())
-        : null;
+      final SubscriptionTier tier = SubscriptionTier.values.firstWhere(
+        (e) => e.name == map['tier'],
+        orElse: () => SubscriptionTier.free,
+      );
+      final SubscriptionStatus status = SubscriptionStatus.values.firstWhere(
+        (e) => e.name == map['status'],
+        orElse: () => SubscriptionStatus.inactive,
+      );
+      final DateTime? expiresAt = map['expires_at'] != null
+          ? DateTime.tryParse(map['expires_at'].toString())
+          : null;
 
-    return SubscriptionEntity(
-      id: map['id'] as String? ?? '',
-      tier: tier,
-      status: status,
-      expiresAt: expiresAt,
-    );
+      return SubscriptionEntity(
+        id: map['id'] as String? ?? '',
+        tier: tier,
+        status: status,
+        expiresAt: expiresAt,
+      );
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
   }
 
-  Future<void> clearCache() async {
+  Future<void> clearCache(String userId) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_subscriptionKey);
-  }
-
-  Future<void> restoreSubscription() async {
-    throw UnsupportedError(
-      'Purchase restoration is unavailable until store billing is configured.',
-    );
+    await prefs.remove('$_subscriptionKeyPrefix$userId');
   }
 }

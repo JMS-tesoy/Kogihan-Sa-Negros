@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../data/models/plan_model.dart';
 import '../../data/services/subscription_service.dart';
 import '../../domain/entities/plan_entity.dart';
 import '../controllers/subscription_controller.dart';
+import '../screens/purchase_flow_screen.dart';
 import '../screens/subscription_screen.dart';
 
 /// Shows a premium upgrade paywall bottom sheet
@@ -66,7 +68,25 @@ class _PaywallBottomSheetState extends State<_PaywallBottomSheet> {
       orElse: () => _controller.plans.first,
     );
 
-    await _controller.subscribe(plan.id);
+    bool purchaseVerified = false;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PurchaseFlowScreen(
+          plan: PlanModel(
+            id: plan.id,
+            tier: plan.tier,
+            title: plan.title,
+            priceLabel: plan.priceLabel,
+            billingLabel: plan.billingLabel,
+            features: plan.features,
+          ),
+          onSuccess: () {
+            purchaseVerified = true;
+          },
+        ),
+      ),
+    );
+    await _controller.init();
 
     if (!mounted) return;
 
@@ -75,7 +95,7 @@ class _PaywallBottomSheetState extends State<_PaywallBottomSheet> {
       return;
     }
 
-    if (_controller.isPremium) {
+    if (purchaseVerified && _controller.isPremium) {
       Navigator.of(context).pop(true);
       AppSnackBar.success(
         context,

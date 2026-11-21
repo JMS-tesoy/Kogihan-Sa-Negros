@@ -1,9 +1,17 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../app/config/env_config.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../data/models/plan_model.dart';
+import '../../data/services/purchase_handler.dart';
 import '../controllers/subscription_controller.dart';
 import '../../data/services/subscription_service.dart';
 import '../../domain/entities/plan_entity.dart';
+import 'purchase_flow_screen.dart';
 
 String _formatDate(DateTime value) {
   final DateTime local = value.toLocal();
@@ -40,11 +48,15 @@ class SubscriptionPage extends StatefulWidget {
 
 class _SubscriptionPageState extends State<SubscriptionPage> {
   late final SubscriptionController _controller;
+  late final PurchaseHandler _purchaseHandler;
+  StreamSubscription<PurchaseResult>? _purchaseSubscription;
+  bool _isRestoring = false;
 
   @override
   void initState() {
     super.initState();
     _controller = SubscriptionController();
+    _purchaseHandler = PurchaseHandler();
     _controller.addListener(_rebuild);
     _controller.init();
   }
@@ -53,41 +65,91 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
   @override
   void dispose() {
+    unawaited(_purchaseSubscription?.cancel());
     _controller.removeListener(_rebuild);
     _controller.dispose();
+    _purchaseHandler.dispose();
     super.dispose();
   }
 
   Future<void> _subscribe(PlanEntity plan) async {
-    await _controller.subscribe(plan.id);
-    if (!mounted) return;
-
-    if (_controller.error != null) {
-      AppSnackBar.error(context, _controller.error!);
-      return;
-    }
-
-    AppSnackBar.success(
-      context,
-      _controller.isPremium
-          ? '${plan.title} activated.'
-          : 'Subscription updated.',
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PurchaseFlowScreen(
+          plan: PlanModel(
+            id: plan.id,
+            tier: plan.tier,
+            title: plan.title,
+            priceLabel: plan.priceLabel,
+            billingLabel: plan.billingLabel,
+            features: plan.features,
+          ),
+          onSuccess: () {
+            unawaited(_controller.init());
+          },
+        ),
+      ),
     );
+    if (!mounted) return;
+    await _controller.init();
   }
 
   Future<void> _restore() async {
-    await _controller.restoreSubscription();
+    _purchaseSubscription ??= _purchaseHandler.purchaseUpdates.listen(
+      _handlePurchaseResult,
+    );
+    setState(() => _isRestoring = true);
+    final List<PurchaseResult> results = await _purchaseHandler
+        .restorePurchases();
     if (!mounted) return;
 
-    if (_controller.error != null) {
-      AppSnackBar.error(context, _controller.error!);
-      return;
+    for (final PurchaseResult result in results) {
+      if (result.hasError) {
+        setState(() => _isRestoring = false);
+        AppSnackBar.error(
+          context,
+          result.userMessage ?? 'Unable to restore purchases.',
+        );
+        return;
+      }
     }
+    unawaited(_finishRestoreIfIdle());
+  }
 
+  Future<void> _finishRestoreIfIdle() async {
+    await Future<void>.delayed(const Duration(seconds: 20));
+    if (!_isRestoring || !mounted) return;
+    unawaited(_purchaseSubscription?.cancel());
+    _purchaseSubscription = null;
+    setState(() => _isRestoring = false);
+    await _controller.init();
+    if (!mounted) return;
     if (_controller.isPremium) {
       AppSnackBar.success(context, 'Purchase restored.');
     } else {
-      AppSnackBar.info(context, 'No active purchase found.');
+      AppSnackBar.info(context, 'No active store purchase was found.');
+    }
+  }
+
+  Future<void> _handlePurchaseResult(PurchaseResult result) async {
+    if (!_isRestoring || !mounted) return;
+    if (result.state == PurchaseState.restoring ||
+        result.state == PurchaseState.processing ||
+        result.state == PurchaseState.pending) {
+      return;
+    }
+    unawaited(_purchaseSubscription?.cancel());
+    _purchaseSubscription = null;
+    setState(() => _isRestoring = false);
+    if (result.isSuccess) {
+      await _controller.init();
+      if (!mounted) return;
+      AppSnackBar.success(context, 'Purchase restored.');
+    } else if (result.hasError) {
+      AppSnackBar.error(
+        context,
+        result.userMessage ?? 'Unable to restore purchases.',
+      );
     }
   }
 
@@ -95,9 +157,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Subscription'),
+        title: const Text('Manage Subscription'),
         content: const Text(
-          'Cancel your current plan and switch back to Free?',
+          'Open your store subscription settings. Disabling renewal keeps '
+          'premium access active until the verified expiry date.',
         ),
         actions: <Widget>[
           TextButton(
@@ -106,7 +169,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Cancel Subscription'),
+            child: const Text('Open Store'),
           ),
         ],
       ),
@@ -114,16 +177,21 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
     if (confirm != true || !mounted) return;
 
-    await _controller.cancelSubscription();
-
-    if (!mounted) return;
-
-    if (_controller.error != null) {
-      AppSnackBar.error(context, _controller.error!);
+    final Uri managementUri = defaultTargetPlatform == TargetPlatform.android
+        ? Uri.https(
+            'play.google.com',
+            '/store/account/subscriptions',
+            <String, String>{'package': EnvConfig.googlePlayPackageName},
+          )
+        : Uri.parse('https://apps.apple.com/account/subscriptions');
+    if (!await launchUrl(managementUri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      AppSnackBar.error(
+        context,
+        'Unable to open your store subscription settings.',
+      );
       return;
     }
-
-    AppSnackBar.success(context, 'Subscription cancelled. Now on Free plan.');
   }
 
   @override
@@ -134,6 +202,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           ? const Center(child: CircularProgressIndicator())
           : _SubscriptionBody(
               controller: _controller,
+              isRestoring: _isRestoring,
               onSubscribe: _subscribe,
               onRestore: _restore,
               onCancel: _cancel,
@@ -147,12 +216,14 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 class _SubscriptionBody extends StatelessWidget {
   const _SubscriptionBody({
     required this.controller,
+    required this.isRestoring,
     required this.onSubscribe,
     required this.onRestore,
     required this.onCancel,
   });
 
   final SubscriptionController controller;
+  final bool isRestoring;
   final Future<void> Function(PlanEntity plan) onSubscribe;
   final VoidCallback onRestore;
   final VoidCallback onCancel;
@@ -165,17 +236,6 @@ class _SubscriptionBody extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Store billing is not configured. Purchases, restoration '
-                  'and cancellation are unavailable. Plan prices and locally '
-                  'stored access are for demonstration only.',
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             _StatusCard(
               subscription: subscription,
               isActing: controller.isActing,
@@ -198,9 +258,9 @@ class _SubscriptionBody extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: null,
+              onPressed: controller.isActing || isRestoring ? null : onRestore,
               icon: const Icon(Icons.restore),
-              label: const Text('Restore Purchase'),
+              label: Text(isRestoring ? 'Restoring…' : 'Restore Purchase'),
             ),
             if (controller.error != null) ...<Widget>[
               const SizedBox(height: 12),
@@ -306,9 +366,9 @@ class _StatusCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Cancel Subscription'),
+                  onPressed: isActing ? null : onCancel,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Manage Subscription'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
                   ),
@@ -448,7 +508,10 @@ class _PlanCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: null,
+                onPressed:
+                    isActive || isActing || plan.tier == SubscriptionTier.free
+                    ? null
+                    : onSubscribe,
                 child: isActing && !isActive
                     ? const SizedBox(
                         height: 18,

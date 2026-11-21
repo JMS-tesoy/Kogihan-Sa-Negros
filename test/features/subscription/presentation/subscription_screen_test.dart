@@ -4,16 +4,14 @@ import 'package:kogihan_sa_negros/features/subscription/presentation/screens/sub
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('subscription screen clearly disables simulated billing', (
-    tester,
-  ) async {
+  testWidgets('subscription screen exposes real store actions', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const MaterialApp(home: SubscriptionPage()));
     await tester.pumpAndSettle();
 
     expect(
       find.textContaining('Store billing is not configured'),
-      findsOneWidget,
+      findsNothing,
     );
     await tester.scrollUntilVisible(
       find.text('Monthly Premium'),
@@ -25,7 +23,7 @@ void main() {
           find.widgetWithText(ElevatedButton, 'Upgrade'),
         );
     expect(upgradeButtons, isNotEmpty);
-    expect(upgradeButtons.every((button) => button.onPressed == null), isTrue);
+    expect(upgradeButtons.any((button) => button.onPressed != null), isTrue);
     await tester.scrollUntilVisible(
       find.text('Restore Purchase'),
       200,
@@ -34,6 +32,6 @@ void main() {
     final OutlinedButton restore = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Restore Purchase'),
     );
-    expect(restore.onPressed, isNull);
+    expect(restore.onPressed, isNotNull);
   });
 }

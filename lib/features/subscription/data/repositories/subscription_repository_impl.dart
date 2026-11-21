@@ -21,27 +21,37 @@ class SubscriptionRepositoryImpl implements SubscriptionRepository {
 
   @override
   Future<SubscriptionEntity?> getCurrentSubscription() async {
-    final SubscriptionEntity? cached = await _localDatasource
-        .getCachedSubscription();
-    if (cached != null) return cached;
+    final String? userId = _remoteDatasource.currentUserId;
+    if (userId == null) return null;
 
-    final SubscriptionEntity? remote = await _remoteDatasource
-        .getCurrentSubscription();
-    if (remote != null) {
-      await _localDatasource.saveSubscription(remote);
+    try {
+      final SubscriptionEntity? remote = await _remoteDatasource
+          .getCurrentSubscription();
+      if (remote != null) {
+        await _localDatasource.saveSubscription(userId, remote);
+      } else {
+        await _localDatasource.clearCache(userId);
+      }
+      return remote;
+    } catch (_) {
+      final SubscriptionEntity? cached = await _localDatasource
+          .getCachedSubscription(userId);
+      if (cached != null && cached.isPremium) {
+        return cached;
+      }
+      rethrow;
     }
-    return remote;
   }
 
   @override
   Future<void> restoreSubscription() async {
-    await _localDatasource.restoreSubscription();
+    await getCurrentSubscription();
   }
 
   @override
   Future<void> subscribe(String planId) async {
-    // Plan navigation is handled by UI/controller
-    // This method exists for interface compliance but is not used in Phase 2.5
-    // Phase 2.6 will implement full subscription flow with purchase verification
+    throw UnsupportedError(
+      'Use the store purchase flow to subscribe to $planId.',
+    );
   }
 }

@@ -69,7 +69,7 @@
 - Current plan displayed prominently
 - Features included listed
 - Quick upgrade prompt
-- Restore purchase option (Phase 2.6)
+- Restore purchase option (verified through the store)
 
 ---
 

@@ -5,16 +5,19 @@ abstract final class EnvConfig {
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
   static String get mapboxAccessToken =>
       dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
-  
+
+  static String get googlePlayPackageName =>
+      dotenv.env['GOOGLE_PLAY_PACKAGE_NAME'] ?? 'com.landfinder.app';
+
   // Google Play SKU IDs
   static String get googlePlayMonthlySku =>
-      dotenv.env['GOOGLE_PLAY_MONTHLY_SKU'] ?? 'com.landfinder.app.monthly';
+      dotenv.env['GOOGLE_PLAY_MONTHLY_SKU'] ?? '';
   static String get googlePlayYearlySku =>
-      dotenv.env['GOOGLE_PLAY_YEARLY_SKU'] ?? 'com.landfinder.app.yearly';
-  
+      dotenv.env['GOOGLE_PLAY_YEARLY_SKU'] ?? '';
+
   // App Store Product IDs
   static String get appStoreMonthlySku =>
-      dotenv.env['APP_STORE_MONTHLY_SKU'] ?? 'landfinder_monthly';
+      dotenv.env['APP_STORE_MONTHLY_SKU'] ?? '';
   static String get appStoreYearlySku =>
-      dotenv.env['APP_STORE_YEARLY_SKU'] ?? 'landfinder_yearly';
+      dotenv.env['APP_STORE_YEARLY_SKU'] ?? '';
 }

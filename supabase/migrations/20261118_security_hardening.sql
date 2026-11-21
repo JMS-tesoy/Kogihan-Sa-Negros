@@ -45,6 +45,7 @@ CREATE POLICY "anyone_view_active_properties" ON public.properties
 
 -- Drop the broken tier update policy if it exists
 DROP POLICY IF EXISTS "users_update_own_subscription" ON public.subscriptions;
+DROP POLICY IF EXISTS "users_view_own_subscription" ON public.subscriptions;
 
 -- Create correct policy: users can only view their own subscription
 CREATE POLICY "users_view_own_subscription" ON public.subscriptions
@@ -52,6 +53,7 @@ CREATE POLICY "users_view_own_subscription" ON public.subscriptions
   USING (user_id = auth.uid());
 
 -- Tier changes must go through admin-only functions, not direct updates
+DROP POLICY IF EXISTS "admins_manage_subscriptions" ON public.subscriptions;
 CREATE POLICY "admins_manage_subscriptions" ON public.subscriptions
   FOR UPDATE
   USING (

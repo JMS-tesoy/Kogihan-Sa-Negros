@@ -15,9 +15,14 @@ class SubscriptionEntity {
   final DateTime? expiresAt;
 
   bool get isPremium {
+    return isPremiumAt(DateTime.now());
+  }
+
+  bool isPremiumAt(DateTime now) {
+    if (status != SubscriptionStatus.active) return false;
     if (tier == SubscriptionTier.free) return false;
-    if (expiresAt == null) return true;
-    return expiresAt!.isAfter(DateTime.now());
+    final DateTime? expiry = expiresAt;
+    return expiry != null && expiry.isAfter(now);
   }
 
   String get planName => switch (tier) {

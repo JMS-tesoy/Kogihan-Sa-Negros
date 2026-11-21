@@ -95,8 +95,17 @@ CREATE POLICY "users_view_own_purchase_history" ON public.purchase_history
   USING (user_id = auth.uid());
 
 -- Users cannot insert/update/delete (backend only)
-CREATE POLICY "users_cannot_modify_purchases" ON public.purchase_history
-  FOR INSERT, UPDATE, DELETE
+CREATE POLICY "users_cannot_insert_purchases" ON public.purchase_history
+  FOR INSERT
+  WITH CHECK (FALSE);
+
+CREATE POLICY "users_cannot_update_purchases" ON public.purchase_history
+  FOR UPDATE
+  USING (FALSE)
+  WITH CHECK (FALSE);
+
+CREATE POLICY "users_cannot_delete_purchases" ON public.purchase_history
+  FOR DELETE
   USING (FALSE);
 
 -- Service role (Edge Functions) can insert verified purchases
@@ -141,7 +150,9 @@ DECLARE
   v_expiry_date TIMESTAMP WITH TIME ZONE;
 BEGIN
   -- Extract expiry from verification data
-  v_expiry_date := (p_verification_data ->> 'expiryTimeMillis')::BIGINT / 1000;
+  v_expiry_date := to_timestamp(
+    (p_verification_data ->> 'expiryTimeMillis')::DOUBLE PRECISION / 1000
+  );
 
   -- Insert or update purchase record
   INSERT INTO public.purchase_history (

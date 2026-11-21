@@ -7,13 +7,14 @@ Users have premium active subscription for **3 reasons:**
 1. **They Purchased It** ✅ (Most common)
    - User went through purchase flow
    - Made payment via Google Play or App Store
-   - Subscription recorded in `purchase_history` table
+   - Store receipt is verified by an Edge Function
+   - Verified subscription event recorded in `purchase_history`
    - `subscriptions.tier` set to `monthly` or `yearly`
    - Expiry date set in future
 
 2. **Admin Manually Set It** 🔧 (Testing/Support)
    - Admin can directly update `subscriptions` table
-   - Set `tier = 'premium'` or `tier = 'monthly'` or `tier = 'yearly'`
+   - Set `tier = 'monthly'` or `tier = 'yearly'`
    - Set `expires_at` to future date
    - User immediately shows as premium
 
@@ -31,22 +32,25 @@ Users have premium active subscription for **3 reasons:**
 ```dart
 // From SubscriptionEntity
 bool get isPremium {
+  if (status != SubscriptionStatus.active) return false; // Active only
   if (tier == SubscriptionTier.free) return false;      // Free = NOT premium
-  if (expiresAt == null) return true;                   // No expiry = premium
-  return expiresAt!.isAfter(DateTime.now());            // After today = premium
+  if (expiresAt == null) return false;                  // Fail closed
+  return expiresAt!.isAfter(DateTime.now());            // After now = premium
 }
 ```
 
 **In plain English:**
 - If tier is `free` → NOT premium
+- If status is not `active` → NOT premium
 - If tier is `monthly` or `yearly` AND expiry is in future → Premium ✅
 - If tier is `monthly` or `yearly` BUT expiry is in past → NOT premium (expired)
+- A paid tier without a verified expiry is NOT premium
 
 ---
 
 ## **Data Flow: How Premium Gets Set**
 
-### **Path 1: User Purchases (Phase 2.6+)**
+### **Path 1: User Purchases a Verified Subscription**
 
 ```
 User taps "Subscribe Now"
@@ -55,9 +59,9 @@ Payment processes through store
   ↓
 Receipt sent to backend Edge Function
   ↓
-Edge Function verifies receipt with Google Play/App Store
+Edge Function authenticates user and verifies receipt with Google Play/App Store
   ↓
-Backend creates row in purchase_history table
+Backend atomically records the provider-verified event
   ↓
 Backend updates subscriptions table:
   - tier = 'monthly' (or 'yearly')
@@ -88,7 +92,7 @@ Updates columns:
 Save changes
   ↓
 Next time app loads subscription:
-  - Fetches from database
+  - Fetches from the database before trusting cached access
   - Sees tier='monthly' + future expiry
   - Sets isPremium = true
   ↓
@@ -115,7 +119,7 @@ subscriptions
 │  ├─ 'expired' (subscription ended)
 │  └─ 'paused'
 ├─ expires_at (TIMESTAMP)
-│  ├─ NULL for free users (no expiry)
+│  ├─ NULL for free users (no paid entitlement)
 │  ├─ Future date for active premium
 │  └─ Past date for expired premium
 ├─ auto_renew (BOOLEAN - default true)
@@ -265,6 +269,7 @@ Backend updates subscriptions row:
   - verified_purchase_id: (links to purchase_history)
   ↓
 App checks isPremium:
+  - status = 'active' ✓
   - tier = 'monthly' ✓
   - expires_at (Dec 17) > now ✓
   - isPremium = true ✅
@@ -309,16 +314,38 @@ Can test without paying
 
 ---
 
-## **Current State (Phase 2.5)**
+## **Current Implementation State**
 
 | Item | Status | Details |
 |------|--------|---------|
 | **Database Schema** | ✅ Ready | `subscriptions` table created + RLS policies |
 | **New Trigger** | ✅ Ready | Auto-creates free subscription for new users |
 | **Purchase History** | ✅ Ready | Table ready to store verified purchases |
-| **Backend Verification** | ⏳ Coming | Edge Functions need real Google Play/App Store calls |
-| **Controller Integration** | ⏳ Coming | PurchaseHandler needs to update DB (Phase 2.6) |
-| **Real Payments** | ⏳ Coming | Store integration coming Phase 2.8+ |
+| **Backend Verification** | ✅ Implemented | Google Play and App Store responses are validated server-side |
+| **Controller Integration** | ✅ Implemented | Purchase UI waits for backend verification before completion |
+| **Schema Repair Migration** | ⏳ Deploy | Apply `20261120115021_subscription_billing_repair.sql` |
+| **Provider Configuration** | ⏳ Required | Configure store credentials and exact SKU entries |
+| **Provider Notifications** | ⏳ Required | Connect renewal, refund, and revocation notifications |
+| **Production Validation** | ⏳ Required | Test sandbox purchase, restore, renewal, and refund flows |
+
+Purchases are not production-ready until the repair migration, provider
+credentials, product IDs, and store notifications are configured and tested.
+The client fails closed when verified expiry data is unavailable.
+
+### **PayMongo Payment Methods**
+
+When an approved build enables external checkout, users can choose:
+
+- **GCash** — one-time PayMongo payment for a fixed subscription term.
+- **QR Ph (scan with GoTyme)** — one-time QR Ph payment for a fixed term.
+- **Credit / Debit Card** — fixed-term unless the PayMongo merchant account has
+  Subscriptions enabled; eligible recurring card subscriptions may auto-renew.
+- **Google Play / App Store** — store-managed subscription path.
+
+GCash and GoTyme QR Ph do not auto-renew. The browser return never grants
+premium: only a signed PayMongo webhook updates the server entitlement. Store
+builds hide PayMongo by default until Google/Apple external-payment eligibility
+is approved for the platform and storefront.
 
 ---
 
@@ -415,9 +442,15 @@ isPremium = false
 | `subscription_service.dart` | Manages UserSubscription |
 | `20261117_complete_rls_and_auth_policies.sql` | Creates subscriptions table + trigger |
 | `20261119_payment_integration.sql` | Creates purchase_history table |
+| `20261120115021_subscription_billing_repair.sql` | Aligns entitlement schema and permissions |
 | `subscription_remote_datasource.dart` | Fetches subscription from DB |
 | `subscription_screen.dart` | Shows current status to user |
 
 ---
 
-**Summary:** Premium subscriptions come from either real purchases (Phase 2.6+) or manual admin/testing setup. All users start free via automatic trigger. The database ties purchases to subscriptions through `purchase_history` and `verified_purchase_id` link. ✅
+**Summary:** Premium subscriptions come from verified store purchases or an
+authorized manual grant with a future expiry. All users start free. The client
+does not directly modify premium state: it verifies a store receipt, refreshes
+the server entitlement, and completes the store transaction only after the
+backend confirms an active, unexpired subscription. Store-managed cancellation
+turns off renewal; access remains until the verified expiry date.

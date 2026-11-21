@@ -13,11 +13,13 @@ class SubscriptionModel extends SubscriptionEntity {
   factory SubscriptionModel.fromMap(Map<String, dynamic> map) {
     return SubscriptionModel(
       id: map['id'] ?? '',
-      tier: _tierFromString(map['subscription_tier']),
-      status: _statusFromString(map['subscription_status']),
-      expiresAt: map['expires_at'] != null
-          ? DateTime.tryParse(map['expires_at'].toString())
-          : null,
+      tier: _tierFromString(
+        map['tier']?.toString() ?? map['subscription_tier']?.toString(),
+      ),
+      status: _statusFromString(
+        map['status']?.toString() ?? map['subscription_status']?.toString(),
+      ),
+      expiresAt: _dateTimeFromMap(map),
     );
   }
 
@@ -28,8 +30,8 @@ class SubscriptionModel extends SubscriptionEntity {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'subscription_tier': tier.name,
-      'subscription_status': status.name,
+      'tier': tier.name,
+      'status': status.name,
       'expires_at': expiresAt?.toIso8601String(),
     };
   }
@@ -42,9 +44,23 @@ class SubscriptionModel extends SubscriptionEntity {
   }
 
   static SubscriptionStatus _statusFromString(String? value) {
-    return SubscriptionStatus.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => SubscriptionStatus.inactive,
-    );
+    switch (value?.trim().toLowerCase()) {
+      case 'active':
+        return SubscriptionStatus.active;
+      case 'expired':
+        return SubscriptionStatus.expired;
+      case 'cancelled':
+      case 'canceled':
+        return SubscriptionStatus.cancelled;
+      case 'paused':
+        return SubscriptionStatus.paused;
+      default:
+        return SubscriptionStatus.inactive;
+    }
+  }
+
+  static DateTime? _dateTimeFromMap(Map<String, dynamic> map) {
+    final Object? value = map['expires_at'] ?? map['renewal_at'];
+    return value == null ? null : DateTime.tryParse(value.toString());
   }
 }

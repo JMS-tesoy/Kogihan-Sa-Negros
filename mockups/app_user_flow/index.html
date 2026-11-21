@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive Kogihan sa Negros user-flow and build progress map.">
+  <title>Kogihan sa Negros — User flow &amp; build progress</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f12;
+      --panel: #11171c;
+      --panel-2: #172027;
+      --panel-3: #202a32;
+      --line: #2a353d;
+      --line-soft: #202a31;
+      --text: #f2f5f1;
+      --muted: #8e9ca5;
+      --dim: #66737b;
+      --green: #6ee7b7;
+      --amber: #f5b85c;
+      --violet: #9ca8ff;
+      --danger: #ef8d72;
+      --shadow: 0 14px 28px rgba(0, 0, 0, .28);
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; min-height: 100%; background: var(--bg); }
+
+    body {
+      color: var(--text);
+      font: 14px/1.45 var(--sans);
+      overflow-x: hidden;
+    }
+
+    button { font: inherit; color: inherit; }
+
+    button, [tabindex] { -webkit-tap-highlight-color: transparent; }
+
+    button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--green);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed; left: 16px; top: -60px; z-index: 100;
+      padding: 9px 14px; background: var(--green); color: #07110d;
+      border-radius: 8px; text-decoration: none; font-weight: 800;
+    }
+
+    .skip-link:focus { top: 16px; }
+
+    .app-shell {
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px);
+      background-size: 36px 36px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      min-height: 94px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(11, 15, 18, .96);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand-mark {
+      display: grid;
+      grid-template-columns: repeat(2, 11px);
+      grid-template-rows: repeat(2, 11px);
+      gap: 3px;
+      width: 29px;
+      transform: rotate(7deg);
+      flex: 0 0 auto;
+    }
+
+    .brand-mark i { display: block; background: var(--green); border-radius: 3px 3px 0 3px; }
+    .brand-mark i:nth-child(2) { background: transparent; border: 1px solid var(--green); }
+    .brand-mark i:nth-child(3) { background: var(--amber); }
+    .brand-mark i:nth-child(4) { background: var(--panel-3); }
+
+    .title-group { min-width: 250px; }
+    .eyebrow {
+      display: flex; align-items: center; gap: 8px;
+      color: var(--green); font: 700 10px/1 var(--mono);
+      letter-spacing: .16em; text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 17px; height: 1px; background: currentColor; }
+    h1 { margin: 7px 0 0; font-size: clamp(19px, 2vw, 27px); line-height: 1; letter-spacing: -.04em; }
+    .subtitle { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+
+    .metrics {
+      display: flex;
+      align-items: stretch;
+      margin-left: auto;
+    }
+
+    .metric {
+      min-width: 116px;
+      padding: 7px 18px;
+      border-left: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block; font-size: 19px; font-weight: 750; letter-spacing: -.03em;
+    }
+    .metric span {
+      display: block; margin-top: 2px; color: var(--muted);
+      font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+    }
+    .metric.is-green strong { color: var(--green); }
+    .metric.is-amber strong { color: var(--amber); }
+
+    .review-stamp {
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      font: 700 9px/1.4 var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .review-stamp b { color: var(--text); }
+
+    .command-bar {
+      min-height: 67px;
+      padding: 12px 24px;
+      display: flex;
+      gap: 22px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .filter-group { display: flex; gap: 5px; align-items: center; }
+    .control-label {
+      color: var(--dim); font: 700 9px/1 var(--mono);
+      text-transform: uppercase; letter-spacing: .12em; margin-right: 7px;
+    }
+
+    .filter {
+      border: 1px solid var(--line);
+      background: transparent;
+      border-radius: 6px;
+      min-height: 35px;
+      padding: 7px 11px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 11px;
+      transition: background .18s, color .18s, border-color .18s;
+    }
+    .filter:hover { color: var(--text); background: var(--panel-3); }
+    .filter[aria-pressed="true"] {
+      color: #07110d; background: var(--green); border-color: var(--green);
+      font-weight: 750;
+    }
+
+    .legend {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 15px;
+      margin-left: auto;
+    }
+    .legend-item {
+      display: inline-flex; gap: 7px; align-items: center;
+      color: var(--muted); font-size: 10px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .dot.amber { background: var(--amber); }
+    .dot.violet { background: var(--violet); }
+    .dot.danger { background: var(--danger); }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 328px;
+      min-height: 720px;
+      border-bottom: 1px solid var(--line);
+      transition: grid-template-columns .22s ease;
+    }
+    .workspace.inspector-collapsed {
+      grid-template-columns: minmax(0, 1fr) 54px;
+    }
+
+    .graph-pane {
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+      background: rgba(13, 18, 22, .8);
+    }
+
+    .graph-topline {
+      display: flex; align-items: center; gap: 8px;
+      height: 43px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(17, 23, 28, .9);
+      font: 700 9px/1 var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 0 4px rgba(110, 231, 183, .08);
+    }
+    .graph-caption { margin-left: auto; color: var(--dim); letter-spacing: 0; text-transform: none; }
+
+    .graph-tools {
+      position: absolute; z-index: 20; right: 14px; top: 57px;
+      display: flex; border: 1px solid var(--line); border-radius: 7px;
+      overflow: hidden; background: var(--panel); box-shadow: var(--shadow);
+    }
+    .graph-tools button {
+      width: 34px; height: 34px; border: 0; border-right: 1px solid var(--line);
+      background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .graph-tools button:last-child { border-right: 0; }
+    .graph-tools button:hover { background: var(--panel-3); color: var(--text); }
+    .graph-tools .zoom-value {
+      display: grid; place-items: center; width: 49px; font: 700 9px var(--mono);
+      border-right: 1px solid var(--line); color: var(--green);
+    }
+
+    .graph-scroller {
+      overflow: auto;
+      height: 677px;
+      scrollbar-color: var(--line) transparent;
+      scrollbar-width: thin;
+    }
+
+    .graph-scale {
+      position: relative;
+      width: 1880px;
+      height: 900px;
+      transform-origin: 0 0;
+      transition: transform .2s ease;
+    }
+
+    .flow-canvas {
+      width: 1880px;
+      height: 900px;
+      position: relative;
+      overflow: hidden;
+      background-image: radial-gradient(rgba(126, 143, 151, .2) .65px, transparent .65px);
+      background-size: 18px 18px;
+    }
+
+    .lane {
+      position: absolute;
+      top: 24px;
+      height: 847px;
+      border: 1px solid rgba(255,255,255,.045);
+      background: rgba(255,255,255,.012);
+      border-radius: 12px;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+
+    .lane-title {
+      position: absolute; top: 17px; left: 17px; z-index: 3;
+      display: flex; align-items: center; gap: 8px;
+      color: var(--text); font-size: 11px; font-weight: 750; text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .lane-title b { color: var(--dim); font: 700 9px var(--mono); }
+    .lane-title::before { content: ""; width: 3px; height: 14px; background: var(--green); border-radius: 2px; }
+    .lane[data-role="agent"] .lane-title::before,
+    .lane[data-role="admin"] .lane-title::before { background: var(--violet); }
+    .lane[data-role="upgrade"] .lane-title::before { background: var(--amber); }
+
+    .connections {
+      position: absolute; inset: 0; width: 1880px; height: 900px; z-index: 1;
+      overflow: visible; pointer-events: none;
+    }
+    .edge-path {
+      fill: none; stroke: #59656b; stroke-width: 1.15; opacity: .75;
+      transition: stroke .2s, opacity .2s, stroke-width .2s;
+    }
+    .edge-path.needs { stroke: var(--amber); stroke-dasharray: 4 4; opacity: .65; }
+    .edge-path.guard { stroke: var(--violet); stroke-dasharray: 2 4; opacity: .85; }
+    .edge-path.blocked {
+      stroke: var(--danger); stroke-dasharray: 2 6; opacity: .85;
+    }
+    .edge-path.is-journey, .edge-path.is-connected {
+      stroke: #8fcdb5; stroke-width: 2.1; opacity: .88;
+    }
+    .edge-label {
+      fill: #78858d; font: 600 8px var(--mono); letter-spacing: .04em;
+      paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linecap: round;
+    }
+    .edge-label.is-connected { fill: #8fcdb5; opacity: .9; }
+    .edge-label.is-dim { opacity: .12; }
+    .edge-label.blocked { fill: var(--danger); }
+
+    .node {
+      position: absolute;
+      width: 166px;
+      min-height: 75px;
+      padding: 11px 11px 10px;
+      z-index: 5;
+      border: 1px solid #334048;
+      border-radius: 9px;
+      background: var(--panel-2);
+      box-shadow: 0 7px 14px rgba(0,0,0,.18);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      transition: opacity .2s, transform .18s, border-color .18s, background .18s, box-shadow .18s;
+    }
+    .node:hover {
+      transform: translateY(-2px);
+      border-color: #5c6d76;
+      background: #1b252c;
+      box-shadow: 0 11px 21px rgba(0,0,0,.3);
+    }
+    .node.is-selected {
+      border-color: #7bbda3;
+      background: #16231e;
+      box-shadow:
+        0 0 0 1px rgba(123,189,163,.55),
+        0 8px 18px rgba(0,0,0,.25);
+    }
+    .node.is-path {
+      border-color: rgba(123,189,163,.42);
+      background: #17221e;
+      box-shadow:
+        0 0 0 1px rgba(123,189,163,.08),
+        0 8px 18px rgba(0,0,0,.22);
+    }
+    .node.is-dim { opacity: .22; }
+    .lane.is-dim { opacity: .32; }
+
+    .node-top { display: flex; align-items: center; gap: 8px; }
+    .node-icon {
+      display: grid; place-items: center; width: 25px; height: 25px; flex: 0 0 auto;
+      border-radius: 7px; color: var(--green); background: rgba(110,231,183,.09);
+      font: 800 10px var(--mono);
+    }
+    .node[data-status="integration"] .node-icon { color: var(--amber); background: rgba(245,184,92,.1); }
+    .node[data-status="guarded"] .node-icon { color: var(--violet); background: rgba(156,168,255,.1); }
+    .node[data-status="planned"] .node-icon { color: var(--muted); background: rgba(142,156,165,.1); }
+    .node[data-status="blocked"] .node-icon { color: var(--danger); background: rgba(239,141,114,.1); }
+    .node-title { font-size: 12px; line-height: 1.15; font-weight: 750; letter-spacing: -.015em; }
+    .node-meta {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.055);
+    }
+    .node-route {
+      color: #75828a; font: 500 8px/1 var(--mono); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 100px;
+    }
+    .node-status { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
+    .node-status i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    .node[data-status="integration"] .node-status i { background: var(--amber); }
+    .node[data-status="guarded"] .node-status i { background: var(--violet); }
+    .node[data-status="planned"] .node-status i { background: var(--muted); }
+    .node[data-status="blocked"] .node-status i { background: var(--danger); }
+    .node-status.is-unconnected {
+      color: var(--danger);
+    }
+    .node-status.is-unconnected i {
+      box-shadow: 0 0 0 3px rgba(239,141,114,.1);
+    }
+
+    .detail-panel {
+      position: relative;
+      min-width: 0;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      padding: 23px 21px 19px;
+      transition: padding .22s ease;
+    }
+
+    .detail-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 25px;
+    }
+    .detail-collapse {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .18s, border-color .18s, background .18s;
+    }
+    .detail-collapse:hover {
+      color: var(--text);
+      border-color: #52626a;
+      background: var(--panel-3);
+    }
+    .detail-collapse svg {
+      width: 14px;
+      height: 14px;
+      transition: transform .22s ease;
+    }
+    .workspace.inspector-collapsed .detail-panel {
+      padding: 23px 12px 19px;
+    }
+    .workspace.inspector-collapsed .detail-head {
+      justify-content: center;
+      margin: 0;
+    }
+    .workspace.inspector-collapsed .detail-head > :not(.detail-collapse),
+    .workspace.inspector-collapsed .detail-panel > :not(.detail-head) {
+      display: none;
+    }
+    .workspace.inspector-collapsed .detail-collapse svg {
+      transform: rotate(180deg);
+    }
+    .detail-kicker { color: var(--muted); font: 700 9px var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+    .detail-index { color: var(--dim); font: 700 9px var(--mono); }
+    .detail-title { margin: 0; font-size: 27px; line-height: 1.05; letter-spacing: -.045em; max-width: 250px; }
+    .detail-route {
+      display: inline-block; margin-top: 13px; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 5px;
+      background: var(--bg); color: var(--muted); font: 500 9px var(--mono);
+    }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 7px; margin-top: 17px;
+      padding: 6px 9px; border: 1px solid rgba(110,231,183,.32);
+      border-radius: 5px; background: rgba(110,231,183,.06);
+      color: var(--green); font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em;
+    }
+    .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status-pill.integration { color: var(--amber); border-color: rgba(245,184,92,.35); background: rgba(245,184,92,.06); }
+    .status-pill.guarded { color: var(--violet); border-color: rgba(156,168,255,.35); background: rgba(156,168,255,.06); }
+    .status-pill.planned { color: var(--muted); border-color: rgba(142,156,165,.35); background: rgba(142,156,165,.06); }
+    .status-pill.blocked { color: var(--danger); border-color: rgba(239,141,114,.35); background: rgba(239,141,114,.06); }
+
+    .detail-block { margin-top: 25px; padding-top: 19px; border-top: 1px solid var(--line-soft); }
+    .detail-block h3 {
+      margin: 0 0 9px; color: var(--muted); font: 700 9px var(--mono);
+      text-transform: uppercase; letter-spacing: .12em;
+    }
+    .detail-copy { margin: 0; color: #c7d0d5; font-size: 12px; line-height: 1.6; }
+    .action-list { list-style: none; padding: 0; margin: 0; }
+    .action-list li {
+      display: flex; gap: 9px; margin-top: 8px; color: #c7d0d5; font-size: 11px;
+    }
+    .action-list li::before { content: "↳"; color: var(--green); font-family: var(--mono); }
+    .test-note {
+      padding: 12px; border-left: 2px solid var(--amber); background: rgba(245,184,92,.045);
+      color: #c7bca7; font-size: 10px; line-height: 1.5;
+    }
+    .source-box {
+      margin-top: 12px; padding: 10px 11px; background: var(--bg);
+      border: 1px solid var(--line-soft); border-radius: 6px;
+      color: var(--muted); font: 500 9px/1.45 var(--mono); overflow-wrap: anywhere;
+    }
+
+    .journeys { padding: 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
+    .section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+    .clear-journey {
+      border: 1px solid var(--line); border-radius: 6px; background: transparent;
+      padding: 7px 10px; color: var(--muted); cursor: pointer; font-size: 10px;
+    }
+    .clear-journey:hover { color: var(--text); background: var(--panel-3); }
+
+    .journey-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .journey {
+      border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+      padding: 13px; min-height: 91px; text-align: left; cursor: pointer;
+      transition: border-color .18s, transform .18s, background .18s;
+    }
+    .journey:hover { transform: translateY(-2px); border-color: #52626a; }
+    .journey[aria-pressed="true"] { border-color: var(--green); background: #132019; }
+    .journey-no { color: var(--green); font: 700 9px var(--mono); }
+    .journey-title { display: block; margin-top: 8px; font-size: 11px; font-weight: 750; line-height: 1.25; }
+    .journey-desc { display: block; margin-top: 4px; color: var(--dim); font-size: 9px; line-height: 1.4; }
+
+    .progress-note {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      padding: 22px 24px 25px;
+      background: #0e1317;
+    }
+    .progress-note > div { padding-right: 24px; border-right: 1px solid var(--line-soft); }
+    .progress-note > div:last-child { border-right: 0; }
+    .progress-note h3 { margin: 0 0 7px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .progress-note p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+    .progress-note b { color: var(--text); font-weight: 700; }
+
+    @media (max-width: 1150px) {
+      .review-stamp { display: none; }
+      .metric { min-width: 100px; padding-inline: 13px; }
+      .command-bar { align-items: flex-start; }
+      .legend { gap: 10px; }
+      .workspace { grid-template-columns: minmax(0, 1fr) 290px; }
+      .journey-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 820px) {
+      .masthead { position: static; flex-wrap: wrap; gap: 16px; padding: 17px; }
+      .metrics { width: 100%; margin: 0; order: 3; border-top: 1px solid var(--line); padding-top: 12px; }
+      .metric { flex: 1; min-width: 0; padding: 0 10px; border-left: 0; border-right: 1px solid var(--line); }
+      .metric:last-child { border: 0; }
+      .command-bar { flex-wrap: wrap; padding: 12px 17px; }
+      .legend { width: 100%; margin: 0; }
+      .workspace { grid-template-columns: 1fr; }
+      .workspace.inspector-collapsed {
+        grid-template-columns: 1fr;
+      }
+      .graph-scroller { height: 520px; }
+      .detail-panel { border-left: 0; border-top: 1px solid var(--line); }
+      .workspace.inspector-collapsed .detail-panel {
+        padding: 10px 17px;
+      }
+      .workspace.inspector-collapsed .detail-head {
+        justify-content: space-between;
+      }
+      .workspace.inspector-collapsed .detail-kicker {
+        display: inline;
+      }
+      .journeys { padding: 19px 17px; }
+      .journey-grid { grid-template-columns: repeat(2, 1fr); }
+      .progress-note { grid-template-columns: 1fr; gap: 18px; padding: 21px 17px; }
+      .progress-note > div { border-right: 0; border-bottom: 1px solid var(--line-soft); padding: 0 0 18px; }
+      .progress-note > div:last-child { border-bottom: 0; padding-bottom: 0; }
+    }
+
+    @media (max-width: 480px) {
+      .filter-group { width: 100%; flex-wrap: wrap; }
+      .control-label { width: 100%; margin-bottom: 4px; }
+      .filter { flex: 1; }
+      .legend { justify-content: space-between; }
+      .legend-item { font-size: 9px; }
+      .journey-grid { grid-template-columns: 1fr 1fr; }
+      .journey { min-height: 102px; }
+      .detail-title { font-size: 24px; }
+      .graph-caption { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#flow-map">Skip to flow map</a>
+  <div class="app-shell">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="title-group">
+        <div class="eyebrow">Implementation map</div>
+        <h1>Kogihan sa Negros</h1>
+        <p class="subtitle">User flow &amp; build progress</p>
+      </div>
+      <div class="metrics" aria-label="Build progress overview">
+        <div class="metric"><strong id="screen-count">25</strong><span>Mapped screens</span></div>
+        <div class="metric is-green"><strong id="complete-count">7</strong><span>Completed UI flows</span></div>
+        <div class="metric is-amber"><strong id="service-count">11</strong><span>Service checks</span></div>
+      </div>
+      <div class="review-stamp"><b>Review state</b><br>Implementation preview</div>
+    </header>
+
+    <nav class="command-bar" aria-label="Flow controls">
+      <div class="filter-group" aria-label="Role filter">
+        <span class="control-label">Focus</span>
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">All flows</button>
+        <button class="filter" type="button" data-filter="buyer" aria-pressed="false">Buyer</button>
+        <button class="filter" type="button" data-filter="agent" aria-pressed="false">Agent</button>
+        <button class="filter" type="button" data-filter="admin" aria-pressed="false">Admin</button>
+      </div>
+      <div class="legend" aria-label="Status legend">
+        <span class="control-label">Status</span>
+        <span class="legend-item"><i class="dot"></i>Completed UI</span>
+        <span class="legend-item"><i class="dot amber"></i>Needs integration</span>
+        <span class="legend-item"><i class="dot violet"></i>Guarded route</span>
+        <span class="legend-item"><i class="dot danger"></i>Blocked / unverified</span>
+      </div>
+    </nav>
+
+    <main>
+      <section class="workspace" id="flow-map" aria-label="Interactive user-flow map">
+        <div class="graph-pane">
+          <div class="graph-topline">
+            <i class="live-dot" aria-hidden="true"></i>
+            <span>Product flow · source-reviewed</span>
+            <span class="graph-caption">Select a screen to inspect its route</span>
+          </div>
+          <div class="graph-tools" aria-label="Graph zoom controls">
+            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <span id="zoom-value" class="zoom-value" aria-live="polite">100%</span>
+            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+            <button id="zoom-reset" type="button" aria-label="Reset graph zoom">↺</button>
+          </div>
+          <div class="graph-scroller" tabindex="0" aria-label="Scrollable user-flow graph">
+            <div class="graph-scale" id="graph-scale">
+              <div class="flow-canvas" id="flow-canvas">
+                <svg class="connections" id="connections" viewBox="0 0 1880 900" aria-hidden="true">
+                  <defs>
+                    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                      <path d="M0,0 L7,3.5 L0,7 z" fill="#657179"></path>
+                    </marker>
+                    <marker id="arrow-active" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                      <path d="M0,0 L7,3.5 L0,7 z" fill="#6ee7b7"></path>
+                    </marker>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="detail-panel" aria-labelledby="detail-title" aria-live="polite">
+          <div class="detail-head">
+            <span class="detail-kicker">Screen inspector</span>
+            <span id="detail-index" class="detail-index">01 / 25</span>
+            <button
+              class="detail-collapse"
+              id="detail-collapse"
+              type="button"
+              aria-label="Collapse screen inspector"
+              aria-expanded="true"
+              aria-controls="detail-title"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m14 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          <h2 class="detail-title" id="detail-title">Guest onboarding</h2>
+          <code class="detail-route" id="detail-route">/onboarding</code>
+          <div>
+            <span class="status-pill" id="detail-status">Completed UI</span>
+          </div>
+          <section class="detail-block">
+            <h3>What it does</h3>
+            <p class="detail-copy" id="detail-description"></p>
+          </section>
+          <section class="detail-block">
+            <h3>Next screens &amp; actions</h3>
+            <ul class="action-list" id="detail-actions"></ul>
+          </section>
+          <section class="detail-block">
+            <h3>Testing note</h3>
+            <div class="test-note" id="detail-note"></div>
+            <div class="source-box" id="detail-source"></div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="journeys" aria-labelledby="journeys-title">
+        <div class="section-head">
+          <div>
+            <h2 id="journeys-title">Journey quick-picks</h2>
+            <p>Trace the connected path for a common product scenario.</p>
+          </div>
+          <button class="clear-journey" id="clear-journey" type="button">Clear highlight</button>
+        </div>
+        <div class="journey-grid" id="journey-grid"></div>
+      </section>
+    </main>
+
+    <footer class="progress-note">
+      <div>
+        <h3>Implementation ≠ release verification</h3>
+        <p>Status reflects a source implementation review. Every flow must still be exercised on <b>real devices</b> with its backend, account state, payment provider, and push configuration.</p>
+      </div>
+      <div>
+        <h3>How to read this map</h3>
+        <p>Solid emerald is implemented UI, dashed amber depends on runtime services, violet marks a role guard, and red marks a blocked or unverified connection. Each node shows its incoming and outgoing link count.</p>
+      </div>
+      <div>
+        <h3>Not live analytics</h3>
+        <p>This is a product map and build-progress preview. Counts and statuses describe the code inventory, <b>not user activity</b>, uptime, or production behavior.</p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="flow-data.js"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const flowData = window.APP_FLOW_DATA;
+      if (!flowData) {
+        throw new Error("flow-data.js is missing. Run the update task first.");
+      }
+      const { nodes, edges, journeys, statusLabels } = flowData;
+      const elementById = id => document.getElementById(id);
+      const filters = [...document.querySelectorAll(".filter")];
+      const graphNodes = () => document.querySelectorAll(".node");
+      const journeyButtons = () => document.querySelectorAll(".journey");
+      const setPressed = (elements, activeElement) => {
+        elements.forEach(element =>
+          element.setAttribute("aria-pressed", String(element === activeElement))
+        );
+      };
+      elementById("screen-count").textContent = nodes.length;
+      elementById("complete-count").textContent = nodes.filter(
+        node => node.status === "complete",
+      ).length;
+      elementById("service-count").textContent = nodes.filter(
+        node => node.status === "integration",
+      ).length;
+      const lanes = [
+        { role:"entry", title:"Entry", code:"01", x:16, w:190 },
+        { role:"buyer", title:"Buyer shell", code:"02", x:290, w:190 },
+        { role:"journey", title:"Property journey", code:"03", x:624, w:190 },
+        { role:"upgrade", title:"Upgrade branch", code:"04", x:958, w:190 },
+        { role:"agent", title:"Agent workspace", code:"05", x:1292, w:190 },
+        { role:"admin", title:"Admin", code:"06", x:1560, w:190 }
+      ];
+
+      const byId = new Map(nodes.map((node, index) => [node.id, { ...node, index }]));
+      const canvas = elementById("flow-canvas");
+      const svg = elementById("connections");
+      const workspace = elementById("flow-map");
+      const detailCollapse = elementById("detail-collapse");
+      let selectedId = nodes.some(node => node.id === "onboarding")
+        ? "onboarding"
+        : nodes[0]?.id;
+      let roleFilter = "all";
+      let activeJourney = -1;
+      let focusSelection = false;
+      let zoom = 1;
+
+      lanes.forEach(lane => {
+        const element = document.createElement("div");
+        element.className = "lane";
+        element.dataset.role = lane.role;
+        element.style.left = lane.x + "px";
+        element.style.width = lane.w + "px";
+        const title = document.createElement("span");
+        title.className = "lane-title";
+        const code = document.createElement("b");
+        code.textContent = lane.code;
+        title.append(code, lane.title);
+        element.appendChild(title);
+        canvas.appendChild(element);
+      });
+
+      nodes.forEach((node, index) => {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "node";
+        element.id = "node-" + node.id;
+        element.dataset.id = node.id;
+        element.dataset.role = node.role;
+        element.dataset.status = node.status;
+        element.style.left = node.x + "px";
+        element.style.top = node.y + "px";
+        element.setAttribute("aria-label", `${node.title}, ${statusLabels[node.status]}, ${node.route}`);
+        const top = document.createElement("span");
+        top.className = "node-top";
+        const icon = document.createElement("span");
+        icon.className = "node-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = node.icon;
+        const title = document.createElement("span");
+        title.className = "node-title";
+        title.textContent = node.title;
+        top.append(icon, title);
+
+        const meta = document.createElement("span");
+        meta.className = "node-meta";
+        const route = document.createElement("span");
+        route.className = "node-route";
+        route.textContent = node.route;
+        const status = document.createElement("span");
+        status.className = "node-status";
+        const connectionCount =
+          edges.filter(edge => edge[0] === node.id || edge[1] === node.id)
+            .length;
+        if (node.status === "blocked") {
+          status.classList.add("is-unconnected");
+        }
+        const statusDot = document.createElement("i");
+        status.append(statusDot, `${connectionCount} link${connectionCount === 1 ? "" : "s"}`);
+        status.title = node.status === "blocked"
+          ? "Blocked or unverified connection"
+          : `${connectionCount} connected flow ${connectionCount === 1 ? "link" : "links"}`;
+        meta.append(route, status);
+        element.append(top, meta);
+        element.addEventListener("click", () => {
+          activeJourney = -1;
+          focusSelection = true;
+          roleFilter = "all";
+          setPressed(
+            filters,
+            filters.find(item => item.dataset.filter === "all"),
+          );
+          journeyButtons().forEach(item =>
+            item.setAttribute("aria-pressed", "false")
+          );
+          selectNode(node.id, true);
+          applyVisualState();
+        });
+        canvas.appendChild(element);
+      });
+
+      function routePath(from, to, type) {
+        const sx = from.x + 166;
+        const sy = from.y + 37;
+        const tx = to.x;
+        const ty = to.y + 37;
+        if (type === "straight" && Math.abs(sy - ty) < 20) {
+          return `M${sx},${sy} C${sx + 42},${sy} ${tx - 42},${ty} ${tx},${ty}`;
+        }
+        if (tx <= sx + 15) {
+          const bend = Math.min(sx + 58, 1850);
+          return `M${sx},${sy} C${bend},${sy} ${bend},${ty} ${tx},${ty}`;
+        }
+        const mid = sx + (tx - sx) / 2;
+        return `M${sx},${sy} C${mid},${sy} ${mid},${ty} ${tx},${ty}`;
+      }
+
+      edges.forEach(([fromId, toId, label, type]) => {
+        const from = byId.get(fromId);
+        const to = byId.get(toId);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.classList.add("edge-path");
+        path.dataset.from = fromId;
+        path.dataset.to = toId;
+        if (type === "needs") path.classList.add("needs");
+        if (type === "guard") path.classList.add("guard");
+        if (type === "blocked") path.classList.add("blocked");
+        path.setAttribute("d", routePath(from, to, type));
+        path.setAttribute("marker-end", "url(#arrow)");
+        svg.appendChild(path);
+
+        if (label && ["branch","route","needs","guard"].includes(type)) {
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.classList.add("edge-label");
+          text.dataset.from = fromId;
+          text.dataset.to = toId;
+          text.textContent = label.toUpperCase();
+          text.setAttribute("x", Math.round((from.x + 166 + to.x) / 2));
+          text.setAttribute("y", Math.round((from.y + to.y) / 2 + 31));
+          text.setAttribute("text-anchor", "middle");
+          svg.appendChild(text);
+        } else if (label && type === "blocked") {
+          const text = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text",
+          );
+          text.classList.add("edge-label", "blocked");
+          text.dataset.from = fromId;
+          text.dataset.to = toId;
+          text.textContent = label.toUpperCase();
+          text.setAttribute("x", Math.round((from.x + 166 + to.x) / 2));
+          text.setAttribute("y", Math.round((from.y + to.y) / 2 + 31));
+          text.setAttribute("text-anchor", "middle");
+          svg.appendChild(text);
+        }
+      });
+
+      const journeyGrid = elementById("journey-grid");
+      journeys.forEach((journey, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "journey";
+        button.dataset.index = index;
+        button.setAttribute("aria-pressed", "false");
+        const number = document.createElement("span");
+        number.className = "journey-no";
+        number.textContent = String(index + 1).padStart(2, "0");
+        const title = document.createElement("span");
+        title.className = "journey-title";
+        title.textContent = journey.title;
+        const description = document.createElement("span");
+        description.className = "journey-desc";
+        description.textContent = journey.short;
+        button.append(number, title, description);
+        button.addEventListener("click", () => highlightJourney(index));
+        journeyGrid.appendChild(button);
+      });
+
+      function selectNode(id, scrollIntoView) {
+        const node = byId.get(id);
+        if (!node) {
+          return;
+        }
+        selectedId = id;
+        graphNodes().forEach(element =>
+          element.classList.toggle("is-selected", element.dataset.id === id)
+        );
+        elementById("detail-title").textContent = node.title;
+        elementById("detail-route").textContent = node.route;
+        elementById("detail-index").textContent =
+          String(node.index + 1).padStart(2, "0") + " / " + nodes.length;
+        elementById("detail-description").textContent = node.description;
+        elementById("detail-note").textContent = node.note;
+        elementById("detail-source").textContent = node.source;
+        const status = elementById("detail-status");
+        status.className = "status-pill " + node.status;
+        status.textContent = statusLabels[node.status];
+        const list = elementById("detail-actions");
+        list.replaceChildren();
+        node.actions.forEach(action => {
+          const item = document.createElement("li");
+          item.textContent = action;
+          list.appendChild(item);
+        });
+        if (scrollIntoView) {
+          const target = elementById("node-" + id);
+          target?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "center",
+          });
+        }
+      }
+
+      function applyVisualState() {
+        const journey = activeJourney >= 0 ? journeys[activeJourney] : null;
+        const journeyNodes = journey ? new Set(journey.nodes) : null;
+        const connectedEdges = focusSelection && !journey
+          ? edges.filter(edge =>
+              edge[0] === selectedId || edge[1] === selectedId
+            )
+          : [];
+        const connectedNodes = new Set([selectedId]);
+        connectedEdges.forEach(edge => {
+          connectedNodes.add(edge[0]);
+          connectedNodes.add(edge[1]);
+        });
+        graphNodes().forEach(element => {
+          const node = byId.get(element.dataset.id);
+          const allowed = roleFilter === "all" || node.role === roleFilter || node.role === "entry" || (roleFilter === "admin" && node.role === "agent" && node.id === "create");
+          const dimByRole = !allowed;
+          const dimByJourney = !!journey && !journeyNodes.has(node.id);
+          const dimBySelection =
+            focusSelection && !journey && !connectedNodes.has(node.id);
+          element.classList.toggle(
+            "is-dim",
+            dimByRole || dimByJourney || dimBySelection
+          );
+          element.classList.toggle(
+            "is-path",
+            (!!journey && journeyNodes.has(node.id)) ||
+              (focusSelection && !journey &&
+                connectedNodes.has(node.id) &&
+                node.id !== selectedId)
+          );
+        });
+        document.querySelectorAll(".lane").forEach(lane => {
+          const role = lane.dataset.role;
+          const allowed = roleFilter === "all" || role === "entry" || roleFilter === role || (roleFilter === "buyer" && (role === "journey" || role === "upgrade")) || (roleFilter === "admin" && role === "agent");
+          lane.classList.toggle("is-dim", !allowed || (journey && ![...journeyNodes].some(id => byId.get(id).role === role)));
+        });
+        document.querySelectorAll(".edge-path").forEach(path => {
+          const relevantRole = roleFilter === "all" ||
+            ["entry", roleFilter].includes(byId.get(path.dataset.from).role) ||
+            ["entry", roleFilter].includes(byId.get(path.dataset.to).role);
+          const journeyMatch = journey && journey.edges.some(edge => edge[0] === path.dataset.from && edge[1] === path.dataset.to);
+          const selectionMatch = focusSelection && !journey &&
+            (path.dataset.from === selectedId || path.dataset.to === selectedId);
+          const highlighted = journeyMatch || selectionMatch;
+          path.classList.toggle("is-journey", !!journeyMatch);
+          path.classList.toggle("is-connected", !!selectionMatch);
+          path.setAttribute(
+            "marker-end",
+            highlighted ? "url(#arrow-active)" : "url(#arrow)"
+          );
+          path.style.opacity = journey || focusSelection
+            ? (highlighted ? "1" : ".07")
+            : relevantRole ? "" : ".04";
+        });
+        document.querySelectorAll(".edge-label").forEach(label => {
+          const connected =
+            (journey && journey.edges.some(edge =>
+              edge[0] === label.dataset.from && edge[1] === label.dataset.to
+            )) ||
+            (focusSelection && !journey &&
+              (label.dataset.from === selectedId ||
+                label.dataset.to === selectedId));
+          label.classList.toggle("is-connected", !!connected);
+          label.classList.toggle(
+            "is-dim",
+            (!!journey || focusSelection) && !connected
+          );
+        });
+      }
+
+      function highlightJourney(index) {
+        activeJourney = activeJourney === index ? -1 : index;
+        focusSelection = false;
+        journeyButtons().forEach(button =>
+          button.setAttribute(
+            "aria-pressed",
+            String(Number(button.dataset.index) === activeJourney),
+          )
+        );
+        if (activeJourney >= 0) {
+          roleFilter = "all";
+          setPressed(
+            filters,
+            filters.find(button => button.dataset.filter === "all"),
+          );
+          selectNode(journeys[index].nodes[0], true);
+        }
+        applyVisualState();
+      }
+
+      filters.forEach(button => {
+        button.addEventListener("click", () => {
+          roleFilter = button.dataset.filter;
+          activeJourney = -1;
+          focusSelection = false;
+          setPressed(filters, button);
+          journeyButtons().forEach(item =>
+            item.setAttribute("aria-pressed", "false")
+          );
+          applyVisualState();
+        });
+      });
+
+      elementById("clear-journey").addEventListener("click", () => {
+        activeJourney = -1;
+        focusSelection = false;
+        journeyButtons().forEach(item =>
+          item.setAttribute("aria-pressed", "false")
+        );
+        applyVisualState();
+      });
+
+      function setZoom(next) {
+        zoom = Math.max(.65, Math.min(1.35, next));
+        const scale = elementById("graph-scale");
+        scale.style.transform = `scale(${zoom})`;
+        scale.style.marginRight = `${1880 * (zoom - 1)}px`;
+        scale.style.marginBottom = `${900 * (zoom - 1)}px`;
+        elementById("zoom-value").textContent =
+          Math.round(zoom * 100) + "%";
+      }
+      elementById("zoom-out").addEventListener(
+        "click",
+        () => setZoom(zoom - .15),
+      );
+      elementById("zoom-in").addEventListener(
+        "click",
+        () => setZoom(zoom + .15),
+      );
+      elementById("zoom-reset").addEventListener("click", () => setZoom(1));
+      detailCollapse.addEventListener("click", () => {
+        const collapsed =
+          workspace.classList.toggle("inspector-collapsed");
+        detailCollapse.setAttribute("aria-expanded", String(!collapsed));
+        detailCollapse.setAttribute(
+          "aria-label",
+          collapsed
+            ? "Expand screen inspector"
+            : "Collapse screen inspector",
+        );
+      });
+
+      if (selectedId) {
+        selectNode(selectedId, false);
+      }
+      applyVisualState();
+    })();
+  </script>
+</body>
+</html>
