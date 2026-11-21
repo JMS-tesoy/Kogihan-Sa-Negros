@@ -11,9 +11,19 @@
 -- Ensure only valid roles can be inserted into profiles table
 -- This prevents privilege escalation via API if RLS policies have gaps
 
-ALTER TABLE public.profiles
-  ADD CONSTRAINT valid_role 
-  CHECK (role IN ('user', 'agent', 'admin'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.profiles'::regclass
+      AND conname = 'valid_role'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT valid_role
+      CHECK (role IN ('user', 'agent', 'admin'));
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 2. FIX PROPERTIES STATUS VISIBILITY POLICY
@@ -23,9 +33,10 @@ ALTER TABLE public.profiles
 -- properties for authenticated users.
 
 -- Drop the overly permissive policy
-DROP POLICY "anyone_view_published_properties" ON public.properties;
+DROP POLICY IF EXISTS "anyone_view_published_properties" ON public.properties;
 
 -- Create a more restrictive version that filters by status
+DROP POLICY IF EXISTS "anyone_view_active_properties" ON public.properties;
 CREATE POLICY "anyone_view_active_properties" ON public.properties
   FOR SELECT
   USING (
@@ -70,6 +81,7 @@ CREATE POLICY "admins_manage_subscriptions" ON public.subscriptions
 -- Only admins can change roles.
 
 -- For user update policy: prevent role column changes
+DROP POLICY IF EXISTS "users_update_own_profile_safe" ON public.profiles;
 CREATE POLICY "users_update_own_profile_safe" ON public.profiles
   FOR UPDATE
   USING (auth.uid() = id)
@@ -81,6 +93,7 @@ CREATE POLICY "users_update_own_profile_safe" ON public.profiles
 -- Properties must be assigned to the creating agent.
 -- Users should not be able to change agent_id after creation.
 
+DROP POLICY IF EXISTS "agents_cannot_reassign_properties" ON public.properties;
 CREATE POLICY "agents_cannot_reassign_properties" ON public.properties
   FOR UPDATE
   USING (agent_id = auth.uid())
@@ -92,10 +105,12 @@ CREATE POLICY "agents_cannot_reassign_properties" ON public.properties
 -- Users can only delete their own data
 -- Admins can delete anything
 
+DROP POLICY IF EXISTS "users_delete_own_profile" ON public.profiles;
 CREATE POLICY "users_delete_own_profile" ON public.profiles
   FOR DELETE
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "admins_delete_any_profile" ON public.profiles;
 CREATE POLICY "admins_delete_any_profile" ON public.profiles
   FOR DELETE
   USING (
@@ -105,10 +120,12 @@ CREATE POLICY "admins_delete_any_profile" ON public.profiles
     )
   );
 
+DROP POLICY IF EXISTS "agents_delete_own_properties" ON public.properties;
 CREATE POLICY "agents_delete_own_properties" ON public.properties
   FOR DELETE
   USING (agent_id = auth.uid());
 
+DROP POLICY IF EXISTS "admins_delete_any_property" ON public.properties;
 CREATE POLICY "admins_delete_any_property" ON public.properties
   FOR DELETE
   USING (
@@ -156,23 +173,23 @@ the profiles table for current role in policies.';
 -- ============================================================================
 -- Log any role changes for security monitoring
 
-CREATE OR REPLACE FUNCTION log_role_change()
+CREATE OR REPLACE FUNCTION public.log_role_change()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.role != OLD.role THEN
-    -- Insert audit log entry
-    INSERT INTO public.audit_logs (user_id, action, table_name, old_value, new_value)
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    INSERT INTO public.audit_logs
+      (user_id, operation, table_name, old_data, new_data)
     VALUES (
       auth.uid(),
       'role_change',
       'profiles',
-      OLD.role,
-      NEW.role
+      jsonb_build_object('role', OLD.role),
+      jsonb_build_object('role', NEW.role)
     );
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public;
 
 -- Drop existing trigger if present (to avoid conflicts)
 DROP TRIGGER IF EXISTS trigger_log_role_change ON public.profiles;

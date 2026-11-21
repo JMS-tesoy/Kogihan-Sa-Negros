@@ -23,17 +23,42 @@ serve(async (request) => {
     const payload = JSON.parse(rawBody);
     const event = payload.data;
     const attributes = event?.attributes ?? {};
-    const payment = attributes.data?.attributes;
+    const providerResource = attributes.data;
+    const resourceAttributes = providerResource?.attributes;
     const eventId = event?.id;
-    if (!eventId || !payment) {
+    const eventType = attributes.type ?? attributes.event_type ?? "";
+    if (!eventId || !providerResource || !resourceAttributes) {
       return Response.json({ error: "Invalid event" }, { status: 400 });
     }
-    const providerPayment = attributes.data;
-    const metadata = payment.metadata ?? {};
-    const orderId = metadata.local_order_id ?? metadata.order_id;
-    if (!orderId) return Response.json({ error: "Missing order reference" }, { status: 400 });
 
-    const eventType = attributes.type ?? attributes.event_type ?? "";
+    const isCheckoutPaid =
+      eventType === "checkout_session.payment.paid" &&
+      providerResource.type === "checkout_session";
+    const paymentIntent = resourceAttributes.payment_intent;
+    const payment = isCheckoutPaid
+      ? {
+        id: paymentIntent?.id,
+        amount: paymentIntent?.attributes?.amount,
+        currency: paymentIntent?.attributes?.currency,
+        metadata: resourceAttributes.metadata ??
+          paymentIntent?.attributes?.metadata ?? {},
+        status: "paid",
+      }
+      : {
+        id: providerResource.id,
+        amount: resourceAttributes.amount,
+        currency: resourceAttributes.currency,
+        metadata: resourceAttributes.metadata ?? {},
+        status: resourceAttributes.status,
+      };
+    if (!payment.id || !payment.amount || !payment.currency) {
+      return Response.json({ error: "Invalid payment resource" }, { status: 400 });
+    }
+    const orderId = payment.metadata.local_order_id ?? payment.metadata.order_id;
+    if (!orderId) {
+      return Response.json({ error: "Missing order reference" }, { status: 400 });
+    }
+
     const paymentStatus = String(payment.status ?? "").toLowerCase();
     const status = paymentStatus === "paid"
       ? "paid"
@@ -49,7 +74,7 @@ serve(async (request) => {
         ? new Date(attributes.created_at * 1000).toISOString()
         : new Date().toISOString(),
       order_id: orderId,
-      payment_id: providerPayment.id,
+      payment_id: payment.id,
       amount_minor: payment.amount,
       currency: payment.currency,
       status,

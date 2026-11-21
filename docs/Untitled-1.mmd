@@ -1,0 +1,71 @@
+---
+references:
+  - "File: /lib/features/admin/data/models/moderation_case.dart"
+  - "File: /lib/features/admin/data/moderation_repository.dart"
+  - "File: /lib/features/admin/presentation/screens/moderation_screen.dart"
+  - "File: /lib/features/admin/presentation/widgets/admin_overview_tab.dart"
+  - "File: /lib/features/properties/data/datasources/shared_properties.dart"
+  - "File:
+    /lib/features/properties/data/repositories/property_repository_impl.dart"
+  - "File: /mockups/app_user_flow/flow-data.js"
+  - "File: /supabase/migrations/20261121114548_moderation_workflow.sql"
+  - "File: /tool/update_user_flow.dart"
+generationTime: 2026-11-21T13:11:26.552Z
+---
+flowchart TD
+    ADMIN["Admin Overview"]
+    QUEUE["Open Moderation Queue"]
+    INIT["Queue initState: fetchCases()"]
+    FETCH[["Repository fetchCases()"]]
+    QUERIES[("Supabase: pending properties, reports")]
+    ENRICH{"Report IDs require enrichment?"}
+    LOOKUPS[["For each report, load property and profile context"]]
+    MODELS[["Map rows to ModerationCase models, combine, and sort descending"]]
+    STATE{"FutureBuilder state"}
+    WAIT["Loading, error, or empty state; retry when requested"]
+    FILTER["For each case, apply selected type filter"]
+    REVIEW[["Open review; fetchAudit()"]]
+    REASON{"Decision reason is non-empty?"}
+    DECIDE["Select allowed decision by case type"]
+    RPC["Call resolve_moderation_case RPC"]
+    GUARDS{"Authenticated admin and pending case?"}
+    RESOLVE[["Lock case; update property or report status; choose new state"]]
+    RECORD[["Insert audit entry and send agent or reporter notifications"]]
+    RETURN["Pop with changed=true and refresh queue"]
+
+    PROPERTY["Property creation or updates set status and moderation_status to pending"]
+    DOCS["docs/app_user_flow.md"]
+    TOOL[["update_user_flow.dart: parse nodes, edges, routes, and journeys; validate declarations"]]
+    FLOW["Generate APP_FLOW_DATA in flow-data.js"]
+
+    ADMIN --> QUEUE
+    QUEUE --> INIT
+    INIT --> FETCH
+    FETCH --> QUERIES
+    QUERIES --> ENRICH
+    ENRICH -->|Yes| LOOKUPS
+    LOOKUPS -->|Next report| LOOKUPS
+    ENRICH -->|No| MODELS
+    LOOKUPS --> MODELS
+    MODELS --> STATE
+    STATE -->|Waiting, error, or empty| WAIT
+    WAIT -->|Retry| FETCH
+    STATE -->|Loaded| FILTER
+    FILTER -->|Next case| FILTER
+    FILTER --> REVIEW
+    REVIEW --> REASON
+    REASON -->|No| REVIEW
+    REASON -->|Yes| DECIDE
+    DECIDE --> RPC
+    RPC --> GUARDS
+    GUARDS -->|No| REVIEW
+    GUARDS -->|Yes| RESOLVE
+    RESOLVE --> RECORD
+    RECORD --> RETURN
+    RETURN --> FETCH
+
+    PROPERTY -.-> QUERIES
+    DOCS --> TOOL
+    TOOL -->|Validation passes| FLOW
+    TOOL -->|Invalid declaration| TOOL
+    FLOW -.-> ADMIN

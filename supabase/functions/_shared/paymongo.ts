@@ -56,9 +56,17 @@ export async function verifySignature(
   const parts = signatureHeader.split(",");
   const timestamp = parts.find((part) => part.trim().startsWith("t="))
     ?.split("=")[1]?.trim();
-  const signatures = parts
-    .filter((part) => part.trim().startsWith("v1="))
-    .map((part) => part.trim().slice(3));
+  const signatures = parts.flatMap((part) => {
+    const normalized = part.trim();
+    if (
+      normalized.startsWith("te=") ||
+      normalized.startsWith("li=") ||
+      normalized.startsWith("v1=")
+    ) {
+      return [normalized.slice(normalized.indexOf("=") + 1)];
+    }
+    return [];
+  });
   if (!timestamp || signatures.length === 0) return false;
   const age = Math.abs(Date.now() / 1000 - Number(timestamp));
   if (!Number.isFinite(age) || age > 300) return false;

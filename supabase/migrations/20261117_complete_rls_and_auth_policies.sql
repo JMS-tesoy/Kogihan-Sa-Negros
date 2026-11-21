@@ -231,14 +231,13 @@ CREATE POLICY "admins_view_all_favorites" ON public.favorites
 -- 7. AGENT TEAMS TABLE
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS public.agent_teams (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  leader_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+ALTER TABLE public.agent_teams
+  ADD COLUMN IF NOT EXISTS leader_id uuid
+    REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE public.agent_teams
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz
+    NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS agent_teams_leader_id_idx ON public.agent_teams(leader_id);
 
@@ -276,21 +275,24 @@ CREATE POLICY "admins_manage_all_teams" ON public.agent_teams
 -- 8. TEAM MEMBERS TABLE
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS public.team_members (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id uuid NOT NULL REFERENCES public.agent_teams(id) ON DELETE CASCADE,
-  member_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  role text NOT NULL DEFAULT 'member' CHECK (role IN ('member', 'lead', 'admin')),
-  joined_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(team_id, member_id)
-);
+ALTER TABLE public.team_members
+  ADD COLUMN IF NOT EXISTS member_id uuid
+    REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE public.team_members
+  ADD COLUMN IF NOT EXISTS joined_at timestamptz
+    NOT NULL DEFAULT now();
+
+UPDATE public.team_members
+SET member_id = user_id
+WHERE member_id IS NULL
+  AND user_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS team_members_team_id_idx ON public.team_members(team_id);
 CREATE INDEX IF NOT EXISTS team_members_member_id_idx ON public.team_members(member_id);
 
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 
--- Users can view team members of teams they're in or public teams
 CREATE POLICY "users_view_team_members" ON public.team_members
   FOR SELECT
   USING (
@@ -302,7 +304,6 @@ CREATE POLICY "users_view_team_members" ON public.team_members
     )
   );
 
--- Team leaders can add/remove members
 CREATE POLICY "leaders_manage_members" ON public.team_members
   FOR ALL
   USING (
@@ -312,7 +313,6 @@ CREATE POLICY "leaders_manage_members" ON public.team_members
     )
   );
 
--- Admins can manage all team members
 CREATE POLICY "admins_manage_team_members" ON public.team_members
   FOR ALL
   USING (
@@ -369,47 +369,14 @@ CREATE POLICY "admins_manage_subscriptions" ON public.subscriptions
 -- 10. MESSAGES TABLE
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS public.messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  sender_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  receiver_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  content text NOT NULL,
-  attachment_url text,
-  read_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
+-- The existing messaging model is conversation-based. Its participant RLS
+-- policies are defined by the messaging migration and remain authoritative.
+CREATE INDEX IF NOT EXISTS messages_conversation_id_created_at_idx
+  ON public.messages(conversation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS messages_sender_id_idx ON public.messages(sender_id);
-CREATE INDEX IF NOT EXISTS messages_receiver_id_idx ON public.messages(receiver_id);
 CREATE INDEX IF NOT EXISTS messages_created_at_idx ON public.messages(created_at DESC);
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-
--- Users can view their own messages
-CREATE POLICY "users_view_own_messages" ON public.messages
-  FOR SELECT
-  USING (sender_id = auth.uid() OR receiver_id = auth.uid());
-
--- Users can insert messages
-CREATE POLICY "users_insert_messages" ON public.messages
-  FOR INSERT
-  WITH CHECK (sender_id = auth.uid());
-
--- Users can update their received messages (mark read)
-CREATE POLICY "users_update_messages" ON public.messages
-  FOR UPDATE
-  USING (receiver_id = auth.uid())
-  WITH CHECK (receiver_id = auth.uid());
-
--- Admins can view all messages
-CREATE POLICY "admins_view_all_messages" ON public.messages
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
 
 -- ============================================================================
 -- 11. MODERATION TABLE
